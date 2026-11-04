@@ -83,7 +83,7 @@ export interface PollDto {
 export interface SeasonRaceDto {
   key: string; label: string; kind: string; geo: string; day: number; options: SeasonOption[]; contestId: number | null;
   polls: PollDto[];
-  averages: { day: number; options: Record<string, { mean: number; lo: number; hi: number }>; margin: { a: string; b: string; mean: number; lo: number; hi: number } | null }[];
+  averages: { day: number; options: Record<string, { mean: number; lo: number; hi: number }>; margin: { a: string; b: string; mean: number; lo: number; hi: number } | null; lvGap?: number }[];
   forecast: { asOf: number; pD: number; mean: number; lo80: number; hi80: number }[];
   result: { margin: number | null; shares: Record<string, number> } | null;
 }
@@ -97,7 +97,7 @@ export interface PollsterDto {
 }
 export interface CalibrationDto {
   year: number; ready: boolean; asOf: number | null;
-  races: { key: string; label: string; kind: string; pD: number; mean: number; actual: number; dWon: boolean }[];
+  races: { key: string; label: string; kind: string; pD: number; mean: number; lo80: number; hi80: number; actual: number; dWon: boolean }[];
   brier: number | null; bins: { lo: number; hi: number; n: number; predicted: number; observed: number }[];
   president: { pD: number; evMean: number; ev80: [number, number]; actualEV: number | null; dWon: boolean | null } | null;
 }

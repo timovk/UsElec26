@@ -35,7 +35,7 @@ test('election night: broadcast live, magic wall, alerts and commentary, analyst
   await page.evaluate(() => { location.hash = '#/desk'; });
   await page.locator('.timebar').getByRole('button', { name: /Next election/ }).waitFor();
   let lastStep = 0;
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 160; i++) { // every primary day (presidential, congressional and state) stops here first
     const toasts = (await page.locator('.toast').allInnerTexts()).join(' ');
     if (/Polls open: 2016 general election/.test(toasts)) break;
     const s0 = Date.now();

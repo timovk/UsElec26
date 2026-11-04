@@ -40,6 +40,24 @@
 | **Analyst Mode** | Depth | Outstanding-vote model by RJ with intervals; batch log; mode breakdown; swing scatterplots (county swing vs demographics); turnout analytics; voter-survey crosstabs; forecast vs result; network call timelines; labeled *simulation truth* panels |
 | **Settings** | | Audio, reduced motion, color-vision options, storage and backups, archive integrity, diagnostics (device benchmark), advanced simulation options (hidden behind a disclosure) |
 
+**Phase 5 status (as built).**
+- **Polls & Forecasts** (`#/polls/<year>/<tab>`), with five tabs:
+  - **Forecast:** presidency, Senate and House probabilities; the EV histogram with the 270 line; the snake of
+    states (each as wide as its electoral votes, tipping-point states underlined); the tipping-point table; seat
+    distributions; forecast history; the most competitive races.
+  - **Races:** every polled race with its average and forecast. A race page shows the average with its 80% band
+    and the polls as dots (shares or margin), the forecast history and the poll list.
+  - **Polls:** the latest polls.
+  - **Pollsters:** each pollster's method, sponsor, scope, house effect and, after elections, its track record.
+  - **Forecast vs result:** after the count, the Brier score, a reliability diagram, upsets and the largest misses.
+  Only published polls appear; results appear only once each race's count is complete.
+- **Primaries** (`#/primaries/<year>`): per party, the nominee or presumptive nominee, a delegate tracker
+  (pledged, superdelegates, the majority line), the candidates (status, delegates, states won, endorsements),
+  convention ballots, and the calendar with each contest's event, delegates, winner and top results.
+- The **Desk** gains a season card with the latest forecast and links.
+- Charts follow the Phase 4 rules: one y-axis, 2 px lines, a recessive grid and hover readouts. Candidates of the
+  same party use a categorical palette validated for the dark surface, always with direct labels.
+
 ## 9.3 Broadcast Mode (the centrepiece)
 
 > **Phase 4 status:** implemented — see [../phase-4-report.md](../phase-4-report.md). As built at 1366×768, the race card sits

@@ -94,6 +94,7 @@ turnout, turnout change, reporting, outstanding).
 - **Risks:** rendering performance on weak GPUs; commentary quality.
 
 ### Phase 5: Campaigns, polling, forecasts, primaries
+**Status:** implemented — see [../phase-5-report.md](../phase-5-report.md). Deviations: primary election nights are not yet counted live (primaries are decided at the close of voting); primary polls approximate the primary electorate from the general electorate's types; the economy is still a stub in the fundamentals; debates are held for the presidential nomination and general and for statewide general races, not for congressional or gubernatorial primaries; 1,500 forecast draws rather than 20,000.
 Deliverables: campaign dynamics, events in campaigns, pollsters, poll fieldwork and archive, Kalman averages,
 Monte Carlo forecasts and history, presidential primaries (2016 calendar baseline, caucuses, delegate rules
 including thresholds and superdelegates as in 2016 rules, withdrawals, conventions including contested ones),

@@ -9,11 +9,12 @@ export type PollMethod = 'live phone' | 'IVR/text' | 'online panel' | 'mixed mod
 export type PollScope = 'national' | 'multi-state' | 'state';
 
 export interface PollsterParams {
-  /** House effect (utility units toward the Democratic candidate) and its slow drift per year. */
+  /** House effect (utility units toward the Democratic candidate) and its slow drift (bounded at three times this over decades). */
   house: number; houseDrift: number;
   classBias: number[];          // log weights by cohort class
   partisanNonresponse: number;
-  lvQuality: number;
+  lvQuality: number;            // 0–1: how well the likely-voter screen works
+  lvTilt: number;               // direction and size of the screen's error (screen exponent = (1 − lvQuality) × lvTilt)
   n: [number, number];          // typical sample size range
   deff: number;
   perMonth: number;             // polls per month at peak season
@@ -55,11 +56,11 @@ export function makePollsters(seed: string, states: { idx: number; vep: number }
       id: i + 1, name, short: name.split(' ').slice(0, 2).join(' ').replace(/ (Poll|Analytics|Polling|Research)$/, ''), method,
       sponsor: pick(SPONSORS), scope, homeState, founded: startYear - 1 - r.int(40),
       params: {
-        house: r.normal(0, 0.03), houseDrift: r.normal(0, 0.01),
-        classBias: [0, 1, 2, 3].map(() => r.normal(0, method === 'online panel' ? 0.09 : method === 'IVR/text' ? 0.11 : 0.06)),
-        partisanNonresponse: r.normal(0, 0.012),
-        lvQuality: r.range(0.45, 0.95), n: big ? [900, 1600] : scope === 'multi-state' ? [550, 1000] : [400, 800],
-        deff: r.range(1.3, 2.2), perMonth: big ? r.range(2, 8) : scope === 'multi-state' ? r.range(3, 9) : r.range(1, 4),
+        house: r.normal(0, 0.02), houseDrift: r.normal(0, 0.006),
+        classBias: [0, 1, 2, 3].map(() => r.normal(0, method === 'online panel' ? 0.05 : method === 'IVR/text' ? 0.06 : 0.035)),
+        partisanNonresponse: r.normal(0, 0.006),
+        lvQuality: r.range(0.45, 0.95), lvTilt: r.normal(0, 1.2), n: big ? [1000, 2000] : scope === 'multi-state' ? [550, 1000] : [400, 800],
+        deff: r.range(1.2, 1.8), perMonth: big ? r.range(2, 8) : scope === 'multi-state' ? r.range(3, 9) : r.range(1, 4),
         herding: r.bernoulli(0.25) ? r.range(0.15, 0.5) : 0, undecided: r.range(0.03, 0.14), usesLV: !r.bernoulli(0.2),
       },
     });
@@ -70,5 +71,5 @@ export function makePollsters(seed: string, states: { idx: number; vep: number }
 /** The cycle's shared polling bias (correlated misses): class coverage and partisan nonresponse common to every pollster. */
 export function cycleBias(seed: string, year: number): { classBias: number[]; partisanNonresponse: number } {
   const r = Rng.stream(seed, 'poll-cycle-bias', year);
-  return { classBias: [0, 1, 2, 3].map(() => r.normal(0, 0.05)), partisanNonresponse: r.normal(0, 0.01) };
+  return { classBias: [0, 1, 2, 3].map(() => r.normal(0, 0.04)), partisanNonresponse: r.normal(0, 0.008) };
 }

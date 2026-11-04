@@ -7,7 +7,7 @@ import { Rng } from '../../../src/core/rng';
 import { fieldPoll, type PieceTypes, type PollDesign } from '../../../src/electorate/measure';
 import { N_CLASS, N_TYPES, ZG, type KernelContest } from '../../../src/electorate/kernel';
 import { kalman, raceAverage, houseEffects, type PollObs } from '../../../src/polling/average';
-import { makePollsters } from '../../../src/polling/pollsters';
+import { cycleBias, makePollsters } from '../../../src/polling/pollsters';
 
 /** A synthetic electorate: three counties of voter types spread over partisanship and classes. */
 function electorate(seed: string): PieceTypes[] {
@@ -19,7 +19,7 @@ function electorate(seed: string): PieceTypes[] {
   });
 }
 const contest: KernelContest = { id: 1, cd: -1, weight: 1, abstain: -4, options: [0.5, -0.5].map((partySign) => ({ partySign, base: 0, classFit: [0, 0, 0, 0], minorAppeal: 0, homeCounty: -1, homeState: false })) };
-const plain: PollDesign = { n: 800, deff: 1.5, population: 'LV', lvQuality: 1, house: 0, classBias: [0, 0, 0, 0], partisanNonresponse: 0, undecided: 0 };
+const plain: PollDesign = { n: 800, deff: 1.5, population: 'LV', lvScreen: 0, house: 0, classBias: [0, 0, 0, 0], partisanNonresponse: 0, undecided: 0 };
 const area = (pieces: PieceTypes[], zShift = 0) => [{ contest, pieces, zShift: [zShift, zShift, zShift, zShift], bonuses: { homeStateBonus: 0, homeCountyBonus: 0 } }];
 
 function margins(design: PollDesign, k: number, seed: string, zShift = 0): number[] {
@@ -49,6 +49,28 @@ describe('poll fieldwork (measurement port)', () => {
     const p = fieldPoll(area(pieces), { ...plain, n: 100000, deff: 1, undecided: 0.12 }, [0.9, 0.3], Rng.stream('u'));
     expect(p.undecided / p.n).toBeGreaterThan(0.04);
     expect(p.counts[0]! / p.n).toBeGreaterThan(p.counts[1]! / p.n);
+  });
+  it('systematic errors across the pollster population have a realistic spread (house effects ~1.5 points, cycle misses ~1 point here)', () => {
+    // A more realistic electorate for this check: classes differ in partisanship and in candidate fit.
+    const r = Rng.stream('E2', 'types');
+    const pieces: PieceTypes[] = [0, 1, 2].map((county) => {
+      const lv = new Float32Array(N_TYPES), rv = new Float32Array(N_TYPES);
+      for (let h = 0; h < N_CLASS; h++) for (let g = 0; g < ZG; g++) { const z = g - ZG / 2 + 0.5; const w = 1000 * Math.exp(-((z - (county - 1) * 0.8 - (h - 1.5) * 0.6) ** 2) / 8) * (0.5 + r.float()); rv[h * ZG + g] = w; lv[h * ZG + g] = w * (0.45 + 0.1 * Math.abs(z) / 3); }
+      return { county, cd: 0, lv, rv };
+    });
+    const fit = [0.3, 0.1, -0.1, -0.3];
+    const c2: KernelContest = { ...contest, options: [1, -1].map((s) => ({ partySign: s * 0.5, base: 0, classFit: fit.map((f) => s * f), minorAppeal: 0, homeCounty: -1, homeState: false })) };
+    const ar = [{ contest: c2, pieces, zShift: [0, 0, 0, 0], bonuses: { homeStateBonus: 0, homeCountyBonus: 0 } }];
+    const m = (d: Partial<PollDesign>) => { const p = fieldPoll(ar, { ...plain, ...d, n: 2_000_000, deff: 1 }, [0.95, 0.95], Rng.stream('x')); return (100 * (p.counts[0]! - p.counts[1]!)) / (p.counts[0]! + p.counts[1]!); };
+    const t = m({});
+    const house: number[] = [];
+    for (let s = 0; s < 6; s++) for (const p of makePollsters(`S${s}`, [{ idx: 0, vep: 1e6 }], 2016)) house.push(m({ house: p.params.house, classBias: p.params.classBias, partisanNonresponse: p.params.partisanNonresponse, lvScreen: (1 - p.params.lvQuality) * p.params.lvTilt }) - t);
+    const cyc = Array.from({ length: 200 }, (_, y) => { const c = cycleBias('S', 2000 + y); return m({ classBias: c.classBias, partisanNonresponse: c.partisanNonresponse }) - t; });
+    const rms = (a: number[]) => Math.sqrt(a.reduce((s, x) => s + x * x, 0) / a.length);
+    console.log(`pollster systematic error: rms ${rms(house).toFixed(2)}, max ${Math.max(...house.map(Math.abs)).toFixed(2)} points; cycle miss rms ${rms(cyc).toFixed(2)}`);
+    expect(rms(house)).toBeGreaterThan(0.7); expect(rms(house)).toBeLessThan(2.5);
+    expect(Math.max(...house.map(Math.abs))).toBeLessThan(6);
+    expect(rms(cyc)).toBeGreaterThan(0.4); expect(rms(cyc)).toBeLessThan(2.2);
   });
   it('fictional pollsters only', () => {
     const ps = makePollsters('S', [{ idx: 0, vep: 1e6 }, { idx: 1, vep: 4e6 }], 2016);

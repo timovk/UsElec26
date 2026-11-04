@@ -21,8 +21,10 @@ export async function runSeasonQuery(u: Universe, q: SeasonQuery): Promise<unkno
 }
 
 interface RunPayload { out: Omit<ForecastDto, 'races' | 'nominees'> & { races: { key: string; pD: number; mean: number; lo80: number; hi80: number }[] }; races: { key: string; label: string; kind: string; state: number; ev: number }[] }
-const runCache = new Map<number, RunPayload>();
+/** Decoded forecast payloads, per universe (run ids repeat across universes). */
+const runCaches = new WeakMap<Universe, Map<number, RunPayload>>();
 async function payloadOf(u: Universe, runId: number, bytes?: Uint8Array): Promise<RunPayload> {
+  let runCache = runCaches.get(u); if (!runCache) { runCache = new Map(); runCaches.set(u, runCache); }
   const hit = runCache.get(runId); if (hit) return hit;
   const b = bytes ?? u.db.get<{ payload: Uint8Array }>('SELECT payload FROM forecast_run WHERE run_id = ?', [runId])!.payload;
   const p = JSON.parse(new TextDecoder().decode(await gunzip(b))) as RunPayload;
@@ -120,7 +122,7 @@ async function race(u: Universe, key: string): Promise<SeasonRaceDto | null> {
   const extra = JSON.parse(d.options_json) as { options: SeasonRaceDto['options']; day: number };
   const day = today(u);
   const averages = u.db.all<{ as_of: number; payload_json: string }>("SELECT as_of, payload_json FROM poll_average WHERE race_key = ? AND method = 'kalman' AND as_of <= ? ORDER BY as_of", [key, day])
-    .map((r) => { const a = JSON.parse(r.payload_json); return { day: r.as_of, options: a.options, margin: a.margin }; });
+    .map((r) => { const a = JSON.parse(r.payload_json); return { day: r.as_of, options: a.options, margin: a.margin, ...(a.lvGap !== undefined ? { lvGap: a.lvGap } : {}) }; });
   const runs = u.db.all<{ run_id: number; as_of: number }>('SELECT run_id, as_of FROM forecast_run WHERE year = ? AND as_of <= ? ORDER BY as_of', [d.year, day]);
   const forecast: SeasonRaceDto['forecast'] = [];
   for (const r of runs) { const p = await payloadOf(u, r.run_id); const x = p.out.races.find((y) => y.key === key); if (x) forecast.push({ asOf: r.as_of, pD: x.pD, mean: x.mean, lo80: x.lo80, hi80: x.hi80 }); }
@@ -163,7 +165,7 @@ async function calibration(u: Universe, year: number): Promise<CalibrationDto> {
   let pres: { d: number; ev: number } | null = null;
   for (const r of p.out.races) {
     const act = actualMargin(u, r.key); if (act === null) continue;
-    races.push({ key: r.key, label: meta.get(r.key)?.label ?? r.key, kind: meta.get(r.key)?.kind ?? '', pD: r.pD, mean: r.mean, actual: act, dWon: act > 0 });
+    races.push({ key: r.key, label: meta.get(r.key)?.label ?? r.key, kind: meta.get(r.key)?.kind ?? '', pD: r.pD, mean: r.mean, lo80: r.lo80, hi80: r.hi80, actual: act, dWon: act > 0 });
     if (meta.get(r.key)?.kind === 'pres_state') { pres ??= { d: 0, ev: 0 }; if (act > 0) pres.ev += meta.get(r.key)!.ev; }
   }
   const brier = races.length ? races.reduce((a, r) => a + (r.pD - (r.dWon ? 1 : 0)) ** 2, 0) / races.length : null;

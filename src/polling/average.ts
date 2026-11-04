@@ -19,6 +19,8 @@ export interface AverageOut {
   margin: { a: string; b: string; mean: number; lo: number; hi: number } | null;
   /** Simple recency-weighted average (last 21 days), for comparison. */
   simple: Record<string, number>;
+  /** Points of margin by which registered-voter polls were moved toward the likely electorate (general elections). */
+  lvGap?: number;
 }
 
 const Z80 = 1.2816;

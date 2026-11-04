@@ -44,6 +44,8 @@ export interface Race {
   electionId: number | null; ev: number;
   /** Campaign key of the race (presidential general and nominations share one national campaign per candidate). */
   campaign: string;
+  /** A general election whose primaries have not all chosen nominees yet: the parties still choosing (0: a top-two primary). Not polled; forecast from fundamentals. */
+  awaiting?: number[];
 }
 
 interface PollRec {
@@ -59,7 +61,10 @@ export class Season {
   private averages = new Map<string, AverageOut>();
   private forecast: { day: number; out: ForecastOutput } | null = null;
   private pend = { polls: [] as PollRec[], averages: [] as { race: string; asOf: number; out: AverageOut }[], races: new Map<string, Race>(), events: [] as unknown[][], endorsements: [] as unknown[][], debates: [] as unknown[][], finance: [] as unknown[][], forecasts: [] as { year: number; asOf: number; summary: string; payload: Uint8Array }[], pollsters: [] as Pollster[] };
-  private raceDefsWritten = new Set<string>();
+  /** Options recorded for each race so far (a union, so polls naming candidates who later withdrew stay readable). */
+  private raceDefs = new Map<string, Opt[]>();
+  /** Races with a Democratic and a Republican option (general elections): where partisan house effects and the likely-voter adjustment apply. */
+  private partisanRaces = new Map<string, { d: string; r: string; day: number }>();
   private dayRaces: { day: number; races: Race[] } | null = null;
 
   constructor(private readonly E: ElectionEngine) {}
@@ -112,7 +117,11 @@ export class Season {
     }
     this.polls = rows.map((r) => ({ id: r.poll_id, pollster: r.pollster_id, race: r.race_key, contestId: r.contest_id, year: r.year, geo: r.geo, start: r.field_start, end: r.field_end, published: r.published, population: r.population, n: r.n, moe: r.moe, method: r.method, sponsor: r.sponsor, responses: resp.get(r.poll_id) ?? [] }));
     for (const a of this.db.all<{ race_key: string; payload_json: string; as_of: number }>("SELECT race_key, payload_json, as_of FROM poll_average WHERE method = 'kalman' AND race_key IN (SELECT race_key FROM race_def WHERE year = ?) ORDER BY as_of", [year])) this.averages.set(a.race_key, JSON.parse(a.payload_json));
-    for (const k of this.db.all<{ race_key: string }>('SELECT race_key FROM race_def WHERE year = ?', [year])) this.raceDefsWritten.add(k.race_key);
+    for (const k of this.db.all<{ race_key: string; kind: string; options_json: string }>('SELECT race_key, kind, options_json FROM race_def WHERE year = ?', [year])) {
+      const def = JSON.parse(k.options_json) as { options: Opt[]; day: number };
+      this.raceDefs.set(k.race_key, def.options);
+      this.notePartisan(k.race_key, k.kind as RaceKind, def.options, def.day);
+    }
     const f = this.db.get<{ as_of: number; payload: Uint8Array }>('SELECT as_of, payload FROM forecast_run WHERE year = ? ORDER BY as_of DESC, run_id DESC LIMIT 1', [year]);
     this.forecast = f ? { day: f.as_of, out: JSON.parse(new TextDecoder().decode(await gunzip(f.payload))).out } : null;
   }
@@ -138,6 +147,11 @@ export class Season {
     const rows = this.db.all<ContestRow & { eday: number }>(`SELECT c.*, e.day AS eday FROM contest c JOIN election e ON e.election_id = c.election_id
       WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND c.kind IN ('general','special','pres_state','primary','top_two','pres_primary') ORDER BY c.contest_id`, [year, day]);
     const opt = (cand: CandidacyRow, p: Person): Opt => ({ key: `p${p.id}`, label: fullName(p), party: cand.party_id, personId: p.id });
+    // A general election is not a race to poll until every primary (and runoff) feeding it has chosen its nominee.
+    const awaiting = new Map<number, number[]>();
+    for (const f of this.db.all<{ next_contest: number; party_id: number | null }>("SELECT next_contest, party_id FROM contest WHERE year = ? AND kind IN ('primary','top_two') AND status IN ('set','filing') AND next_contest IS NOT NULL", [year])) {
+      const a = awaiting.get(f.next_contest) ?? []; a.push(f.party_id ?? 0); awaiting.set(f.next_contest, a);
+    }
     // Every candidacy of those contests in one query.
     const byContest = new Map<number, { cand: CandidacyRow; person: Person }[]>();
     for (const k of this.db.all<CandidacyRow>(`SELECT k.* FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id JOIN election e ON e.election_id = c.election_id
@@ -147,7 +161,8 @@ export class Season {
     }
     for (const c of rows) {
       const cands = byContest.get(c.contest_id) ?? [];
-      if (cands.length < 1) continue;
+      const pending = awaiting.get(c.contest_id);
+      if (cands.length < 1 && !pending) continue;
       const office = this.E.officeKindOf(c);
       const st = c.state_idx !== null ? w.pack.states[c.state_idx]! : null;
       const primary = c.kind === 'primary' || c.kind === 'top_two' || c.kind === 'pres_primary';
@@ -159,6 +174,7 @@ export class Season {
         stateIdx: c.state_idx, cd: office === 'us_representative' ? cd : null, contestId: c.contest_id, office, party: c.party_id ?? 0, day: c.eday,
         options: cands.map((x) => opt(x.cand, x.person)), electionId: c.election_id, ev: c.kind === 'pres_primary' ? c.ev ?? 0 : 0,
         campaign: c.kind === 'pres_primary' ? `NOM:${year}:${c.party_id}` : `C:${c.contest_id}`,
+        ...(pending && !primary ? { awaiting: pending } : {}),
       });
     }
     // The presidential general: from the presumptive nominees (state contests exist from the conventions).
@@ -436,7 +452,7 @@ export class Season {
     for (const pz of pollsters) {
       const rr = Rng.stream(w.seed, 'poll', pz.id, day);
       // Candidate races for this pollster, weighted by salience and the season.
-      const cand = races.filter((r) => r.options.length >= 2 && (pz.scope === 'national' ? r.geo === 'US' || (r.stateIdx !== null && rr.float() < 0.15) : pz.scope === 'multi-state' ? r.stateIdx !== null : r.stateIdx === pz.homeState));
+      const cand = races.filter((r) => r.options.length >= 2 && !r.awaiting && (pz.scope === 'national' ? r.geo === 'US' || (r.stateIdx !== null && rr.float() < 0.15) : pz.scope === 'multi-state' ? r.stateIdx !== null : r.stateIdx === pz.homeState));
       if (!cand.length) continue;
       const weights = cand.map((r) => this.salience(r, day, lean));
       const total = weights.reduce((a, b) => a + b, 0);
@@ -483,8 +499,8 @@ export class Season {
     const n = Math.round(rr.range(p.n[0], p.n[1]) * (r.geo === 'US' ? 1 : 0.85));
     const lv = p.usesLV && (primary || left < 80);
     const design: PollDesign = {
-      n, deff: p.deff, population: lv ? 'LV' : 'RV', lvQuality: p.lvQuality,
-      house: p.house + p.houseDrift * (year - 2016) / 4,
+      n, deff: p.deff, population: lv ? 'LV' : 'RV', lvScreen: (1 - p.lvQuality) * (p.lvTilt ?? 0),
+      house: p.house + 3 * p.houseDrift * Math.tanh((year - 2016) / 12), // slow, bounded drift
       classBias: p.classBias.map((b, h) => b + cyc.classBias[h]!), partisanNonresponse: p.partisanNonresponse + cyc.partisanNonresponse,
       undecided: p.undecided * (primary ? 1.6 : 1) * (1 + Math.max(0, left) / 160),
     };
@@ -501,30 +517,55 @@ export class Season {
       responses: [...r.options.map((o, j) => ({ key: o.key, label: o.label, party: o.party, personId: o.personId, pct: Math.round(pct[j]!) })), { key: 'und', label: 'Undecided/other', party: 0, personId: null, pct: Math.round((100 * res.undecided) / res.n) }],
     };
     this.polls.push(rec); this.pend.polls.push(rec);
-    if (!this.raceDefsWritten.has(r.key)) { this.raceDefsWritten.add(r.key); this.pend.races.set(r.key, r); }
+    const prev = this.raceDefs.get(r.key);
+    if (!prev || r.options.some((o) => !prev.some((x) => x.key === o.key))) {
+      const options = prev ? [...prev, ...r.options.filter((o) => !prev.some((x) => x.key === o.key))] : r.options;
+      this.raceDefs.set(r.key, options); this.pend.races.set(r.key, { ...r, options });
+      this.notePartisan(r.key, r.kind, r.options, r.day);
+    }
   }
 
-  /** Publication: polls released today enter the averages (house effects re-estimated from every published poll). */
-  private publish(day: DayNumber, races: Race[]): string[] {
+  private notePartisan(key: string, kind: RaceKind, options: Opt[], day: number): void {
+    if (kind === 'primary' || kind.startsWith('nom')) return;
+    const d = options.find((o) => o.party === PARTY_D), q = options.find((o) => o.party === PARTY_R);
+    if (d && q) this.partisanRaces.set(key, { d: d.key, r: q.key, day });
+  }
+
+  /**
+   * Publication: polls released today enter the averages. Two adjustments are estimated from published polls
+   * only: registered-voter polls are moved toward the likely electorate by the gap between registered- and
+   * likely-voter polls of the same races (shrunk toward a prior of 2 points before both kinds exist), and each
+   * pollster's house effect is estimated from its residuals against the averages of general-election races.
+   */
+  private publish(day: DayNumber): string[] {
     const t0 = at(day, 0), t1 = at(day + 1, 0);
     const fresh = this.polls.filter((p) => p.published >= t0 && p.published < t1);
     if (!fresh.length) return [];
     const now = at(day + 1, 0);
     const published = this.polls.filter((p) => p.published < now);
-    // House effects on the margin from residuals against each race's unadjusted average at the time.
-    const resid: { pollster: number; resid: number }[] = [];
+    const margin = (p: PollRec, a: string, b: string) => { const x = p.responses.find((o) => o.key === a)?.pct, y = p.responses.find((o) => o.key === b)?.pct; return x === undefined || y === undefined ? null : x - y; };
+    const resid: { pollster: number; resid: number; rv: boolean }[] = [];
+    let sRV = 0, nRV = 0, sLV = 0, nLV = 0;
     for (const p of published) {
-      const a = this.averages.get(p.race); if (!a?.margin) continue;
-      const x = p.responses.find((o) => o.key === a.margin!.a)?.pct, y = p.responses.find((o) => o.key === a.margin!.b)?.pct;
-      if (x !== undefined && y !== undefined) resid.push({ pollster: p.pollster, resid: x - y - a.margin.mean });
+      const pr = this.partisanRaces.get(p.race), a = this.averages.get(p.race); if (!pr || !a?.margin) continue;
+      const m = margin(p, pr.d, pr.r); if (m === null) continue;
+      const e = m - a.margin.mean, rv = p.population === 'RV';
+      resid.push({ pollster: p.pollster, resid: e, rv });
+      if (pr.day - p.end <= 80) { if (rv) { sRV += e; nRV++; } else { sLV += e; nLV++; } }
     }
-    const house = houseEffects(resid);
+    const k = nRV && nLV ? (nRV * nLV) / (nRV + nLV) : 0;
+    const lvGap = (k * (nRV && nLV ? sRV / nRV - sLV / nLV : 0) + 15 * 2) / (k + 15);
+    const house = houseEffects(resid.map((x) => ({ pollster: x.pollster, resid: x.resid - (x.rv ? lvGap : 0) })));
     const touched = [...new Set(fresh.map((p) => p.race))];
     for (const key of touched) {
-      const r = races.find((x) => x.key === key);
-      const obs: PollObs[] = published.filter((p) => p.race === key).map((p) => ({ day: (p.start + p.end) / 2, pollster: p.pollster, n: p.n, shares: Object.fromEntries(p.responses.filter((o) => o.key !== 'und').map((o) => [o.key, o.pct])) }));
-      const pair: [string, string] | null = r ? (() => { const d = r.options.find((o) => o.party === PARTY_D), q = r.options.find((o) => o.party === PARTY_R); return d && q && r.kind !== 'primary' && !r.kind.startsWith('nom') ? [d.key, q.key] : null; })() : null;
-      const out = raceAverage(obs, day, house, pair);
+      const pr = this.partisanRaces.get(key);
+      const obs: PollObs[] = published.filter((p) => p.race === key).map((p) => {
+        const shares: Record<string, number> = Object.fromEntries(p.responses.filter((o) => o.key !== 'und').map((o) => [o.key, o.pct]));
+        if (pr && p.population === 'RV' && shares[pr.d] !== undefined && shares[pr.r] !== undefined) { shares[pr.d] = shares[pr.d]! - lvGap / 2; shares[pr.r] = shares[pr.r]! + lvGap / 2; }
+        return { day: (p.start + p.end) / 2, pollster: p.pollster, n: p.n, shares };
+      });
+      const out = raceAverage(obs, day, pr ? house : new Map(), pr ? [pr.d, pr.r] : null);
+      if (out && pr) out.lvGap = lvGap;
       if (!out) continue;
       this.averages.set(key, out);
       this.pend.averages.push({ race: key, asOf: day, out });
@@ -590,21 +631,24 @@ export class Season {
       const d = r.options.find((o) => o.party === PARTY_D), q = r.options.find((o) => o.party === PARTY_R);
       const div = r.stateIdx !== null ? w.pack.states[r.stateIdx]!.division : 0;
       const leanR = r.cd !== null ? lean.cd[r.cd]! : r.stateIdx !== null ? lean.state[r.stateIdx]! : 0;
+      // Parties still choosing a nominee count as contesting the seat (with a generic candidate until then).
+      const hasD = !!d || !!r.awaiting?.some((p) => p === PARTY_D || p === 0), hasR = !!q || !!r.awaiting?.some((p) => p === PARTY_R || p === 0);
       let cand = 0;
-      if (r.contestId !== null && d && q) {
+      if (r.contestId !== null && hasD && hasR) {
         let inc = this.incCache.get(r.contestId);
-        if (!inc) { inc = this.db.all<{ party_id: number }>('SELECT party_id FROM candidacy WHERE contest_id = ? AND incumbent = 1', [r.contestId]); this.incCache.set(r.contestId, inc); }
+        // Incumbents on the general ballot, or running in a primary that has not been held yet.
+        if (!inc) { inc = this.db.all<{ party_id: number }>("SELECT party_id FROM candidacy WHERE contest_id = ? AND incumbent = 1 UNION ALL SELECT k.party_id FROM candidacy k JOIN contest p ON p.contest_id = k.contest_id WHERE p.next_contest = ? AND p.status IN ('set','filing') AND k.incumbent = 1", [r.contestId, r.contestId]); this.incCache.set(r.contestId, inc); }
         const incEff = r.office === 'us_representative' ? 3 : r.office === 'us_senator' ? 2 : 1.5;
         for (const i of inc) cand += i.party_id === PARTY_D ? incEff : i.party_id === PARTY_R ? -incEff : 0;
-        const cd = cashOf(r.campaign, d.personId), cr = cashOf(r.campaign, q.personId);
-        if (cd + cr > 0) cand += 2 * Math.tanh(Math.log((cd + 1) / (cr + 1)) / 2);
+        const cd = d ? cashOf(r.campaign, d.personId) : 0, cr = q ? cashOf(r.campaign, q.personId) : 0;
+        if (d && q && cd + cr > 0) cand += 2 * Math.tanh(Math.log((cd + 1) / (cr + 1)) / 2);
       }
       const avg = this.averages.get(r.key);
       const lastPoll = lastPollOf.get(r.key) ?? -1;
       fr.push({
         key: r.key, kind: r.kind === 'pres_state' ? 'pres_state' : (r.office as ForecastRace['kind']), label: r.label, state: r.stateIdx ?? 0, division: div, ev: r.ev,
         lean: leanR, candidate: cand, poll: avg?.margin && d && q ? { mean: avg.margin.mean, sd: (avg.margin.hi - avg.margin.lo) / 2.563, n: avg.polls, age: day - lastPoll } : null,
-        contested: !!(d && q), sure: d && !q ? PARTY_D : q && !d ? PARTY_R : 0,
+        contested: hasD && hasR, sure: hasD && !hasR ? PARTY_D : hasR && !hasD ? PARTY_R : 0,
       });
     }
     if (!fr.length) return;
@@ -679,7 +723,7 @@ export class Season {
     this.debates(day, races);
     this.endorsements(day, races); lap('endorse');
     this.finance(day);
-    this.publish(day, races); lap('publish');
+    this.publish(day); lap('publish');
     await this.fieldwork(day, races); lap('fieldwork');
     await this.forecastRun(day, races); lap('forecast');
   }

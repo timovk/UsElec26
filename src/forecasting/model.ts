@@ -64,7 +64,9 @@ function erf(x: number): number { const t = 1 / (1 + 0.3275911 * Math.abs(x)); c
 const quantile = (xs: number[], q: number) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.max(0, Math.floor(q * (s.length - 1))))]!; };
 
 /** Prior SD of a race's margin around lean + national, by office (points). */
-const PRIOR_SD: Record<ForecastRace['kind'], number> = { pres_state: 4, pres_cd: 5, us_senator: 7, governor: 8, us_representative: 8 };
+const PRIOR_SD: Record<ForecastRace['kind'], number> = { pres_state: 5, pres_cd: 6, us_senator: 7, governor: 8, us_representative: 9 };
+/** Systematic error of a race's polling average beyond sampling (points): district polls are the least reliable. */
+const POLL_SD: Record<ForecastRace['kind'], number> = { pres_state: 3, pres_cd: 4, us_senator: 3.5, governor: 3.5, us_representative: 5 };
 
 export function runForecast(f: ForecastInput): ForecastOutput {
   const r = Rng.stream(f.seed, 'forecast', f.year, f.asOf);
@@ -78,12 +80,12 @@ export function runForecast(f: ForecastInput): ForecastOutput {
   // Each race: prior from lean, national and candidates; then its own polls.
   const T = Math.max(0, f.daysLeft);
   const sdN = Math.sqrt(nat.sd ** 2 + (0.6 + 2.2 * Math.sqrt(T / 120)) ** 2);   // national error grows with time left
-  const sdDiv = 1.5, races = f.races;
+  const sdDiv = 2, races = f.races;
   const post = races.map((x) => {
     const prior = { m: x.lean + nat.mean + x.candidate, v: PRIOR_SD[x.kind] ** 2 };
     if (!x.poll) return { m: prior.m, local: Math.sqrt(prior.v) };
     // The race's polls inform its deviation from the national environment; their own error includes a state-level miss.
-    const pv = x.poll.sd ** 2 + 2 ** 2 + 0.05 * x.poll.age;
+    const pv = x.poll.sd ** 2 + POLL_SD[x.kind] ** 2 + 0.05 * x.poll.age;
     const w = 1 / prior.v + 1 / pv;
     return { m: (prior.m / prior.v + x.poll.mean / pv) / w, local: Math.sqrt(1 / w) };
   });
@@ -106,7 +108,7 @@ export function runForecast(f: ForecastInput): ForecastOutput {
       if (x.kind === 'us_representative') continue;
       let m: number;
       if (!x.contested) m = x.sure === 1 ? 100 : x.sure === 2 ? -100 : 0;
-      else m = post[i]!.m + eN + divErr[x.division]! + t5(r) * post[i]!.local * 0.85;
+      else m = post[i]!.m + eN + divErr[x.division]! + t5(r) * post[i]!.local;
       presMargin[i] = m;
       if (m > 0) { pDwin[i]! += 1; if (x.kind === 'pres_state' || x.kind === 'pres_cd') ev += x.ev; else if (x.kind === 'us_senator') sen++; else if (x.kind === 'governor') gov++; }
     }
@@ -139,7 +141,7 @@ export function runForecast(f: ForecastInput): ForecastOutput {
   const raceOut: RaceForecast[] = races.map((x, i) => {
     const n = x.kind === 'us_representative' ? Math.max(1, houseN) : S;
     if (!x.contested) { const m = x.sure === 1 ? 100 : x.sure === 2 ? -100 : 0; return { key: x.key, pD: pDwin[i]! / n, mean: m, lo80: m, hi80: m, lo95: m, hi95: m }; }
-    const sd = Math.sqrt(sdN ** 2 + sdDiv ** 2 + (post[i]!.local * (x.kind === 'us_representative' ? 1 : 0.85)) ** 2), m = post[i]!.m;
+    const sd = Math.sqrt(sdN ** 2 + sdDiv ** 2 + post[i]!.local ** 2), m = post[i]!.m;
     return { key: x.key, pD: pDwin[i]! / n, mean: m, lo80: m + sd * T5_Q(0.1), hi80: m + sd * T5_Q(0.9), lo95: m + sd * T5_Q(0.025), hi95: m + sd * T5_Q(0.975) };
   });
   const hist = (a: Int32Array, max: number) => { const h = new Array<number>(max + 1).fill(0); for (const v of a) h[Math.max(0, Math.min(max, v))]!++; return h; };

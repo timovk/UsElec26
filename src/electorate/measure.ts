@@ -188,8 +188,11 @@ export function measureTypes(inp: ShardInput): PieceTypes[] {
 /** How a pollster fields a survey (its design and its biases, in the vote model's units). */
 export interface PollDesign {
   n: number; deff: number; population: 'LV' | 'RV' | 'A';
-  /** Share of the likely-voter screen that works (0–1); the rest of the sample looks like registered voters. */
-  lvQuality: number;
+  /**
+   * Likely-voter screen error, as an exponent on each type's turnout propensity: 0 samples the true likely
+   * electorate, −1 registered voters, and positive values over-screen (too few low-propensity voters).
+   */
+  lvScreen: number;
   /** House effect: utility added to the Democratic option and removed from the Republican one. */
   house: number;
   /** Coverage and nonresponse by cohort class (log weights), the pollster's plus the cycle's shared bias. */
@@ -224,8 +227,8 @@ export function fieldPoll(areas: readonly PollArea[], design: PollDesign, recogn
     for (const p of [rest, ...own]) for (let h = 0; h < N_CLASS; h++) for (let g = 0; g < ZG; g++) {
       const ty = h * ZG + g;
       const lv = p.lv[ty]!, rv = p.rv[ty]!;
-      let w = design.population === 'LV' ? design.lvQuality * lv + (1 - design.lvQuality) * rv * LV_RATIO : rv;
-      if (w <= 0) continue;
+      if (rv <= 0 || lv <= 0) continue;
+      let w = design.population === 'LV' ? lv * (design.lvScreen === 0 ? 1 : (lv / rv) ** design.lvScreen) : rv;
       w *= dexp(design.classBias[h]! + design.partisanNonresponse * (g - ZG / 2 + 0.5));
       typeUtilities(ar.bonuses, c, h, g, p.county, ar.zShift[h]!, u);
       for (let j = 0; j < J; j++) { const s = c.options[j]!.partySign; if (s > 0) u[j]! += design.house; else if (s < 0) u[j]! -= design.house; }
@@ -248,9 +251,6 @@ export function fieldPoll(areas: readonly PollArea[], design: PollDesign, recogn
   const counts = Array.from(draw, (x) => Math.round((x * design.n) / nEff));
   return { counts: counts.slice(0, J), undecided: counts[J]!, n: design.n };
 }
-
-/** Registered voters scaled to the likely electorate's size (so mixing LV and RV keeps the sample's shape, not its size). */
-const LV_RATIO = 0.6;
 
 /**
  * The public partisan-lean index of the first simulated cycle, before the archive holds past results: what an

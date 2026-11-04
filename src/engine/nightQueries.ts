@@ -57,12 +57,12 @@ async function nightMeta(u: Universe, id: number): Promise<NightMetaDto | null> 
 }
 
 /** Engine-side playback for results views while a count is in progress (one cached night). */
-let pbCache: { id: number; pb: Playback } | null = null;
+let pbCache: { u: Universe; id: number; pb: Playback } | null = null;
 export async function playbackFor(u: Universe, nightId: number): Promise<Playback | null> {
-  if (pbCache?.id === nightId) return pbCache.pb;
+  if (pbCache?.u === u && pbCache.id === nightId) return pbCache.pb;
   const rec = await u.elections.nightRecord(nightId);
   if (!rec) return null;
-  pbCache = { id: nightId, pb: new Playback(rec) };
+  pbCache = { u, id: nightId, pb: new Playback(rec) };
   return pbCache.pb;
 }
 
@@ -75,7 +75,7 @@ export interface LiveContest {
   nightId: number;
 }
 
-let snapCache: { key: string; snap: ReturnType<Playback['at']> } | null = null;
+let snapCache: { pb: Playback; key: string; snap: ReturnType<Playback['at']> } | null = null;
 
 /** What the count shows for a contest at the current universe time (null when the contest is not being counted). */
 export async function liveContest(u: Universe, contestId: number, detail = true): Promise<LiveContest | null> {
@@ -85,7 +85,7 @@ export async function liveContest(u: Universe, contestId: number, detail = true)
   const ri = pb.rec.races.findIndex((r) => r.contestId === contestId && r.cd < 0);
   if (ri < 0) return null;
   const t = u.world.time, key = `${nightId}:${t}`;
-  if (snapCache?.key !== key) snapCache = { key, snap: pb.at(t) };
+  if (snapCache?.pb !== pb || snapCache.key !== key) snapCache = { pb, key, snap: pb.at(t) };
   const st = snapCache.snap.races[ri]!, race = pb.rec.races[ri]!;
   const votes = new Map(race.candidacyIds.map((cid, j) => [cid, st.votes[j]!]));
   const byCounty = new Map<number, number[]>();
@@ -112,7 +112,7 @@ export async function liveTallies(u: Universe, year: number): Promise<{ presiden
   if (nightId === undefined) return null;
   const pb = await playbackFor(u, nightId); if (!pb) return null;
   const t = u.world.time, key = `${nightId}:${t}`;
-  if (snapCache?.key !== key) snapCache = { key, snap: pb.at(t) };
+  if (snapCache?.pb !== pb || snapCache.key !== key) snapCache = { pb, key, snap: pb.at(t) };
   return { president: snapCache.snap.president.called, nightId };
 }
 
@@ -140,8 +140,9 @@ function partyIdx(u: Universe, contestId: number): { d: number; r: number; k: nu
   return { d: order.indexOf(1), r: order.indexOf(2), k: order.length };
 }
 
-const ctxCache = new Map<number, NightContextDto>();
+const ctxCaches = new WeakMap<Universe, Map<number, NightContextDto>>();
 async function nightContext(u: Universe, id: number): Promise<NightContextDto | null> {
+  let ctxCache = ctxCaches.get(u); if (!ctxCache) { ctxCache = new Map(); ctxCaches.set(u, ctxCache); }
   const hit = ctxCache.get(id); if (hit) return hit;
   const rec = await u.elections.nightRecord(id); if (!rec) return null;
   const eligibleCounty: Record<number, number> = {}, eligibleState: Record<number, number> = {};

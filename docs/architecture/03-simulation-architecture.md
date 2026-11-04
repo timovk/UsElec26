@@ -178,6 +178,49 @@ recognition by geography, and favorability. Daily dynamics:
 Effects enter the vote model as **contest-specific valence by geography**, so they cause ticket
 splitting, and they are bounded (a typical net effect is 1–3 points).
 
+**Phase 5 implementation notes (as built).** The campaign season runs at 06:00 ET each day of an election year
+(`engine/season.ts`; the model is `campaigns/model.ts`).
+- *Daily order:* environment step, campaigns, debates, endorsements, poll fieldwork, publication and averages,
+  then forecasts when due.
+- *Campaign state* per candidate and race: cash, raised, spent, recognition, persuasion, debate and scandal
+  shocks, endorsements, primary momentum and viability, and presidential attention by state.
+- *Fundraising* follows skill, prospects, incumbency and the national mood. *Spending* builds persuasion with
+  diminishing returns. Presidential campaigns put attention on states by voter power from the latest forecast
+  (else the lean index).
+- *Valence* is clamped: persuasion ±0.05, state attention ±0.04, shocks ±0.12. It is multiplied by 2.5 in
+  primaries, where party labels do not separate the candidates.
+- *Debates:*
+  - presidential general debates 43, 30 and 20 days out;
+  - nomination debates every three weeks until April;
+  - statewide general debates 26 days out.
+  Performance is skill plus noise.
+- *Events:* scandals and gaffes are drawn daily, weighted by integrity and scrutiny. Endorsements come from
+  the party's officeholders and favour the leader and the experienced.
+- Quarterly finance reports are written to `finance_report`. Campaign effects enter `kernelContest` through a
+  valence hook, so they reach the ballot.
+- Every day's draws come from one stream per day, so results do not depend on how the clock is advanced.
+
+**Presidential nominations (`engine/nomination.ts`, `primaries/delegates.ts`, `rules/primaries2016.ts`).**
+- *Calendar:* each state holds a primary, caucuses or a convention on its party's 2016 date, sharing the
+  state's primary election when the days coincide.
+- *Delegates:*
+  - Democrats: proportional at 15%, about two-thirds by district;
+  - Republicans: each state's 2016 rule (winner-take-all, winner-take-all by district, or proportional, with
+    thresholds, majority triggers and unbound delegates);
+  - Democratic superdelegates: the party's governors and members of Congress plus DNC members. They commit
+    over the spring (weighted by candidate quality, the delegate count and home state; all to the presumptive
+    nominee once there is one) and vote at the convention.
+- *Winnowing:*
+  - momentum from beating expectations and from winning the day;
+  - viability from the national polling average;
+  - withdrawals when cash, rank and share say a campaign is over (later contests drop the candidate);
+  - a presumptive nominee once a majority is locked or one candidate remains.
+- *Conventions* (Republicans the third Monday of July, Democrats the last Monday):
+  - a presumptive nominee is nominated on the first ballot;
+  - otherwise ballots continue (at most eight). Withdrawn candidates' and unbound delegates split toward the
+    leader, more so on each ballot, and each further ballot releases a growing share of bound delegates;
+  - the nomination contest (method `delegates`) records the winner.
+
 ## 3.10 The Public Record
 
 The Public Record is the observable face of the universe, and the only thing L4 observers read (§2.2.1): what a

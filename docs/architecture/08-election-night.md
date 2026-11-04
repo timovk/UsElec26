@@ -16,6 +16,13 @@
 > stories, and an explicit paths-to-270 analysis, are not yet implemented (electoral milestones stand in). The voter survey now
 > carries crosstabs (age, sex, race, education), and the wire publishes expected vote per part (`partWire`).
 
+> **Phase 5 status:** the desks' pre-election prior is the latest public forecast — see [../phase-5-report.md](../phase-5-report.md).
+> For every statewide two-party race with a forecast (presidential states, Senate, governor), the desk's baseline is shifted
+> to the forecast's mean margin, and its prior SD is the forecast's (at least 1.5 points). Races without a forecast keep the
+> Phase 3 proxy prior. Coverage still starts at 5:00 pm ET; the pre-election framing uses the commentary of Phase 4.
+> Primary election nights are **not** counted live yet: primaries (including the presidential primaries and caucuses) are
+> still decided at the close of voting.
+
 ## 8.1 Pipeline
 
 ```mermaid

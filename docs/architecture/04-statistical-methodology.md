@@ -265,6 +265,13 @@ with similar demographics move together. **Polling misses are correlated the sam
 can be decisive (a large `δ_N`) or knife-edge, and surprises come from the components, not from forced
 closeness.
 
+**Phase 5 implementation notes (daily dynamics).** Each cycle's national, class, division and state components
+are split into a cycle level and a daily AR(1) deviation (`electorate/environment.ts`, `DAILY`): persistence
+0.995 a day; stationary SDs 0.05 (national), 0.035 (class), 0.02 (division) and 0.025 (state) logit. That is about
+3 points of national margin over a campaign and 0.3 points a day. The level SDs are reduced so the totals
+match the table above. Each day's innovation comes from its own stream (`environment-day`, year, day), so the
+path does not depend on how the clock was advanced. Election Day uses that day's values.
+
 ## 4.7 Calibration to stylized facts (not to real partisanship)
 
 After drawing the universe, a calibration pass rescales variance components and intercepts so that
@@ -331,6 +338,31 @@ undecided vote breaks according to the model at ballot lock.
 Undecided share depends on salience, time to election and candidate recognition. Some pollsters push
 leaners and others don't. Herding pollsters shrink toward the public average.
 
+**Phase 5 implementation notes (as built).**
+- *Pollsters* (`polling/pollsters.ts`): 32 fictional organizations (9 national, 10 multi-state, 13 single-state),
+  with names from invented word lists and a guard against real pollsters' names.
+  - House effect `N(0, 0.02)` utility (about 1.2 points of margin) with a slow, bounded drift.
+  - Class coverage biases `N(0, 0.035–0.06)` log weights by method; partisan nonresponse `N(0, 0.006)` per unit
+    of latent partisanship.
+  - A likely-voter screen of quality `q ∈ [0.45, 0.95]` whose error has a direction: the sample's weights are the
+    true likely electorate's times `(LV/RV)^τ`, with `τ = (1 − q)·N(0, 1.2²)`. `τ = −1` is a registered-voter
+    sample; positive `τ` over-screens. Screen errors therefore lean either way and average out across
+    pollsters, instead of always favouring the party of low-propensity voters.
+  - `deff ∈ [1.2, 1.8]`; national samples of 1,000–2,000.
+  - The cycle's shared bias is `N(0, 0.04)` per class plus `N(0, 0.008)` partisan nonresponse.
+  - Measured spread on a test electorate: pollster systematic error RMS 1.4 points (max 3.9 over 192
+    pollsters); cycle miss RMS 1.1 points (`tests/unit/polling/polls.test.ts`).
+- *Measurement port* (`electorate/measure.ts`): `measureTypes` runs the kernel's step 1 to give expected
+  likely and registered voters by (county × district) piece and voter type. `fieldPoll` aggregates a state's
+  pieces (home counties kept apart), applies the design, samples a multinomial of size `n/deff`, and returns
+  counts only.
+  - The types are cached from the cycle's *level*. A poll applies the day's deviation as a shift per class,
+    which keeps saved and reloaded universes identical.
+  - Primary polls derive the primary electorate from the general types by party participation and an
+    intensity factor (an approximation; the primaries themselves are realized by the full kernel).
+- *What gets polled:* a general election only once every primary and runoff feeding it has chosen its nominee.
+  Presidential general polls always pair the two presumptive nominees.
+
 ## 4.9 Polling averages
 
 The primary average is a **Kalman filter (local-level model)** per contest, on the margin and on each
@@ -347,6 +379,16 @@ observation:  y_i = θ_{t_i} + ĥ_{p(i)} + v_i,  v_i ~ N(0, σ²_samp,i + σ²_p
   pollster within the window are down-weighted to avoid flooding.
 - Outputs are the mean, an 80% band, and the history of snapshots. Each published average is stored permanently
   as of its date (§7). A simple recency-weighted average is computed alongside for transparency.
+
+**Phase 5 implementation notes (as built, `polling/average.ts`).**
+- One local-level Kalman filter per option share (q = 0.04 points² a day) and one on the Democratic−Republican
+  margin (q = 0.08), with observation variance from the sample size (×1.6 on the margin).
+- House effects are estimated from every published general-election poll's residual against its race's average,
+  shrunk by empirical Bayes (k = 6 polls).
+- **Likely-voter adjustment:** registered-voter polls are moved toward the likely electorate by the gap between
+  RV and LV polls of the same races in the final 80 days. The gap is shrunk toward a prior of 2 points until
+  both kinds exist. It is estimated from published polls only and shown on each race page.
+- Flooding guard: a pollster's poll followed by another of its own within 7 days counts for less.
 
 ## 4.10 Forecasting
 
@@ -375,6 +417,28 @@ The forecast is a Bayesian-flavoured Monte Carlo that uses only the Public Recor
    Each run stores summaries (probabilities, quantiles, histograms). **Old runs are never modified.**
 7. **Honesty:** the forecast reports probabilities rounded to a whole percent, never "100%" (it shows ">99%"),
    and the in-universe calibration report (Brier score, reliability diagram) grows with every cycle.
+
+**Phase 5 implementation notes (as built, `forecasting/model.ts`, `engine/season.ts`).**
+- *Prior* per race: the lean index plus the national estimate plus candidate effects (incumbency 1.5–3 points,
+  including incumbents still in an unheld primary; relative cash on hand up to ±2), with SD 5 (presidential states)
+  to 8 (House, governors). The lean index is the previous presidential result in the archive. In the first
+  cycle it is a public index: the true expected lean with regional, state and district error (2.5–3.5 points),
+  because no past result exists yet.
+- *National:* fundamentals (midterm penalty, third-term penalty; SD 5) updated by the national presidential average
+  (or the generic ballot) with a 2.5-point systematic polling-miss term.
+- *Poll update:* precision-weighted, with 3 points of systematic error per race plus staleness.
+- *Error model:* national, division (SD 2) and state errors, each Student-t(5). The national SD grows with days
+  left (0.6 + 2.2·√(T/120) points).
+- These SDs were widened after the full-engine calibration (Phase 5 report §5). The first settings gave
+  well-calibrated win probabilities, but their 80% intervals covered only about 70% of presidential-state results.
+- *Simulation:* 1,500 draws (in the engine; about 2.5 s per run on real geography). House seats are integrated
+  analytically every fifth draw. Per-race intervals are analytic.
+- *Outputs per run:* the EV histogram, tipping-point shares, Senate seats with the Vice President's tiebreak, House
+  seats, governors, every race's probability and 80/95% interval. Stored gzip-compressed in `forecast_run`;
+  never modified.
+- Races whose primaries have not chosen nominees are forecast as contested from the prior alone.
+- *Cadence:* weekly from June 1, daily in the final 100 days. The final run before Election Day becomes the
+  desks' prior for that night (§4.13).
 
 ## 4.11 Career decisions (summary)
 

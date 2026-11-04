@@ -37,7 +37,7 @@ export interface Environment {
 }
 
 /** Daily deviation process: persistence per day and stationary SDs (logit). The cycle levels' SDs are reduced so totals match §4.6. */
-export const DAILY = { phi: 0.98, national: 0.075, classSwing: 0.045, division: 0.025, state: 0.03 } as const;
+export const DAILY = { phi: 0.995, national: 0.05, classSwing: 0.035, division: 0.02, state: 0.025 } as const; // ~0.3 points of national margin a day, ~3 points over a campaign
 const LEVEL_SD = { random: Math.sqrt(0.13 ** 2 - DAILY.national ** 2), classSwing: Math.sqrt(0.09 ** 2 - DAILY.classSwing ** 2), division: Math.sqrt(0.05 ** 2 - DAILY.division ** 2), state: Math.sqrt(0.06 ** 2 - DAILY.state ** 2) };
 
 export interface EnvironmentHistory { last: Environment | null }
