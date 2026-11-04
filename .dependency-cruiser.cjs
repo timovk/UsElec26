@@ -7,7 +7,7 @@ const L4 = '^src/(polling|forecasting|projections|broadcast)/';
 const L5 = '^src/(archive|analytics)/';
 module.exports = {
   forbidden: [
-    { name: 'no-circular', severity: 'error', from: {}, to: { circular: true } },
+    { name: 'no-circular', severity: 'error', comment: 'Runtime cycles only: a type-only back-reference (an engine part naming its host type) is erased at compile time', from: {}, to: { circular: true, viaOnly: { dependencyTypesNot: ['type-only'] } } },
     { name: 'L0-up', severity: 'error', from: { path: L0 }, to: { path: `${L1}|${L2}|${L3}|${L4}|${L5}|^src/(persistence|engine|ui|workers)/` } },
     { name: 'L1-up', severity: 'error', from: { path: L1 }, to: { path: `${L2}|${L3}|${L4}|${L5}|^src/(persistence|engine|ui|workers)/` } },
     { name: 'L2-up', severity: 'error', from: { path: L2 }, to: { path: `${L3}|${L4}|${L5}|^src/(persistence|engine|ui|workers)/` } },

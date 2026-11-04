@@ -19,6 +19,11 @@ export interface NightRace {
   axis: number[];
   /** Automatic-recount threshold (fraction of votes), 0 = none. */
   recount: number;
+  /**
+   * The last public forecast of the race (Phase 5): margin of the axis's + option over its − option (points) and
+   * its SD. With it, the desk's baseline is centred on the forecast instead of carrying a drawn prior error.
+   */
+  forecast?: { mean: number; sd: number };
 }
 
 export interface DeskParams {

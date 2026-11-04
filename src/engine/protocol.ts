@@ -40,7 +40,75 @@ export type Query =
   | { kind: 'calendar' }
   | { kind: 'electorate' }
   | ArchiveQuery
-  | NightQuery;
+  | NightQuery
+  | SeasonQuery;
+
+// ---- Phase 5: campaigns, polls, forecasts, primaries -------------------------------------------------
+export type SeasonQuery =
+  | { kind: 'seasonYears' }
+  | { kind: 'seasonOverview'; year: number }
+  | { kind: 'seasonRace'; key: string }
+  | { kind: 'pollList'; year: number; race?: string; pollster?: number; limit?: number }
+  | { kind: 'pollster'; id: number }
+  | { kind: 'forecastRun'; year: number; asOf?: number }
+  | { kind: 'forecastCalibration'; year: number }
+  | { kind: 'primaries'; year: number };
+
+export interface SeasonOption { key: string; label: string; party: number; personId: number | null }
+export interface RaceRowDto {
+  key: string; kind: string; label: string; geo: string; office: string; day: number; contestId: number | null; polls: number;
+  avg: { a: string; b: string; mean: number; lo: number; hi: number } | null;
+  leader: { label: string; party: number; share: number } | null;
+  forecast: { pD: number; mean: number; lo80: number; hi80: number } | null;
+}
+export interface ForecastRaceDto { key: string; label: string; kind: string; state: number; ev: number; pD: number; mean: number; lo80: number; hi80: number }
+export interface ForecastDto {
+  asOf: number; national: { mean: number; sd: number };
+  president: { pD: number; pR: number; pTie: number; evMean: number; ev80: [number, number]; ev95: [number, number]; evHist: number[]; tipping: Record<string, number> } | null;
+  senate: { pD: number; mean: number; hist: number[] } | null;
+  house: { pD: number; mean: number; hist: number[] } | null;
+  governors: { meanD: number; races: number } | null;
+  races: ForecastRaceDto[];
+  nominees: { party: number; name: string }[];
+}
+export interface SeasonOverviewDto {
+  year: number; today: number; pollCount: number; pollsters: number;
+  races: RaceRowDto[]; forecast: ForecastDto | null;
+  history: { asOf: number; president: number | null; ev: number | null; senate: number | null; house: number | null }[];
+}
+export interface PollDto {
+  id: number; pollster: number; pollsterName: string; race: string; raceLabel: string; start: number; end: number; published: SimTime;
+  population: string; n: number; moe: number; method: string; sponsor: string | null; responses: { key: string; label: string; party: number; pct: number }[];
+}
+export interface SeasonRaceDto {
+  key: string; label: string; kind: string; geo: string; day: number; options: SeasonOption[]; contestId: number | null;
+  polls: PollDto[];
+  averages: { day: number; options: Record<string, { mean: number; lo: number; hi: number }>; margin: { a: string; b: string; mean: number; lo: number; hi: number } | null }[];
+  forecast: { asOf: number; pD: number; mean: number; lo80: number; hi80: number }[];
+  result: { margin: number | null; shares: Record<string, number> } | null;
+}
+export interface PollsterDto {
+  id: number; name: string; method: string; sponsor: string | null; scope: string; homeState: string | null; founded: number; polls: number;
+  /** Estimated house effect on the Democratic-minus-Republican margin (points), from published polls against the averages. */
+  house: number | null;
+  /** Track record against certified results (final three weeks): races, mean absolute error and mean signed error of the margin. */
+  accuracy: { polls: number; mae: number; bias: number } | null;
+  recent: PollDto[];
+}
+export interface CalibrationDto {
+  year: number; ready: boolean; asOf: number | null;
+  races: { key: string; label: string; kind: string; pD: number; mean: number; actual: number; dWon: boolean }[];
+  brier: number | null; bins: { lo: number; hi: number; n: number; predicted: number; observed: number }[];
+  president: { pD: number; evMean: number; ev80: [number, number]; actualEV: number | null; dWon: boolean | null } | null;
+}
+export interface PrimaryPartyDto {
+  party: number; total: number; needed: number; presumptive: number | null; nominee: number | null; open: boolean;
+  candidates: { personId: number; name: string; status: string; pledged: number; supers: number; wins: number; endorsements: number }[];
+  calendar: { day: number; state: string; usps: string; event: string; delegates: number; contestId: number; status: string; winner: number | null; results: { personId: number; share: number; delegates: number }[] }[];
+  unbound: number;
+  ballots: { ballot: number; personId: number; votes: number }[];
+}
+export interface PrimariesDto { year: number; parties: PrimaryPartyDto[] }
 
 // ---- Phase 3: election nights ----------------------------------------------------------------------
 export type NightQuery =

@@ -124,6 +124,81 @@ export interface ShardOutput {
   expBallotsPartMode?: Float64Array;
 }
 
+// ---- Step 1: voter types of a Base Unit (shared by the kernel and the measurement port) -------------
+export interface TypeScratch {
+  groupOf: Uint8Array; gS: Float64Array; gM: Float64Array; gV: Float64Array; gT: Float64Array; cells: Float64Array; mar: Marginals;
+  zt: Float64Array; part: Float64Array;
+  /** Expected voters by (age band × class) group and partisanship bin (4 × N_TYPES). */
+  WA: Float64Array;
+  /** With `rv`: the electorate before turnout (eligible residents who would take part in this kind of election), same layout. */
+  WR: Float64Array | null;
+}
+
+export function typeScratch(inp: ShardInput, rv: boolean): TypeScratch {
+  const part = new Float64Array(ZG).fill(1);
+  // Primary participation by z bin.
+  if (inp.kind === 'primary') for (let g = 0; g < ZG; g++) {
+    const z = inp.primaryParty === 1 ? ZC[g]! : -ZC[g]!;
+    part[g] = dlogistic(2.2 * (z - 0.4)) + inp.crossover * (1 - dlogistic(2.2 * (z - 0.4)));
+  }
+  return {
+    groupOf: Uint8Array.from({ length: N_COHORTS }, (_, k) => cohortAge(k) * N_CLASS + inp.classOf[k]!),
+    gS: new Float64Array(16), gM: new Float64Array(16), gV: new Float64Array(16), gT: new Float64Array(16), cells: new Float64Array(N_COHORTS),
+    mar: { age: new Float64Array(4), male: 0, race: new Float64Array(4), collegeByAge: new Float64Array(4) },
+    zt: Float64Array.from({ length: ZG }, (_, g) => inp.betaInt * ABSZ[g]! + inp.enth * TANHZ[g]!), part,
+    WA: new Float64Array(4 * N_TYPES), WR: rv ? new Float64Array(4 * N_TYPES) : null,
+  };
+}
+
+/**
+ * Voter types of Base Unit `i` (local index) with `E` eligible residents. Cohorts are first collapsed into 16
+ * (age band × class) groups by moment matching (mean, variance and turnout propensity); cohorts in a group
+ * share issue positions by construction. Each group is then spread over the 12 partisanship bins.
+ */
+export function unitTypes(inp: ShardInput, i: number, E: number, sc: TypeScratch): void {
+  const { groupOf, gS, gM, gV, gT, cells, mar, zt, part, WA, WR } = sc;
+  const cl = inp.bus.county[i]! - inp.counties.first;
+  WA.fill(0); gS.fill(0); gM.fill(0); gV.fill(0); gT.fill(0); if (WR) WR.fill(0);
+  const shift = inp.bus.shift[i]!, tb = inp.bus.turnout[i]! + inp.counties.turnout[cl]!;
+  // Cohort shares of this unit: the county joint table raked to the unit's marginals.
+  for (let k = 0; k < N_COHORTS; k++) cells[k] = inp.counties.joint[cl * N_COHORTS + k]!;
+  const mo13 = i * 13, mg = inp.bus.marg;
+  mar.age[0] = mg[mo13]!; mar.age[1] = mg[mo13 + 1]!; mar.age[2] = mg[mo13 + 2]!; mar.age[3] = mg[mo13 + 3]!; mar.male = mg[mo13 + 4]!;
+  for (let q = 0; q < 4; q++) { mar.race[q] = mg[mo13 + 5 + q]!; mar.collegeByAge[q] = mg[mo13 + 9 + q]!; }
+  rake(cells, mar, 3);
+  for (let k = 0; k < N_COHORTS; k++) {
+    const s = cells[k]!; if (s <= 0) continue;
+    const gi = groupOf[k]!, mu = inp.counties.mu[cl * N_COHORTS + k]! + shift, sg = inp.sigma[k]!;
+    gS[gi]! += s; gM[gi]! += s * mu; gV[gi]! += s * (sg * sg + mu * mu); gT[gi]! += s * inp.tau[k]!;
+  }
+  for (let gi = 0; gi < 16; gi++) {
+    const S = gS[gi]!; if (S <= 0) continue;
+    const mu = gM[gi]! / S, sig = Math.sqrt(Math.max(1e-6, gV[gi]! / S - mu * mu)), inv = 1 / sig, tk = gT[gi]! / S + tb;
+    const weight = S * E, wo = gi * ZG;
+    let g0 = Math.floor((mu - 5 * sig - Z_LO) / Z_W), g1 = Math.ceil((mu + 5 * sig - Z_LO) / Z_W);
+    if (g0 < 0) g0 = 0; if (g1 > ZG - 1) g1 = ZG - 1;
+    let prev = g0 === 0 ? 0 : phi((EDGES[g0]! - mu) * inv);
+    for (let g = g0; g <= g1; g++) {
+      const up = g === ZG - 1 || g === g1 ? 1 : phi((EDGES[g + 1]! - mu) * inv);
+      const mass = up - prev; prev = up;
+      if (mass < 1e-9) continue;
+      WA[wo + g]! += weight * mass * part[g]! * logi(tk + zt[g]!);
+      if (WR) WR[wo + g]! += weight * mass * part[g]!;
+    }
+  }
+}
+
+/** Utility of each option (and abstaining, last) for one voter type in one county — the kernel's choice model. */
+export function typeUtilities(inp: Pick<ShardInput, 'homeStateBonus' | 'homeCountyBonus'>, c: KernelContest, h: number, g: number, county: number, zShift: number, u: Float64Array): void {
+  const J = c.options.length;
+  u[J] = c.abstain;
+  for (let j = 0; j < J; j++) {
+    const o = c.options[j]!;
+    u[j] = c.weight * o.partySign * (ZC[g]! + zShift) + o.base + o.classFit[h]! - o.minorAppeal * ABSZ[g]!
+      + (o.homeState ? inp.homeStateBonus : 0) + (o.homeCounty === county ? inp.homeCountyBonus : 0);
+  }
+}
+
 /** Run the kernel for one shard (a state). */
 export function runShard(inp: ShardInput): ShardOutput {
   const n = inp.bus.count;
@@ -135,12 +210,6 @@ export function runShard(inp: ShardInput): ShardOutput {
     let s = 0; const u = new Float64Array(N_MODES);
     for (let m = 0; m < N_MODES; m++) { const l = inp.modeLogits[a * N_MODES + m]!; u[m] = Number.isFinite(l) ? dexp(l + inp.modeGap[m]! * ZC[g]!) : 0; s += u[m]!; }
     for (let m = 0; m < N_MODES; m++) modeP[(a * ZG + g) * N_MODES + m] = u[m]! / s;
-  }
-  // Primary participation by z bin.
-  const part = new Float64Array(ZG).fill(1);
-  if (inp.kind === 'primary') for (let g = 0; g < ZG; g++) {
-    const z = inp.primaryParty === 1 ? ZC[g]! : -ZC[g]!;
-    part[g] = dlogistic(2.2 * (z - 0.4)) + inp.crossover * (1 - dlogistic(2.2 * (z - 0.4)));
   }
   // Contest bookkeeping.
   const outs: ContestOutput[] = [];
@@ -154,12 +223,7 @@ export function runShard(inp: ShardInput): ShardOutput {
   }
   const expBallotsPartMode = night ? new Float64Array(night.count * N_MODES) : undefined;
   const V = new Float64Array(N_MODES * N_TYPES);       // voters by mode and type
-  const WA = new Float64Array(4 * N_TYPES);            // voters by (age band × class) group and z bin
-  const groupOf = Uint8Array.from({ length: N_COHORTS }, (_, k) => cohortAge(k) * N_CLASS + inp.classOf[k]!);
-  const gS = new Float64Array(16), gM = new Float64Array(16), gV = new Float64Array(16), gT = new Float64Array(16);
-  const cells = new Float64Array(N_COHORTS);
-  const mar: Marginals = { age: new Float64Array(4), male: 0, race: new Float64Array(4), collegeByAge: new Float64Array(4) };
-  const zt = Float64Array.from({ length: ZG }, (_, g) => inp.betaInt * ABSZ[g]! + inp.enth * TANHZ[g]!);
+  const sc = typeScratch(inp, false), WA = sc.WA;     // voters by (age band × class) group and z bin
   const probCache = new Map<number, Float64Array>();    // (contest, county) → P[j][type]
   const pbar = new Float64Array(16), draw = new Int32Array(16);
   let expectedBallots = 0;
@@ -192,43 +256,14 @@ export function runShard(inp: ShardInput): ShardOutput {
     const b = inp.bus.start + i;
     const county = inp.bus.county[i]!;
     if (county !== curCounty) { probCache.clear(); curCounty = county; }
-    const cl = county - inp.counties.first;
     const E = Math.round(inp.bus.vep[i]!);
     eligible[i] = E;
     if (E <= 0) continue;
     let onBallot = false;
     for (let ci = 0; ci < C; ci++) { const cd = inp.contests[ci]!.cd; if (cd < 0 || cd === inp.bus.cd[i]) { onBallot = true; break; } }
     if (!onBallot) { eligible[i] = 0; continue; } // no election here: no ballots, and the unit is not in this electorate
-    // 1. Voter types. Cohorts are first collapsed into 16 (age band × class) groups by moment matching
-    //    (mean, variance and turnout propensity); cohorts in a group share issue positions by construction.
-    //    Each group is then spread over the 12 partisanship bins.
-    WA.fill(0); gS.fill(0); gM.fill(0); gV.fill(0); gT.fill(0);
-    const shift = inp.bus.shift[i]!, tb = inp.bus.turnout[i]! + inp.counties.turnout[cl]!;
-    // Cohort shares of this unit: the county joint table raked to the unit's marginals.
-    for (let k = 0; k < N_COHORTS; k++) cells[k] = inp.counties.joint[cl * N_COHORTS + k]!;
-    const mo13 = i * 13, mg = inp.bus.marg;
-    mar.age[0] = mg[mo13]!; mar.age[1] = mg[mo13 + 1]!; mar.age[2] = mg[mo13 + 2]!; mar.age[3] = mg[mo13 + 3]!; mar.male = mg[mo13 + 4]!;
-    for (let q = 0; q < 4; q++) { mar.race[q] = mg[mo13 + 5 + q]!; mar.collegeByAge[q] = mg[mo13 + 9 + q]!; }
-    rake(cells, mar, 3);
-    for (let k = 0; k < N_COHORTS; k++) {
-      const s = cells[k]!; if (s <= 0) continue;
-      const gi = groupOf[k]!, mu = inp.counties.mu[cl * N_COHORTS + k]! + shift, sg = inp.sigma[k]!;
-      gS[gi]! += s; gM[gi]! += s * mu; gV[gi]! += s * (sg * sg + mu * mu); gT[gi]! += s * inp.tau[k]!;
-    }
-    for (let gi = 0; gi < 16; gi++) {
-      const S = gS[gi]!; if (S <= 0) continue;
-      const mu = gM[gi]! / S, sig = Math.sqrt(Math.max(1e-6, gV[gi]! / S - mu * mu)), inv = 1 / sig, tk = gT[gi]! / S + tb;
-      const weight = S * E, wo = gi * ZG;
-      let g0 = Math.floor((mu - 5 * sig - Z_LO) / Z_W), g1 = Math.ceil((mu + 5 * sig - Z_LO) / Z_W);
-      if (g0 < 0) g0 = 0; if (g1 > ZG - 1) g1 = ZG - 1;
-      let prev = g0 === 0 ? 0 : phi((EDGES[g0]! - mu) * inv);
-      for (let g = g0; g <= g1; g++) {
-        const up = g === ZG - 1 || g === g1 ? 1 : phi((EDGES[g + 1]! - mu) * inv);
-        const mass = up - prev; prev = up;
-        if (mass < 1e-9) continue;
-        WA[wo + g]! += weight * mass * part[g]! * logi(tk + zt[g]!);
-      }
-    }
+    // 1. Voter types (shared with the measurement port).
+    unitTypes(inp, i, E, sc);
     V.fill(0);
     for (let a = 0; a < 4; a++) for (let h = 0; h < N_CLASS; h++) for (let g = 0; g < ZG; g++) {
       const w = WA[(a * N_CLASS + h) * ZG + g]!; if (w === 0) continue;

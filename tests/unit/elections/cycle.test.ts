@@ -131,9 +131,9 @@ describe('Next election (fixture)', () => {
     await u.advance({ kind: 'nextElection' });
     const held = u.db.all<{ day: number }>("SELECT DISTINCT day FROM election WHERE status <> 'scheduled' AND kind <> 'pres_nomination'");
     expect(held.length).toBe(1);
-    const first = Number(u.db.value("SELECT MIN(day) FROM election WHERE kind IN ('primary','general','special','runoff')"));
+    const first = Number(u.db.value("SELECT MIN(day) FROM election WHERE kind IN ('primary','pres_primary','general','special','runoff')"));
     expect(held[0]!.day).toBe(first);
-    expect(Number(u.db.value("SELECT COUNT(*) FROM election WHERE day = ? AND status = 'scheduled' AND kind IN ('primary','general')", [first]))).toBe(0);
+    expect(Number(u.db.value("SELECT COUNT(*) FROM election WHERE day = ? AND status = 'scheduled' AND kind IN ('primary','pres_primary','general')", [first]))).toBe(0);
     expect(u.world.time).toBeLessThan(zonedToUtc(2016, 11, 1, 0, 0, 'America/New_York'));
     // A second step moves on to the next election day.
     await u.advance({ kind: 'nextElection' });

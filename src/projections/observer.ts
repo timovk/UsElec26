@@ -103,7 +103,8 @@ export function observe(inp: ObsInput): ObsOutput {
   }));
   type R = (typeof races)[number];
 
-  const sdPrior = (r: R) => (['president', 'us_senator', 'governor'].includes(r.rc.def.office) ? 0.05 : 0.08);
+  // Prior uncertainty of the race's margin: the forecast's when there is one, else a default by office.
+  const sdPrior = (r: R) => (r.rc.def.forecast ? Math.max(0.015, r.rc.def.forecast.sd / 100) : ['president', 'us_senator', 'governor'].includes(r.rc.def.office) ? 0.05 : 0.08);
 
   /** Cells of a race for contrast w. */
   const cellsFor = (r: R, w: Float64Array): Cell[] => {

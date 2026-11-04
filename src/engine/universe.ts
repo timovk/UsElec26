@@ -175,7 +175,7 @@ export class Universe {
         if (ev && ev.time === next) {
           this.queue.shift(); await this.runEvent(ev);
           if (target.kind === 'nextElection' && ELECTION_EVENTS.has(ev.kind)) stopAfter = ev.time;
-        } else this.dailyTick(easternDay(next));
+        } else await this.dailyTick(easternDay(next));
         if (target.kind === 'nextEvent' && produced.length > n0) break;
       }
     } finally { this.newsSink = null; }
@@ -204,6 +204,8 @@ export class Universe {
     const removed = [...removedSet].filter((id) => !addedIds.has(id));
     this.db.tx(() => {
       writePending(this.db, w);
+      this.elections.season.flush();
+      this.elections.season.invalidate();
       for (const snap of this.compositionSnaps.splice(0)) writeChamberCompositions(this.db, [snap], snap.compositionAsOf);
       this.dirtyChambers = false;
       for (const id of removed) this.db.run('DELETE FROM scheduled_event WHERE event_id = ?', [id]);
@@ -229,8 +231,9 @@ export class Universe {
 
   // ---- Processes -------------------------------------------------------------------------------
 
-  private dailyTick(day: number): void {
+  private async dailyTick(day: number): Promise<void> {
     const w = this.world;
+    await this.elections.daily(day);
     const r = Rng.stream(w.seed, 'mortality', day);
     for (const p of w.persons.values()) { // Map iteration is insertion (id) order: deterministic
       if (p.deathDay !== null) continue;
@@ -251,6 +254,7 @@ export class Universe {
       case 'primary': await E.primary(n('election')); return;
       case 'pres_nomination': await E.presNomination(n('election')); return;
       case 'convention': E.convention(n('year')); return;
+      case 'nomination_convention': E.nominationConvention(n('year'), n('party')); return;
       case 'general': await E.general(n('year'), n('day')); return;
       case 'certify_state': await E.certifyState(n('election'), n('night')); return;
       case 'night_news': await E.nightNews(n('night'), n('from'), n('to'), !!d.summary); return;

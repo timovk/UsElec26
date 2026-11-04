@@ -5,7 +5,7 @@
  */
 import { Rng } from '../core/rng';
 import { runShard, type ShardInput, type ShardOutput } from '../electorate/kernel';
-import { publishedBaseline, voterSurveyCrosstabs, wirePriors } from '../electorate/measure';
+import { centreBaseline, measureTypes, publishedBaseline, voterSurveyCrosstabs, wirePriors, type PieceTypes } from '../electorate/measure';
 import { planSchedule, partitionVotes } from '../counting/countPlan';
 import { buildParts, buildPrecincts } from '../counting/precincts';
 import { MODE_EARLY, MODE_PROV, type NightInput, type StateNight } from '../counting/types';
@@ -13,9 +13,9 @@ import { observe, type ObsRace } from '../projections/observer';
 import { prepareContest, prepareRejected, prepareTurnout } from '../archive/results';
 import { aggregate, shardGeo } from './electionModel';
 
-export type JobInput = ShardInput & { night?: NightInput; stateIdx?: number; seal?: { contests: { id: number; candidacyIds: number[] }[] } };
+export type JobInput = ShardInput & { night?: NightInput; stateIdx?: number; seal?: { contests: { id: number; candidacyIds: number[] }[] }; measure?: boolean };
 export interface SealedContest { id: number; totals: number[]; blobs: { grain: string; payload: Uint8Array }[]; sha256: string }
-export type JobOutput = ShardOutput & { night?: StateNight; sealed?: { contests: SealedContest[]; turnout: Uint8Array; rejected: { contestId: number; payload: Uint8Array }[] } };
+export type JobOutput = ShardOutput & { night?: StateNight; sealed?: { contests: SealedContest[]; turnout: Uint8Array; rejected: { contestId: number; payload: Uint8Array }[] }; types?: PieceTypes[] };
 
 /**
  * A job with its results sealed: the cast ballots of each counted contest are encoded and hashed here,
@@ -48,6 +48,8 @@ export async function runJobSealed(inp: JobInput): Promise<JobOutput> {
 }
 
 export function runJob(inp: JobInput): JobOutput {
+  // A measurement job: the electorate's voter types only (for polls), no ballots.
+  if (inp.measure) return { ballots: new Int32Array(0), ballotsByMode: new Int32Array(0), eligible: new Int32Array(0), contests: [], expectedBallots: 0, types: measureTypes(inp) };
   const out: JobOutput = runShard(inp);
   if (inp.night) {
     out.night = runStateNight(inp, out, inp.night, inp.stateIdx ?? 0);
@@ -69,6 +71,7 @@ export function jobTransferables(o: JobOutput): ArrayBuffer[] {
     for (const r of n.rejected) t.add(r.buffer as ArrayBuffer);
     for (const r of n.rejectedUnits) { t.add(r.units.buffer as ArrayBuffer); t.add(r.modes.buffer as ArrayBuffer); t.add(r.votes.buffer as ArrayBuffer); }
   }
+  if (o.types) for (const p of o.types) { t.add(p.lv.buffer as ArrayBuffer); t.add(p.rv.buffer as ArrayBuffer); }
   if (o.sealed) {
     for (const c of o.sealed.contests) for (const b of c.blobs) t.add(b.payload.buffer as ArrayBuffer);
     t.add(o.sealed.turnout.buffer as ArrayBuffer);
@@ -134,7 +137,10 @@ export function runStateNight(inp: ShardInput, out: ShardOutput, night: NightInp
   const survey: StateNight['survey'] = [];
   const obsRaces: ObsRace[] = specs.map((sp, ri) => {
     const c = out.contests[sp.contest]!; const K = sp.k, def = night.races[ri]!;
-    const base = publishedBaseline(c.expPartMode!, raceParts[ri]!, K, def.axis, { state: night.priorError.state, mode: night.priorError.mode, race: night.priorError.race[ri] ?? 0 }, mr);
+    const fc = def.forecast;
+    const base = publishedBaseline(c.expPartMode!, raceParts[ri]!, K, def.axis, fc ? { state: 0, mode: night.priorError.mode, race: 0 } : { state: night.priorError.state, mode: night.priorError.mode, race: night.priorError.race[ri] ?? 0 }, mr);
+    // With a public forecast, the desk's expectations are centred on it (the geography still comes from past results).
+    if (fc) centreBaseline(base, c.expPartMode!, raceParts[ri]!, K, def.axis, fc.mean / 100);
     let svy: ReturnType<typeof voterSurveyCrosstabs> = null;
     if (def.surveyed && K - 1 >= 2) {
       const cast = new Array<number>(K - 1).fill(0);

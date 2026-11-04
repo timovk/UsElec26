@@ -3,10 +3,10 @@
  * docs/architecture/02 §2.2): every quantity leaves here with realistic error, and observers
  * (wire, survey, decision desks) never see the cast results or the model's expectations directly.
  */
-import type { Rng } from '../core/rng';
+import { Rng } from '../core/rng';
 import { dexp, dlogistic, dtanh } from '../core/math';
 import { gaussHermite } from './model';
-import type { ShardInput } from './kernel';
+import { N_CLASS, N_TYPES, ZG, typeScratch, typeUtilities, unitTypes, type KernelContest, type ShardInput } from './kernel';
 import { AGE_BANDS, EDUS, N_COHORTS, RACES, SEXES, cohortAge, cohortEdu, cohortRace, cohortSex } from '../population/cohorts';
 
 const N_MODES = 4;
@@ -38,6 +38,34 @@ export function publishedBaseline(expPartMode: Float64Array, parts: readonly num
     }
   });
   return { shares, has };
+}
+
+/**
+ * Centre a baseline on a public forecast: shift every cell along the race axis so the race's expected-vote
+ * weighted margin (axis + minus axis −, as a share of the vote) equals `target`.
+ */
+export function centreBaseline(base: { shares: Float64Array; has: Uint8Array }, expPartMode: Float64Array, parts: readonly number[], K: number, axis: readonly number[], target: number): void {
+  const a = axis.indexOf(1), b = axis.indexOf(-1);
+  if (a < 0 || b < 0) return;
+  let m = 0, wsum = 0;
+  parts.forEach((p, i) => {
+    for (let mo = 0; mo < N_MODES; mo++) {
+      if (!base.has[i * N_MODES + mo]) continue;
+      const o = (p * N_MODES + mo) * K; let tot = 0; for (let k = 0; k < K; k++) tot += expPartMode[o + k]!;
+      const so = (i * N_MODES + mo) * K;
+      m += tot * (base.shares[so + a]! - base.shares[so + b]!); wsum += tot;
+    }
+  });
+  if (wsum <= 0) return;
+  const delta = target - m / wsum;
+  parts.forEach((_, i) => {
+    for (let mo = 0; mo < N_MODES; mo++) {
+      if (!base.has[i * N_MODES + mo]) continue;
+      const so = (i * N_MODES + mo) * K, pair = base.shares[so + a]! + base.shares[so + b]!;
+      const sa = Math.min(pair - 0.001, Math.max(0.001, base.shares[so + a]! + 0.5 * delta));
+      base.shares[so + a] = sa; base.shares[so + b] = pair - sa;
+    }
+  });
 }
 
 /** The voter survey (exit poll): a sample of the realized electorate with nonresponse bias along the race axis. */
@@ -132,4 +160,107 @@ export function voterSurveyCrosstabs(inp: ShardInput, contestIdx: number, cd: nu
     };
   });
   return { shares, nEff, crosstabs };
+}
+
+// ---- Polls: the measurement port (docs/architecture/04 §4.8) -------------------------------------------
+
+/** Voters of one county (or county × district) by type: expected voters (LV) and the electorate before turnout (RV). */
+export interface PieceTypes { county: number; cd: number; lv: Float32Array; rv: Float32Array }
+
+/**
+ * The electorate of a state by voter type, county and district: the ballot kernel's own step 1 (§4.5), run
+ * without drawing ballots. Built once per cycle and electorate (general, each party's primary); polls are then
+ * cheap. Only aggregated, noise-free weights; a poll turns them into a sampled, biased measurement.
+ */
+export function measureTypes(inp: ShardInput): PieceTypes[] {
+  const sc = typeScratch(inp, true);
+  const pieces = new Map<number, PieceTypes>();
+  for (let i = 0; i < inp.bus.count; i++) {
+    const E = Math.round(inp.bus.vep[i]!); if (E <= 0) continue;
+    unitTypes(inp, i, E, sc);
+    const county = inp.bus.county[i]!, cd = inp.bus.cd[i]!, key = county * 65536 + cd;
+    let p = pieces.get(key); if (!p) { p = { county, cd, lv: new Float32Array(N_TYPES), rv: new Float32Array(N_TYPES) }; pieces.set(key, p); }
+    for (let a = 0; a < 4; a++) for (let ty = 0; ty < N_TYPES; ty++) { p.lv[ty]! += sc.WA[a * N_TYPES + ty]!; p.rv[ty]! += sc.WR![a * N_TYPES + ty]!; }
+  }
+  return [...pieces.values()].sort((x, y) => x.county - y.county || x.cd - y.cd);
+}
+
+/** How a pollster fields a survey (its design and its biases, in the vote model's units). */
+export interface PollDesign {
+  n: number; deff: number; population: 'LV' | 'RV' | 'A';
+  /** Share of the likely-voter screen that works (0–1); the rest of the sample looks like registered voters. */
+  lvQuality: number;
+  /** House effect: utility added to the Democratic option and removed from the Republican one. */
+  house: number;
+  /** Coverage and nonresponse by cohort class (log weights), the pollster's plus the cycle's shared bias. */
+  classBias: readonly number[];
+  /** Partisan nonresponse: log weight per unit of latent partisanship (positive: Democratic-leaning respondents answer more). */
+  partisanNonresponse: number;
+  /** Undecided share before leaners are pushed (0–1), scaled by how little the candidates are known. */
+  undecided: number;
+}
+
+/** One jurisdiction of a poll: its contest as the ballot would show it there, its electorate pieces, and the current swing since the cache was built. */
+export interface PollArea { contest: KernelContest; pieces: readonly PieceTypes[]; zShift: readonly number[]; bonuses: { homeStateBonus: number; homeCountyBonus: number } }
+
+/**
+ * Field a poll: the sampled responses (one count per option, then the undecided). The true intentions never
+ * leave this function; observers receive only what a pollster would publish.
+ */
+export function fieldPoll(areas: readonly PollArea[], design: PollDesign, recognition: readonly number[], rng: Rng): { counts: number[]; undecided: number; n: number } {
+  const J = areas[0]!.contest.options.length;
+  const S = new Float64Array(J); let A = 0;
+  const u = new Float64Array(J + 1);
+  for (const ar of areas) {
+    const c = ar.contest;
+    // Choice probabilities differ by county only through home-county bonuses: evaluate the rest of the area as one piece.
+    const homes = new Set(c.options.map((o) => o.homeCounty).filter((x) => x >= 0));
+    const rest: PieceTypes = { county: -1, cd: -1, lv: new Float32Array(N_TYPES), rv: new Float32Array(N_TYPES) };
+    const own: PieceTypes[] = [];
+    for (const p of ar.pieces) {
+      if (homes.has(p.county)) { own.push(p); continue; }
+      for (let ty = 0; ty < N_TYPES; ty++) { rest.lv[ty]! += p.lv[ty]!; rest.rv[ty]! += p.rv[ty]!; }
+    }
+    for (const p of [rest, ...own]) for (let h = 0; h < N_CLASS; h++) for (let g = 0; g < ZG; g++) {
+      const ty = h * ZG + g;
+      const lv = p.lv[ty]!, rv = p.rv[ty]!;
+      let w = design.population === 'LV' ? design.lvQuality * lv + (1 - design.lvQuality) * rv * LV_RATIO : rv;
+      if (w <= 0) continue;
+      w *= dexp(design.classBias[h]! + design.partisanNonresponse * (g - ZG / 2 + 0.5));
+      typeUtilities(ar.bonuses, c, h, g, p.county, ar.zShift[h]!, u);
+      for (let j = 0; j < J; j++) { const s = c.options[j]!.partySign; if (s > 0) u[j]! += design.house; else if (s < 0) u[j]! -= design.house; }
+      let mx = u[J]!; for (let j = 0; j < J; j++) if (u[j]! > mx) mx = u[j]!;
+      let tot = 0; for (let j = 0; j <= J; j++) { u[j] = dexp(u[j]! - mx); tot += u[j]!; }
+      for (let j = 0; j < J; j++) S[j]! += (w * u[j]!) / tot;
+      A += (w * u[J]!) / tot;
+    }
+  }
+  const decided = S.reduce((a, b) => a + b, 0);
+  if (decided <= 0) return { counts: new Array<number>(J).fill(0), undecided: design.n, n: design.n };
+  // Undecided: people who would skip the race, plus soft supporters of little-known candidates.
+  const soft = Array.from(S, (x, j) => (x / decided) * Math.min(0.9, design.undecided * (1.25 - recognition[j]!)));
+  const probs = Array.from(S, (x, j) => (x / decided) - soft[j]!);
+  const und = Math.min(0.6, A / (decided + A) + soft.reduce((a, b) => a + b, 0));
+  const scale = (1 - und) / Math.max(1e-9, probs.reduce((a, b) => a + b, 0));
+  const q = [...probs.map((x) => x * scale), und];
+  const nEff = Math.max(30, Math.round(design.n / design.deff));
+  const draw = rng.multinomial(nEff, q, new Int32Array(J + 1));
+  const counts = Array.from(draw, (x) => Math.round((x * design.n) / nEff));
+  return { counts: counts.slice(0, J), undecided: counts[J]!, n: design.n };
+}
+
+/** Registered voters scaled to the likely electorate's size (so mixing LV and RV keeps the sample's shape, not its size). */
+const LV_RATIO = 0.6;
+
+/**
+ * The public partisan-lean index of the first simulated cycle, before the archive holds past results: what an
+ * analyst would infer from earlier elections — the true expected lean with regional, state and district error.
+ * Points of two-party margin (D+), relative to the nation.
+ */
+export function publishedLean(seed: string, year: number, state: readonly number[], stateDivision: readonly number[], cd: readonly number[], cdState: readonly number[], national: number): { state: number[]; cd: number[] } {
+  const r = Rng.stream(seed, 'published-lean', year);
+  const div = Array.from({ length: 10 }, () => r.normal(0, 1.5));
+  const st = state.map((m, s) => m - national + div[stateDivision[s]!]! + r.normal(0, 2.5));
+  const cds = cd.map((m, i) => m - national + (st[cdState[i]!]! - (state[cdState[i]!]! - national)) + r.normal(0, 3.5));
+  return { state: st, cd: cds };
 }

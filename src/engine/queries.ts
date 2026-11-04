@@ -8,6 +8,7 @@ import { leanMargin } from './world';
 import type { Universe } from './universe';
 import { runArchiveQuery } from './archiveQueries';
 import { runNightQuery } from './nightQueries';
+import { runSeasonQuery } from './seasonQueries';
 import type {
   CalendarEntry, ChamberDto, DeskSummary, ElectorateSummary, EntityDetail, GeoMeta, MapLayerDto, NewsDto, OfficeHolderDto, PersonDetail, PersonRef, PersonRow, Query,
 } from './protocol';
@@ -16,6 +17,7 @@ export function runQuery(u: Universe, q: Query): unknown {
   switch (q.kind) {
     case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
     case 'nights': case 'nightMeta': case 'nightPayload': case 'nightContext': case 'nightBaseline': case 'nightSurvey': case 'nightCalls': return runNightQuery(u, q);
+    case 'seasonYears': case 'seasonOverview': case 'seasonRace': case 'pollList': case 'pollster': case 'forecastRun': case 'forecastCalibration': case 'primaries': return runSeasonQuery(u, q);
     case 'desk': return desk(u);
     case 'geoMeta': return geoMeta(u);
     case 'mapLayer': return mapLayer(u, q.layer, q.metric);

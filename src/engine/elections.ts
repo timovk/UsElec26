@@ -4,7 +4,7 @@
  * require them. Results come from the shared-electorate ballot kernel and are archived immutably.
  */
 import { Rng } from '../core/rng';
-import { MINUTES_PER_DAY, ageOn, civilToDays, daysToCivil, easternDay, formatDay, formatTime, generalElectionDay, nthWeekday, weekday, zonedToUtc, type DayNumber, type SimTime } from '../core/time';
+import { MINUTES_PER_DAY, ageOn, civilToDays, daysToCivil, easternDay, formatDay, formatTime, generalElectionDay, weekday, zonedToUtc, type DayNumber, type SimTime } from '../core/time';
 import type { Db } from '../persistence/db';
 import { NONE16, cdCode } from '../geo/pack';
 import { PARTY_D, PARTY_G, PARTY_L, PARTY_R, SIMULATED, fullName, type Office, type OfficeKind, type Person, type Term } from '../institutions/model';
@@ -12,13 +12,16 @@ import { SENATE_CLASS_NEXT_ELECTION, STATES_2016 } from '../rules/states2016';
 import { DISTRICT_EV_STATES, ELECTION_RULES_2016, ELECTORS_MEET, electoralVotes, ruleDay } from '../rules/elections2016';
 import { cohortClasses } from '../electorate/kernel';
 import { buildShard, stateRanges, type StateRange } from '../electorate/shards';
-import { TURNOUT_OFFSET, calibrateTurnout, drawEnvironment, type Environment } from '../electorate/environment';
+import { TURNOUT_OFFSET, calibrateTurnout, drawEnvironment, stepEnvironment, type Environment } from '../electorate/environment';
 import { certifiedFromCast, prepareContest, prepareDerived, prepareRejected, prepareRollup, prepareTurnout, readRollup, writeContest, writeTotalsRevision, K, totalsOf, type ContestResult } from '../archive/results';
 import { crc32 } from '../core/codec';
 import type { ShardRunner } from './computePool';
 import type { JobInput, SealedContest } from './nightJob';
 import { buildNightInput, nationalPriorError, nightRaces } from './nightSetup';
 import { nightStory } from './nightStory';
+import { Season, type SeasonState } from './season';
+import { Nomination } from './nomination';
+import { CAUCUS_TURNOUT_OFFSET } from '../rules/primaries2016';
 import { buildParts } from '../counting/precincts';
 import { decodeNightRecord, encodeNightRecord, mergeNights, type ChamberBase, type ControlEvent, type NightRecord, type RaceMeta } from '../counting/record';
 import { MODE_PROV, ST_CALLED, ST_WITHDRAWN, type StateNight } from '../counting/types';
@@ -43,7 +46,7 @@ export interface ElectionHost {
 }
 
 /** Persistent election-engine state (stored as a state blob). */
-export interface ElectionState { tauE: number | null; turnoutTarget: number | null; env: Record<string, Environment>; plannedYears: number[] }
+export interface ElectionState { tauE: number | null; turnoutTarget: number | null; env: Record<string, Environment>; plannedYears: number[]; season?: SeasonState }
 
 const ET = 'America/New_York' as const;
 const at = (day: DayNumber, h: number, m = 0): SimTime => { const c = daysToCivil(day); return zonedToUtc(c.y, c.m, c.d, h, m, ET); };
@@ -57,14 +60,17 @@ const STATEWIDE: OfficeKind[] = ['governor', 'lt_governor', 'attorney_general', 
 interface Race { office: Office; special: boolean; termStart: SimTime }
 
 export class ElectionEngine {
-  private ranges: StateRange[];
+  readonly ranges: StateRange[];
   private classes: ReturnType<typeof cohortClasses> | null = null;
-  constructor(private readonly h: ElectionHost, public state: ElectionState) { this.ranges = stateRanges(h.world.pack); }
+  readonly season: Season;
+  readonly nomination: Nomination;
+  constructor(private readonly h: ElectionHost, public state: ElectionState) { this.ranges = stateRanges(h.world.pack); this.season = new Season(this); this.nomination = new Nomination(this); }
+  get host(): ElectionHost { return this.h; }
 
-  private get w(): World { return this.h.world; }
-  private get db(): Db { return this.h.db; }
+  get w(): World { return this.h.world; }
+  get db(): Db { return this.h.db; }
   private rng(...key: (string | number)[]): Rng { return Rng.stream(this.w.seed, 'elections', ...key); }
-  private get cls() { return (this.classes ??= cohortClasses(this.w.electorate.params)); }
+  get cls() { return (this.classes ??= cohortClasses(this.w.electorate.params)); }
 
   // ---- Calendar --------------------------------------------------------------------------------
 
@@ -140,10 +146,11 @@ export class ElectionEngine {
         } else if (hasRaces) this.h.schedule(Math.max(now, at(gDay - 100, 9)), 'filing', { year, state: s }, 5);
       }
       if (presYear) {
-        const nDay = Math.max(nthWeekday(year, 6, 2, 2), easternDay(now) + 30);
+        // The nominations are decided at each party's convention (Republicans the third Monday of July, Democrats the last).
         for (const p of [PARTY_D, PARTY_R]) {
-          const nid = this.insertElection(nDay, 'pres_nomination', null, p, year, `${year} ${PARTY_NAME[p]} presidential nomination`);
-          this.h.schedule(at(nDay, 21), 'pres_nomination', { election: nid }, 6);
+          const cDay = Math.max(ruleDay(year, { month: 7, weekday: 1, nth: p === PARTY_R ? 3 : 'last' }), easternDay(now) + 30);
+          this.insertElection(cDay, 'pres_nomination', null, p, year, `${year} ${PARTY_NAME[p]} presidential nomination`);
+          this.h.schedule(at(cDay, 22), 'nomination_convention', { year, party: p }, 5);
         }
         this.h.schedule(Math.max(now, at(civilToDays(year, 1, 2), 9)), 'pres_filing', { year }, 4);
         this.h.schedule(at(civilToDays(year, 7, 28), 21), 'convention', { year }, 5);
@@ -158,14 +165,24 @@ export class ElectionEngine {
     this.h.news('calendar', `${year} election calendar set`, `${presYear ? 'A presidential election year. ' : ''}Elections are scheduled in ${n} state${n === 1 ? '' : 's'}; the general election is ${formatDay(gDay, true)}.`, {});
   }
 
+  /** The daily process (06:00 ET): the environment's daily step, then campaigns, polls and forecasts. */
+  async daily(day: DayNumber): Promise<void> {
+    const year = daysToCivil(day).y;
+    const env = this.state.env[String(year)];
+    if (env) stepEnvironment(this.w.seed, env, day);
+    if (year % 4 === 0 && this.state.plannedYears.includes(year)) this.nomination.daily(year, day);
+    await this.season.daily(day);
+  }
+
   environmentFor(year: number): Environment {
     const key = String(year);
-    if (this.state.env[key]) return this.state.env[key];
+    if (this.state.env[key]) { stepEnvironment(this.w.seed, this.state.env[key], easternDay(this.w.time)); return this.state.env[key]; }
     const prev = this.state.env[String(year - 2)] ?? this.state.env[String(year - 1)] ?? null;
     const presTerm = this.w.current.get(this.w.offices.find((o) => o.kind === 'president')!.id);
     const presParty = presTerm?.partyId ?? PARTY_D;
     const termsHeld = this.partyWhiteHouseTerms(presParty);
     const env = drawEnvironment(this.w.seed, year, this.w.pack, prev, { presParty, termsHeld, midterm: year % 4 === 2 });
+    stepEnvironment(this.w.seed, env, easternDay(this.w.time));
     this.state.env[key] = env;
     return env;
   }
@@ -191,7 +208,7 @@ export class ElectionEngine {
     return this.runCache.ids;
   }
 
-  private quality(p: Person, background = 0): number { return candidateQuality(p, heldKinds(this.w.current, this.w.officeById, p.id), background); }
+  quality(p: Person, background = 0): number { return candidateQuality(p, heldKinds(this.w.current, this.w.officeById, p.id), background); }
 
   /** Consecutive terms the person has served in an office (for term limits). */
   private consecutiveTerms(o: Office, p: Person, year: number): number {
@@ -215,11 +232,11 @@ export class ElectionEngine {
     return n >= tl.terms;
   }
 
-  private stateMargin(s: number, year: number): number {
+  stateMargin(s: number, year: number): number {
     const env = this.environmentFor(year);
     return leanMargin(this.w.lean.state, s) + 100 * 0.17 * env.national * 2;
   }
-  private cdMargin(cd: number, year: number): number {
+  cdMargin(cd: number, year: number): number {
     const env = this.environmentFor(year);
     return leanMargin(this.w.lean.cd, cd) + 100 * 0.17 * env.national * 2;
   }
@@ -391,6 +408,7 @@ export class ElectionEngine {
           this.db.run('UPDATE contest SET winner_candidacy = last_insert_rowid() WHERE contest_id = ?', [cid]);
           this.db.run("UPDATE election SET status = 'held' WHERE election_id = ?", [eid]);
           this.runningIn(year).add(incP.id);
+          this.season.st.presumptive[`${year}:${party}`] = incP.id;
           this.h.news('nomination', `President ${fullName(incP)} will seek a second term`, `The ${PARTY_NAME[party]} nomination is effectively uncontested.`, { personId: incP.id });
           continue;
         }
@@ -405,18 +423,22 @@ export class ElectionEngine {
           if (r.bernoulli(Math.min(0.9, 0.06 * weight))) pool.push({ p, q: this.quality(p) });
         }
         pool.sort((a, b) => b.q - a.q || a.p.id - b.p.id);
-        const field = pool.slice(0, 7);
+        const field = pool.slice(0, 4 + r.int(6));
         while (field.length < 3) { const c = this.newCandidate(r, party, r.weighted(w.pack.states.map((_, s) => w.pop.stateVep[s]!)), null, 0.35, year); field.push({ p: c.person, q: Math.max(c.quality, 0.55) }); }
-        this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-          [eid, presOffice.id, 'pres_nomination', party, null, null, 'plurality', `${year} ${PARTY_NAME[party]} presidential nomination (simplified national primary)`, 'set', null, null, null, null, null, null, year]);
-        const cid = Number(this.db.value('SELECT last_insert_rowid()'));
-        field.forEach((c, i) => {
-          this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [cid, c.p.id, party, i, 0, null, 'running', c.q]);
-          this.runningIn(year).add(c.p.id);
-        });
+        // An outsider or two (business figures, activists) often join an open field.
+        for (let k = r.bernoulli(0.5) ? 1 : 0; k > 0; k--) { const c = this.newCandidate(r, party, r.weighted(w.pack.states.map((_, s) => w.pop.stateVep[s]!)), null, 0.6, year); field.push({ p: c.person, q: Math.max(c.quality, 0.45) }); }
+        this.nomination.createSeason(year, party, field, eid);
+        field.forEach((c) => this.runningIn(year).add(c.p.id));
         this.h.news('nomination', `${field.length} candidates seek the ${PARTY_NAME[party]} presidential nomination`, field.map((c) => fullName(c.p)).join(', ') + '.', {});
       }
     });
+  }
+
+  /** A party's nominating convention (Phase 5 seasons): the nominee is chosen by the delegates. */
+  nominationConvention(year: number, party: number): void {
+    const day = easternDay(this.w.time);
+    if (!this.db.value<number>("SELECT 1 FROM contest WHERE kind = 'pres_nomination' AND year = ? AND party_id = ? AND method = 'delegates' AND status = 'set'", [year, party])) return;
+    this.h.commit(() => { this.nomination.convention(year, party, day); });
   }
 
   /** Party conventions: nominees choose running mates; the general-election presidential contests are created. */
@@ -464,12 +486,12 @@ export class ElectionEngine {
 
   // ---- Holding elections --------------------------------------------------------------------------
 
-  private cands(contestId: number): { cand: CandidacyRow; person: Person }[] {
+  cands(contestId: number): { cand: CandidacyRow; person: Person }[] {
     return this.db.all<CandidacyRow>("SELECT * FROM candidacy WHERE contest_id = ? AND status NOT IN ('withdrew') ORDER BY ballot_order, candidacy_id", [contestId])
       .map((cand) => ({ cand, person: this.w.persons.get(cand.person_id)! })).filter((x) => x.person);
   }
 
-  private ensureTurnout(): number {
+  ensureTurnout(): number {
     if (this.state.tauE === null) {
       const cal = calibrateTurnout(this.w.seed, this.w.electorate, this.w.pop);
       this.state.tauE = cal.tauE; this.state.turnoutTarget = cal.target;
@@ -478,21 +500,31 @@ export class ElectionEngine {
   }
 
   /** Run contests of one or more elections through the kernel and return per-contest results. */
-  private async realize(key: string, groups: { stateIdx: number; kind: 'general' | 'primary' | 'allparty'; party: number; contests: { row: ContestRow; cands: { cand: CandidacyRow; person: Person }[]; officeKind: string }[] }[], turnoutOffset: number, year: number, night?: { day: DayNumber }): Promise<Map<number, ContestResult>> {
+  private async realize(key: string, groups: { stateIdx: number; kind: 'general' | 'primary' | 'allparty'; party: number; contests: { row: ContestRow; cands: { cand: CandidacyRow; person: Person }[]; officeKind: string }[]; turnout?: number }[], turnoutOffset: number, year: number, night?: { day: DayNumber }): Promise<Map<number, ContestResult>> {
     const tauE = this.ensureTurnout() + turnoutOffset;
-    const env = this.state.env[String(year)] ?? null;
+    const env = this.state.env[String(year)] ? this.environmentFor(year) : null;
     const ctx = { seed: this.w.seed, electionKey: key, pack: this.w.pack, pop: this.w.pop, electorate: this.w.electorate, env, tauE, ranges: this.ranges };
     const kctx = { classCentroids: this.cls.centroids, platforms: this.w.electorate.params.platforms };
     this.h.progress('Preparing the electorate', 0);
     const inputs = groups.filter((g) => g.contests.length).map((g) => {
-      const kcs = g.contests.map((c) => kernelContest(this.w.seed, c.row, c.cands, c.officeKind, g.stateIdx, g.kind === 'primary', kctx));
+      const kcs = g.contests.map((c) => kernelContest(this.w.seed, c.row, c.cands, c.officeKind, g.stateIdx, g.kind === 'primary', { ...kctx, campaign: this.season.campaignFn(c.row) }));
       const comp = Math.exp(-Math.abs(this.stateMargin(g.stateIdx, year) + this.rng('perceived', key, g.stateIdx).normal(0, 4)) / 8);
-      const inp: JobInput = buildShard(ctx, g.stateIdx, g.kind, g.party, kcs, g.kind === 'general' ? comp : 0);
+      const inp: JobInput = buildShard(g.turnout ? { ...ctx, tauE: ctx.tauE + g.turnout } : ctx, g.stateIdx, g.kind, g.party, kcs, g.kind === 'general' ? comp : 0);
       if (night && g.kind === 'general') {
         // Counted election: the job also builds this state's night (count plan, wire, survey, desk).
         const parts = buildParts(inp.bus.rj, inp.bus.cd);
         inp.parts = { of: parts.of, count: parts.count };
         const races = nightRaces(this.w.pack, g.stateIdx, g.contests.map((c, i) => ({ contestIndex: i, office: c.officeKind, method: c.row.method, parties: c.cands.map((x) => x.cand.party_id), districtEv: c.row.method === 'district_ev' })));
+        // The desks' priors: the last public forecast of each race (statewide two-party races), when one exists.
+        for (const race of races) {
+          const row = g.contests[race.contest]!.row;
+          if (race.cd >= 0) continue;
+          const key = row.kind === 'pres_state' ? `PS:${year}:${this.w.pack.states[g.stateIdx]!.usps}` : `C:${row.contest_id}`;
+          const parties = g.contests[race.contest]!.cands.map((x) => x.cand.party_id);
+          const plus = race.axis.indexOf(1), minus = race.axis.indexOf(-1);
+          const f = this.season.forecastFor(key);
+          if (f && plus >= 0 && minus >= 0 && parties[plus] === PARTY_D && parties[minus] === PARTY_R) race.forecast = f;
+        }
         let vep = 0; for (let i = 0; i < inp.bus.count; i++) vep += inp.bus.vep[i]!;
         inp.night = buildNightInput({ seed: this.w.seed, key, pack: this.w.pack, rg: this.ranges[g.stateIdx]!, stateIdx: g.stateIdx, day: night.day, year, coverageStart: at(night.day, 17), races, national: nationalPriorError(this.w.seed, key), expectedBallots: vep * 0.55 });
         inp.stateIdx = g.stateIdx;
@@ -526,7 +558,7 @@ export class ElectionEngine {
   private lastSealedRejected = new Map<number, Uint8Array>();
   private lastNights = new Map<number, StateNight>();
 
-  private officeKindOf(c: ContestRow): string { return c.office_id !== null ? this.w.officeById.get(c.office_id)!.kind : 'president'; }
+  officeKindOf(c: ContestRow): string { return c.office_id !== null ? this.w.officeById.get(c.office_id)!.kind : 'president'; }
 
   /** Order candidates by votes; returns [winnerIdx, runnerUpIdx, topShare]. */
   private rank(r: ContestResult, rng: Rng): { order: number[]; share: number[] } {
@@ -541,8 +573,14 @@ export class ElectionEngine {
     const e = this.db.get<{ year: number; state_idx: number; day: number }>('SELECT year, state_idx, day FROM election WHERE election_id = ?', [electionId])!;
     const rows = this.db.all<ContestRow>("SELECT * FROM contest WHERE election_id = ? AND status = 'set' ORDER BY contest_id", [electionId]);
     if (!rows.length) { this.h.commit(() => this.db.run("UPDATE election SET status = 'held', held_time = ? WHERE election_id = ?", [this.w.time, electionId])); return; }
-    const groups = [PARTY_D, PARTY_R].map((party) => ({ stateIdx: e.state_idx, kind: 'primary' as const, party, contests: rows.filter((c) => c.kind === 'primary' && c.party_id === party).map((row) => ({ row, cands: this.cands(row.contest_id), officeKind: this.officeKindOf(row) })) }));
-    groups.push({ stateIdx: e.state_idx, kind: 'allparty' as never, party: 0, contests: rows.filter((c) => c.kind === 'top_two').map((row) => ({ row, cands: this.cands(row.contest_id), officeKind: this.officeKindOf(row) })) });
+    // Party primaries (including presidential primaries and caucuses on that day), then the all-party top-two ballot.
+    // Caucuses and party conventions draw a much smaller, more engaged electorate.
+    const groups = [PARTY_D, PARTY_R].map((party) => {
+      const cs = rows.filter((c) => (c.kind === 'primary' || c.kind === 'pres_primary') && c.party_id === party);
+      return { stateIdx: e.state_idx, kind: 'primary' as const, party, contests: cs.map((row) => ({ row, cands: this.cands(row.contest_id), officeKind: this.officeKindOf(row) })),
+        turnout: cs.some((c) => c.kind === 'pres_primary' && c.method !== 'primary') && !cs.some((c) => c.kind === 'primary') ? CAUCUS_TURNOUT_OFFSET : 0 };
+    });
+    groups.push({ stateIdx: e.state_idx, kind: 'allparty' as never, party: 0, contests: rows.filter((c) => c.kind === 'top_two').map((row) => ({ row, cands: this.cands(row.contest_id), officeKind: this.officeKindOf(row) })), turnout: 0 });
     const results = await this.realize(`primary|${electionId}`, groups, TURNOUT_OFFSET.primary + (e.year % 4 === 0 ? 0 : -0.2), e.year);
     await this.decideAndWrite(electionId, rows, results, 'primary');
   }
@@ -572,6 +610,7 @@ export class ElectionEngine {
       return { stateIdx: s, kind: 'general' as const, party: 0, contests: rows.map((row) => ({ row, cands: this.cands(row.contest_id), officeKind: this.officeKindOf(row) })) };
     });
     const offset = year % 4 === 0 ? TURNOUT_OFFSET.presidential : year % 2 === 0 ? TURNOUT_OFFSET.midterm : TURNOUT_OFFSET.offyear;
+    await this.season.ensure(year);
     this.h.progress('Voters go to the polls', 0);
     const results = await this.realize(`general|${year}|${day}`, groups, offset, year, { day });
     await this.lockCount(day, 'general', `${year} general election`, elections.filter((e) => all.some((c) => c.election_id === e.election_id)), all, results);
@@ -887,9 +926,24 @@ export class ElectionEngine {
       const env = this.state.env[String(rows[0]?.year ?? 0)];
       if (certifying) this.db.run("UPDATE election SET status = 'certified' WHERE election_id = ?", [electionId]);
       else this.db.run("UPDATE election SET status = 'held', held_time = ?, env_json = ? WHERE election_id = ?", [now, env ? JSON.stringify({ national: env.national, fundamentals: env.fundamentals, classSwing: env.classSwing, enthusiasm: env.enthusiasm }) : null, electionId]);
+      const nomOutcomes = new Map<number, { person: number; share: number; delegates: number; expected: number | null }[]>();
       for (const c of rows) {
         const res = results.get(c.contest_id); if (!res) continue;
         const cands = this.cands(c.contest_id);
+        // A state's presidential primary or caucus: delegates, not a nominee.
+        if (c.kind === 'pres_primary') {
+          const out = this.nomination.allocate(c, res, cands);
+          const win = cands[out.winner]!;
+          this.db.run("UPDATE contest SET status = 'decided', winner_candidacy = ? WHERE contest_id = ?", [win.cand.candidacy_id, c.contest_id]);
+          const avg = this.season.averageOf(`C:${c.contest_id}`);
+          const list = nomOutcomes.get(c.party_id!) ?? [];
+          cands.forEach((x, j) => list.push({ person: x.person.id, share: out.shares[j]!, delegates: out.pledged[j]!, expected: avg?.options[`p${x.person.id}`]?.mean ?? null }));
+          nomOutcomes.set(c.party_id!, list);
+          const st = w.pack.states[c.state_idx!]!;
+          this.h.news('primary', `${fullName(win.person)} wins the ${st.name} ${PARTY_NAME[c.party_id!]} ${c.method === 'caucus' ? 'caucuses' : c.method === 'convention' ? 'convention' : 'primary'}`,
+            `${fullName(win.person)} ${(100 * out.shares[out.winner]!).toFixed(1)}%${cands.length > 1 ? `; ${cands.map((x, j) => ({ x, j })).filter(({ j }) => j !== out.winner).sort((a, b) => out.shares[b.j]! - out.shares[a.j]!).slice(0, 2).map(({ x, j }) => `${fullName(x.person)} ${(100 * out.shares[j]!).toFixed(1)}%`).join(', ')}` : ''}. Delegates: ${cands.map((x, j) => ({ x, j })).filter(({ j }) => out.pledged[j]! > 0).map(({ x, j }) => `${x.person.surname} ${out.pledged[j]}`).join(', ') || 'none bound'}${out.unbound ? `, ${out.unbound} unbound` : ''}.`, { contestId: c.contest_id });
+          continue;
+        }
         const { order, share } = this.rank(res, this.rng('tiebreak', c.contest_id));
         const win = cands[order[0]!]!, second = order.length > 1 ? cands[order[1]!]! : null;
         const top = share[order[0]!]!;
@@ -927,7 +981,10 @@ export class ElectionEngine {
             this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [c.next_contest, win.person.id, win.cand.party_id, BALLOT_ORDER(win.cand.party_id), win.cand.incumbent, null, 'running', win.cand.quality]);
             if (this.officeKindOf(c) === 'governor') this.pickRunningMate(c.next_contest, win.person, c.state_idx!, c.year);
           }
-          if (c.kind === 'pres_nomination') this.h.news('nomination', `${fullName(win.person)} wins the ${PARTY_NAME[c.party_id!]} presidential nomination`, `${fullName(win.person)} won ${(100 * top).toFixed(1)}% of the national primary vote.`, { personId: win.person.id });
+          if (c.kind === 'pres_nomination') {
+            this.season.st.presumptive[`${c.year}:${c.party_id}`] = win.person.id;
+            this.h.news('nomination', `${fullName(win.person)} wins the ${PARTY_NAME[c.party_id!]} presidential nomination`, `${fullName(win.person)} won ${(100 * top).toFixed(1)}% of the national primary vote.`, { personId: win.person.id });
+          }
           else if (cands.length > 1 && (win.cand.incumbent && top < 0.6 || !win.cand.incumbent)) { /* routine primary outcome — no headline */ }
           if (win.cand.incumbent === 0 && cands.some((x) => x.cand.incumbent)) {
             const loser = cands.find((x) => x.cand.incumbent)!;
@@ -949,6 +1006,8 @@ export class ElectionEngine {
         const incumbentLost = cands.find((x) => x.cand.incumbent && x !== win);
         if (incumbentLost) this.h.news('defeat', `${fullName(incumbentLost.person)} defeated`, `${fullName(win.person)} (${this.abbr(win.cand.party_id)}) unseated ${office.title} ${fullName(incumbentLost.person)} with ${(100 * top).toFixed(1)}% of the vote.`, { personId: win.person.id });
       }
+      // The nominating season after the day's contests: momentum, withdrawals, the presumptive nominee.
+      for (const [party, list] of nomOutcomes) this.nomination.afterDay(rows[0]!.year, party, easternDay(now), list);
     };
     return { apply, followUps };
   }

@@ -24,7 +24,10 @@ describe.skipIf(!out || !existsSync(`${DIR}manifest.json`))('make a universe fil
     const u = await Universe.create(new MemoryStorage(sqlite3), { name: `Broadcast ${seed}`, seed }, files, names);
     const [d, hm] = (process.env.ENA_MAKE_UNTIL ?? '2016-11-09T07:00').split('T');
     const [y, m, dd] = d!.split('-').map(Number); const [h, mi] = hm!.split(':').map(Number);
+    (globalThis as unknown as { __seasonT: Record<string, number> }).__seasonT = {};
+    const t0 = performance.now();
     await u.advance({ kind: 'until', time: zonedToUtc(y!, m!, dd!, h!, mi!, 'America/New_York') });
+    console.log(`advanced in ${Math.round(performance.now() - t0)} ms; season ${JSON.stringify(Object.fromEntries(Object.entries((globalThis as unknown as { __seasonT: Record<string, number> }).__seasonT).map(([k, v]) => [k, Math.round(v)])))}`);
     writeFileSync(out!, await encodeEna(u.exportBytes(), SCHEMA_VERSION, ENGINE_VERSION));
     console.log(`wrote ${out}`);
   }, 1_800_000);

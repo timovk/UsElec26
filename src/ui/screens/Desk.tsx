@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { engine } from '../state/engineClient';
 import { useApp } from '../state/store';
-import type { CalendarEntry, DeskSummary, NewsDto, NightListItem, YearSummary } from '../../engine/protocol';
-import { formatDate, formatTime } from '../../core/time';
+import type { CalendarEntry, DeskSummary, ForecastDto, NewsDto, NightListItem, YearSummary } from '../../engine/protocol';
+import { formatDate, formatDay, formatTime } from '../../core/time';
 import { OfficeHolder, PARTY_COLORS, PARTY_NAME, PartyBadge, SeatBar, Truth, fmtLean } from '../components/common';
 
 export function useQuery<T>(q: Parameters<typeof engine.query>[0], deps: unknown[] = []): T | null {
@@ -103,6 +103,8 @@ export function Desk() {
         </section>
       )}
 
+      <SeasonCard />
+
       <div className="grid cols-2" style={{ marginTop: 16 }}>
         <section className="card">
           {lastS && <div style={{ marginBottom: 14 }}>
@@ -136,5 +138,28 @@ export function Desk() {
         </section>
       </div>
     </>
+  );
+}
+
+/** The campaign season at a glance: the latest forecast and the nominating contests. */
+function SeasonCard() {
+  const years = useQuery<number[]>({ kind: 'seasonYears' });
+  const year = years?.[0];
+  const fc = useQuery<ForecastDto | null>(year ? { kind: 'forecastRun', year } : { kind: 'seasonYears' }, [year]);
+  if (!year) return null;
+  const f = fc && 'races' in (fc as object) ? (fc as ForecastDto) : null;
+  const pct = (p: number) => (p > 0.99 ? '>99%' : p < 0.01 ? '<1%' : `${Math.round(100 * p)}%`);
+  const name = (p: number) => f?.nominees.find((n) => n.party === p)?.name ?? (p === 1 ? 'Democrats' : 'Republicans');
+  return (
+    <section className="card" style={{ marginTop: 16 }}>
+      <div className="row between wrap">
+        <div>
+          <div className="kicker">{year} campaign</div>
+          {f ? <strong>Forecast ({formatDay(f.asOf)}): {f.president ? `${name(1)} ${pct(f.president.pD)}, ${name(2)} ${pct(f.president.pR)} to win the presidency` : ''}{f.senate ? ` · Senate: Democrats ${pct(f.senate.pD)}` : ''}{f.house ? ` · House: Democrats ${pct(f.house.pD)}` : ''}</strong>
+            : <strong>Polls are coming in. The first forecast is published in June.</strong>}
+        </div>
+        <div className="row"><a className="btn small" href={`#/polls/${year}`}>% Polls &amp; forecasts</a>{year % 4 === 0 && <a className="btn small" href={`#/primaries/${year}`}>⚑ Primaries</a>}</div>
+      </div>
+    </section>
   );
 }

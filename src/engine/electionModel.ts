@@ -35,13 +35,18 @@ export function candidateQuality(p: Person, heldKinds: OfficeKind[], backgroundT
   return Math.round((0.5 * tier + 0.3 * p.traits.campaign + 0.2 * p.traits.fundraising) * 1000) / 1000;
 }
 
-export interface Ctx { classCentroids: number[][]; platforms: { D: number[]; R: number[] } }
+export interface Ctx {
+  classCentroids: number[][]; platforms: { D: number[]; R: number[] };
+  /** Campaign effects (Phase 5): valence added to the option and the candidate's campaign recognition in this race. */
+  campaign?: (cand: CandidacyRow, person: Person, stateIdx: number) => { valence: number; recognition: number } | null;
+}
 
 const dist2 = (a: readonly number[], b: readonly number[]) => a.reduce((s, x, i) => s + (x - b[i]!) ** 2, 0);
 
 /** Build the kernel representation of a contest (valence, ideology fit by cohort class, minor-party appeal). */
 export function kernelContest(seed: string, c: ContestRow, cands: { cand: CandidacyRow; person: Person }[], officeKind: string, stateIdx: number, primary: boolean, ctx: Ctx): KernelContest {
-  const r = Rng.stream(seed, 'campaign', c.contest_id);
+  // Unmodelled candidate-specific appeal; a presidential state race keys it by year and state, so pre-convention matchup polls and the November ballot share it.
+  const r = c.kind === 'pres_state' ? Rng.stream(seed, 'campaign', 'pres', c.year, stateIdx) : Rng.stream(seed, 'campaign', c.contest_id);
   const majorCount = cands.filter((x) => x.cand.party_id === PARTY_D || x.cand.party_id === PARTY_R).length;
   const options = cands.map(({ cand, person }) => {
     const party = cand.party_id;
@@ -53,9 +58,12 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
       return major ? -lambda * (dist2(cen, person.traits.ideology) - dist2(cen, plat)) : 0;
     });
     let base: number;
-    if (primary) base = 0.9 * (cand.quality - 0.5) + 0.8 * (person.traits.recognition - 0.3) + (cand.incumbent ? 0.5 : 0) + r.normal(0, 0.25);
-    else if (major) base = 0.45 * (cand.quality - 0.5) + 0.25 * (person.traits.recognition - 0.3) + (cand.incumbent ? INCUMBENCY[officeKind] ?? 0.12 : 0) + r.normal(0, 0.1);
+    const camp = ctx.campaign?.(cand, person, stateIdx) ?? null;
+    const recog = camp?.recognition ?? person.traits.recognition;
+    if (primary) base = 0.9 * (cand.quality - 0.5) + 0.8 * (recog - 0.3) + (cand.incumbent ? 0.5 : 0) + r.normal(0, 0.25);
+    else if (major) base = 0.45 * (cand.quality - 0.5) + 0.25 * (recog - 0.3) + (cand.incumbent ? INCUMBENCY[officeKind] ?? 0.12 : 0) + r.normal(0, 0.1);
     else base = (party === 3 ? -2.3 : party === 4 ? -3.0 : -2.7) + (officeKind === 'president' ? 0.3 : 0) + 1.2 * (cand.quality - 0.4) + (majorCount < 2 ? 1.2 : 0) + r.normal(0, 0.15);
+    if (camp) base += primary ? 2.5 * camp.valence : camp.valence;
     return {
       partySign: primary ? 0 : party === PARTY_D ? 0.5 : party === PARTY_R ? -0.5 : 0,
       base, classFit, minorAppeal: !primary && !major ? 0.55 : 0,
