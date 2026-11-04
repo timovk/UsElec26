@@ -107,7 +107,11 @@ function actualMargin(u: Universe, key: string): number | null {
   let d = 0, r = 0, all = 0;
   for (const id of ids) {
     const st = u.db.value<string>('SELECT status FROM contest WHERE contest_id = ?', [id]);
-    if (st !== 'decided' && st !== 'certified') return null; // still being counted: no spoilers
+    // No spoilers: a result counts once it is decided, or once its night's vote feed has ended (the whole count is public, awaiting certification).
+    if (st === 'counting') {
+      const feedEnd = u.db.value<number>('SELECT MAX(n.feed_end) FROM night n JOIN night_election ne ON ne.night_id = n.night_id JOIN contest c ON c.election_id = ne.election_id WHERE c.contest_id = ?', [id]);
+      if (feedEnd === undefined || feedEnd === null || feedEnd > u.world.time) return null;
+    } else if (st !== 'decided' && st !== 'certified') return null;
     const rev = u.db.value<number>('SELECT MAX(rev) FROM result_revision WHERE contest_id = ?', [id]) ?? 0;
     for (const t of u.db.all<{ party_id: number; votes: number }>('SELECT k.party_id, t.votes FROM contest_total t JOIN candidacy k ON k.candidacy_id = t.candidacy_id WHERE t.contest_id = ? AND t.rev = ?', [id, rev])) {
       all += t.votes; if (t.party_id === PARTY_D) d += t.votes; else if (t.party_id === PARTY_R) r += t.votes;

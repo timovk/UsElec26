@@ -41,22 +41,27 @@ test('the 2016 campaign: primaries, polls, forecasts, conventions and forecast v
   await expect(page.locator('table.data tbody tr').first()).toBeVisible();
 
   // June 29: the first forecasts are out (weekly from June) and the general-election polls are tracked.
+  // (The presidential forecast waits for both presumptive nominees; a contested nomination can delay it to the convention.)
   for (const k of [90, 120, 150, 180]) await advance(page, '+1 month', dayOf2016(k));
   await page.goto('./#/polls/2016/forecast');
   await expect(page.getByRole('heading', { name: 'President', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /Electoral votes for/ })).toBeVisible();
-  await page.goto(`./#/polls/2016/race/${encodeURIComponent('PN:2016')}`);
-  await expect(page.getByRole('heading', { name: 'Polling average' })).toBeVisible();
-  await expect(page.locator('.chart svg path').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Senate control' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'House control' })).toBeVisible();
 
-  // July 29: both conventions have met.
+  // July 29: both conventions have met, and the presidential forecast is out.
   await advance(page, '+1 month', 'July 29, 2016');
   await page.goto('./#/primaries/2016');
   await expect(page.locator('.badge.record', { hasText: 'Nominee:' })).toHaveCount(2, { timeout: 30_000 });
   await page.screenshot({ path: 'test-results/e2e-primaries-final.png' });
+  await page.goto('./#/polls/2016/forecast');
+  await expect(page.getByRole('heading', { name: /Electoral votes for/ })).toBeVisible();
 
-  // Election Day morning: the final forecast.
+  // October 27: the national race's average, then Election Day morning and the final forecast.
   for (const k of [240, 270, 300]) await advance(page, '+1 month', dayOf2016(k));
+  await page.goto(`./#/polls/2016/race/${encodeURIComponent('PN:2016')}`);
+  await expect(page.getByRole('heading', { name: 'Polling average' })).toBeVisible();
+  await expect(page.locator('.chart svg path').first()).toBeVisible();
+  await page.screenshot({ path: 'test-results/e2e-national-average.png' });
   await advance(page, /Next election/, 'November 8, 2016');
   console.log(`January 1 → November 8, 2016 in Chromium: ${Date.now() - t0} ms`);
   await page.goto('./#/polls/2016/forecast');
@@ -68,8 +73,11 @@ test('the 2016 campaign: primaries, polls, forecasts, conventions and forecast v
   await page.goto('./#/desk');
   await expect(page.getByText(/Forecast \(/)).toBeVisible();
 
-  // A month later: forecast vs result (Brier score, reliability, the presidential EV).
+  // Afterwards: forecast vs result (Brier score, reliability, the presidential EV).
   await advance(page, '+1 month', 'December 8, 2016', 600_000);
+  // Every state has finished counting by mid-December (the last certify by about December 16).
+  await advance(page, '+1 week', 'December 15, 2016');
+  await advance(page, '+1 week', 'December 22, 2016');
   await page.goto('./#/polls/2016/result');
   await expect(page.getByRole('heading', { name: 'Brier score' })).toBeVisible();
   const brier = Number(await page.locator('section.card', { has: page.getByRole('heading', { name: 'Brier score' }) }).locator('.fc-big').innerText());

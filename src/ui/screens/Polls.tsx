@@ -67,6 +67,7 @@ function ForecastPanel({ o, year }: { o: SeasonOverviewDto; year: number }) {
           <ProbRow dLabel={name(1)} rLabel={name(2)} pD={f.president.pD} pR={f.president.pR} />
           <div className="small muted">Expected electoral votes for {name(1)}: <strong className="num" style={{ color: 'var(--text-0)' }}>{Math.round(f.president.evMean)}</strong> (80% range {f.president.ev80[0]}–{f.president.ev80[1]}){f.president.pTie > 0.005 ? ` · no majority ${pctTxt(f.president.pTie)}` : ''}</div>
         </section>}
+        {!f.president && year % 4 === 0 && <section className="card fc-card"><h2>President</h2><p className="small muted">The presidential forecast starts once both parties have a presumptive nominee. Follow the nominations on the <a href={`#/primaries/${year}`}>Primaries</a> page.</p></section>}
         {f.senate && <section className="card fc-card"><h2>Senate control</h2><ProbRow dLabel="Democrats" rLabel="Republicans" pD={f.senate.pD} pR={1 - f.senate.pD} /><div className="small muted">Expected Democratic seats: <strong className="num" style={{ color: 'var(--text-0)' }}>{f.senate.mean.toFixed(1)}</strong> of 100 (incl. seats not up)</div></section>}
         {f.house && <section className="card fc-card"><h2>House control</h2><ProbRow dLabel="Democrats" rLabel="Republicans" pD={f.house.pD} pR={1 - f.house.pD} /><div className="small muted">Expected Democratic seats: <strong className="num" style={{ color: 'var(--text-0)' }}>{f.house.mean.toFixed(0)}</strong> of 435</div></section>}
       </div>
