@@ -1,5 +1,14 @@
 # 08 — Election-Night Architecture
 
+> **Phase 3 status:** implemented — see [../phase-3-report.md](../phase-3-report.md). Differences from the design below, as
+> built: (1) the count plan, wire, survey and desk run per state inside the compute workers right after that state's ballots
+> are realized, and the engine merges the states and adds control projections; (2) only the flagship desk (MNN) runs —
+> networks B and C and the switcher remain Phase 9; (3) the desk model adds a mode-level swing, a systematic within-mode
+> drift term and a precinct-aware Election-Day drift to §4.13, and uses a Student-t (ν = 6) tail analytically instead of
+> Monte Carlo; (4) the voter survey produces toplines for President, Senate and Governor; crosstabs arrive with the Analyst
+> dashboard in Phase 4; (5) alerts and commentary (§8.6) are Phase 4; the functional night view lists desk events instead;
+> (6) glitches are published short and corrected upward, so running totals never exceed the final count.
+
 ## 8.1 Pipeline
 
 ```mermaid

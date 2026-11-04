@@ -120,3 +120,21 @@ export const DISTRICT_EV_STATES = new Set(['ME', 'NE']);
 /** Electors meet on the first Monday after the second Wednesday in December (3 U.S.C. §7, 2016 text). */
 export const ELECTORS_MEET = (year: number) => nthWeekday(year, 12, WED, 2) + 5;
 export const CONGRESS_COUNT_DAY = (year: number) => civilToDays(year + 1, 1, 6);
+
+/**
+ * Approximate 2016 usage of each ballot mode (shares of ballots cast: early in person, mail, provisional;
+ * Election Day is the rest), from the general pattern of the 2016 Election Administration and Voting Survey.
+ * Availability still follows `modes`: a state without early in-person voting has none.
+ */
+export const MODE_USAGE_2016: Record<string, [number, number, number]> = {
+  AL: [0.02, 0.04, 0.005], AK: [0.2, 0.1, 0.02], AZ: [0.1, 0.6, 0.02], AR: [0.5, 0.04, 0.005], CA: [0.05, 0.53, 0.05],
+  CO: [0, 0.93, 0.01], CT: [0, 0.07, 0.005], DE: [0, 0.06, 0.005], DC: [0.2, 0.05, 0.03], FL: [0.38, 0.3, 0.005],
+  GA: [0.45, 0.06, 0.005], HI: [0.15, 0.5, 0.01], ID: [0.1, 0.2, 0.01], IL: [0.22, 0.07, 0.01], IN: [0.25, 0.05, 0.005],
+  IA: [0.2, 0.2, 0.005], KS: [0.25, 0.1, 0.02], KY: [0.02, 0.04, 0.005], LA: [0.25, 0.04, 0.005], ME: [0.15, 0.15, 0.005],
+  MD: [0.23, 0.06, 0.02], MA: [0.2, 0.05, 0.005], MI: [0.05, 0.23, 0.005], MN: [0.05, 0.22, 0.005], MS: [0.02, 0.05, 0.005],
+  MO: [0.02, 0.07, 0.005], MT: [0.05, 0.6, 0.01], NE: [0.1, 0.25, 0.01], NV: [0.55, 0.08, 0.01], NH: [0, 0.08, 0.005],
+  NJ: [0.02, 0.1, 0.02], NM: [0.5, 0.1, 0.01], NY: [0, 0.05, 0.03], NC: [0.6, 0.04, 0.01], ND: [0.3, 0.25, 0.005],
+  OH: [0.1, 0.23, 0.02], OK: [0.1, 0.05, 0.005], OR: [0, 0.93, 0.01], PA: [0, 0.05, 0.005], RI: [0, 0.05, 0.005],
+  SC: [0.25, 0.05, 0.005], SD: [0.2, 0.1, 0.005], TN: [0.6, 0.03, 0.005], TX: [0.55, 0.06, 0.005], UT: [0.05, 0.68, 0.02],
+  VT: [0.2, 0.12, 0.005], VA: [0.1, 0.07, 0.005], WA: [0, 0.93, 0.01], WV: [0.3, 0.04, 0.005], WI: [0.2, 0.07, 0.005], WY: [0.2, 0.1, 0.005],
+};

@@ -37,7 +37,47 @@ export type Query =
   | { kind: 'news'; limit?: number; beforeId?: number }
   | { kind: 'calendar' }
   | { kind: 'electorate' }
-  | ArchiveQuery;
+  | ArchiveQuery
+  | NightQuery;
+
+// ---- Phase 3: election nights ----------------------------------------------------------------------
+export type NightQuery =
+  | { kind: 'nights' }
+  | { kind: 'nightMeta'; id: number }
+  | { kind: 'nightPayload'; id: number };
+
+export interface NightListItem { id: number; label: string; kind: string; day: number; date: string; lockTime: SimTime; coverageStart: SimTime; nightEnd: SimTime; feedEnd: SimTime }
+export interface NightCandidate { candidacyId: number; personId: number; name: string; party: number; incumbent: boolean }
+export interface NightRaceMeta {
+  i: number; contestId: number; label: string; short: string; office: string; state: string; stateIdx: number; cd: number; ev: number; k: number;
+  candidates: NightCandidate[]; precincts: number; close: SimTime;
+}
+export interface NightChamberBase { holdovers: Record<number, number>; seats: number; majority: number }
+export interface NightMetaDto {
+  id: number; label: string; lockTime: SimTime; coverageStart: SimTime; nightEnd: SimTime; feedEnd: SimTime;
+  races: NightRaceMeta[];
+  states: { idx: number; usps: string; name: string; closeFirst: SimTime; closeLast: SimTime; certify: SimTime }[];
+  chambers: { senate: NightChamberBase; house: NightChamberBase };
+  network: string;
+  /** Names of the reporting jurisdictions in the record (county, town or Alaska district). */
+  rjs: Record<number, string>;
+}
+
+/** Messages to the Broadcast Worker (playback of a sealed night record). */
+export type BroadcastRequest =
+  | { type: 'load'; payload: Uint8Array }
+  | { type: 'frame'; t: number; focus: number | null; full?: boolean }
+  | { type: 'markers' };
+export interface NightRaceFrame { i: number; s: number; o: number; o2: number; p: number; b: number; e: number; pr: number; v: number[]; ca: number; pc: boolean }
+export interface NightTally { called: Record<number, number>; leading: Record<number, number> }
+export interface NightFrameDto {
+  t: number; full: boolean;
+  races: NightRaceFrame[];
+  president: NightTally; senate: NightTally; house: NightTally;
+  control: { kind: string; party: number; person: number | null; time: SimTime; detail: string; status: number }[];
+  focus: { race: number; byRj: [number, number[]][] } | null;
+}
+export interface NightMarker { time: SimTime; kind: 'close' | 'call' | 'control'; race: number }
 
 export type MapLayer = 'state' | 'county' | 'cd';
 export type MapMetric = 'lean' | 'governor' | 'senate' | 'house';
@@ -130,6 +170,9 @@ export interface ContestDetail {
   counties: { county: number; name: string; votes: number[]; total: number }[];
   modes: { mode: string; votes: number[] }[];
   note: string;
+  /** While the contest is being counted: the wire's expected vote, precincts and the desk's status. */
+  counting: { expected: number; precincts: number; totalPrecincts: number; status: number; called: number | null; calledAt: SimTime | null; prob: number; nightId: number } | null;
+  revisions: { rev: number; kind: string; time: SimTime }[];
 }
 export interface CountyHistoryDto {
   county: number; name: string; state: string; stateIdx: number;
@@ -142,4 +185,6 @@ export interface YearSummary {
   chambers: { label: string; before: { party: number; seats: number }[]; after: { party: number; seats: number }[] }[];
   flips: { label: string; from: number; to: number; contestId: number }[];
   turnout: { ballots: number; eligible: number } | null;
+  /** Electoral votes are the decision desk's projections (the count is still in progress). */
+  projected: boolean;
 }

@@ -2,6 +2,8 @@ import type { ContestDetail } from '../../engine/protocol';
 import { useQuery } from './Desk';
 import { PARTY_COLORS, PartyBadge, fmtInt } from '../components/common';
 
+const COUNT_STATUS = ['Polls open', 'Too early to call', 'Too close to call', 'Projected', 'Projection withdrawn', 'Runoff projected'];
+
 export function ContestScreen({ id }: { id: number }) {
   const c = useQuery<ContestDetail | null>({ kind: 'contest', id }, [id]);
   if (c === null) return <p className="muted">Loading…</p>;
@@ -16,7 +18,14 @@ export function ContestScreen({ id }: { id: number }) {
         {c.parent && <> · <a href={`#/contest/${c.parent}`}>first round</a></>}{c.next && <> · <a href={`#/contest/${c.next}`}>{c.status === 'runoff' ? 'runoff' : 'next round'}</a></>}</p>
       <div className="grid cols-2">
         <section className="card">
-          <h2>Result <span className="badge record">{c.status}</span></h2>
+          <h2>Result <span className={`badge ${c.counting ? 'live' : 'record'}`}>{c.counting ? 'Counting · unofficial' : c.status}</span></h2>
+          {c.counting && (
+            <p className="small" style={{ marginTop: -4 }}>
+              ≈ {c.counting.expected ? Math.min(100, Math.floor(100 * (c.ballots ?? 0) / c.counting.expected)) : 0}% of expected vote counted · {fmtInt(c.counting.precincts)} of {fmtInt(c.counting.totalPrecincts)} precincts reporting ·{' '}
+              <strong>{c.counting.called !== null ? `MNN projects ${c.candidates.find((x) => x.candidacyId === c.counting!.called)?.name ?? 'a winner'}` : COUNT_STATUS[c.counting.status] ?? 'Counting'}</strong>{' '}
+              <a href={`#/night/${c.counting.nightId}`}>Watch on Election Night ›</a>
+            </p>
+          )}
           <table className="data">
             <thead><tr><th>Candidate</th><th>Party</th><th>Votes</th><th>Share</th><th /></tr></thead>
             <tbody>{c.candidates.map((x) => (
@@ -34,7 +43,8 @@ export function ContestScreen({ id }: { id: number }) {
               <tr><td className="muted">Ballots in this contest</td><td className="num">{fmtInt(c.ballots)}</td></tr>
               <tr><td className="muted">Valid votes / undervotes</td><td className="num">{fmtInt(valid)} / {fmtInt(c.undervotes ?? 0)} ({(100 * (c.undervotes ?? 0) / Math.max(1, c.ballots)).toFixed(1)}%)</td></tr>
               <tr><td className="muted">Eligible voters</td><td className="num">{fmtInt(c.eligible ?? 0)} · turnout {(100 * c.ballots / Math.max(1, c.eligible ?? 0)).toFixed(1)}%</td></tr>
-              <tr><td className="muted">Archive</td><td className="tiny">{c.revisionKind} · grain {c.grain} · seal <code>{c.seal?.slice(0, 16)}…</code></td></tr>
+              {c.counting ? <tr><td className="muted">Archive</td><td className="tiny">The cast ballots are sealed; this is the count so far. The certified result follows each state's canvass.</td></tr>
+                : <tr><td className="muted">Archive</td><td className="tiny">{c.revisionKind} · grain {c.grain} · seal <code>{c.seal?.slice(0, 16)}…</code>{c.revisions.length > 1 && <div>Revisions: {c.revisions.map((r) => `${r.rev} ${r.kind}`).join(' · ')}</div>}</td></tr>}
             </tbody></table>
           )}
           <p className="tiny muted">{c.note}</p>
@@ -45,7 +55,7 @@ export function ContestScreen({ id }: { id: number }) {
             <table className="data"><thead><tr><th>Method</th>{c.candidates.map((x) => <th key={x.candidacyId}>{x.name.split(' ').slice(-1)[0]}</th>)}</tr></thead>
               <tbody>{c.modes.map((m) => { const t = m.votes.reduce((a, b) => a + b, 0); return <tr key={m.mode}><td>{m.mode}</td>{m.votes.map((v, i) => <td key={i} className="num">{fmtInt(v)} <span className="muted tiny">{t ? `${(100 * v / t).toFixed(0)}%` : ''}</span></td>)}</tr>; })}</tbody></table>
           )}
-          <p className="tiny muted">How these ballots were cast. Phase 3 will count them on election night in this order: some states report mail first, others last.</p>
+          <p className="tiny muted">How these ballots were cast{c.counting ? ' (counted so far)' : ''}. On election night some states release early and mail ballots first, others count them last.</p>
         </section>
       </div>
       <section className="card" style={{ marginTop: 16 }}>

@@ -7,6 +7,7 @@ import { ISSUE_AXES, TARGET_RANGES, cellLookup } from '../electorate/model';
 import { leanMargin } from './world';
 import type { Universe } from './universe';
 import { runArchiveQuery } from './archiveQueries';
+import { runNightQuery } from './nightQueries';
 import type {
   CalendarEntry, ChamberDto, DeskSummary, ElectorateSummary, EntityDetail, GeoMeta, MapLayerDto, NewsDto, OfficeHolderDto, PersonDetail, PersonRef, PersonRow, Query,
 } from './protocol';
@@ -14,6 +15,7 @@ import type {
 export function runQuery(u: Universe, q: Query): unknown {
   switch (q.kind) {
     case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
+    case 'nights': case 'nightMeta': case 'nightPayload': return runNightQuery(u, q);
     case 'desk': return desk(u);
     case 'geoMeta': return geoMeta(u);
     case 'mapLayer': return mapLayer(u, q.layer, q.metric);
@@ -210,7 +212,7 @@ function person(u: Universe, id: number): PersonDetail | null {
     terms: [...terms, ...pend.filter((x) => !terms.some((y) => y.start_time === x.start_time && y.title === x.title))].map((x) => ({ title: x.title, start: x.start_time, end: x.end_time, acquired: x.acquired, endReason: x.end_reason, provenance: x.provenance })),
     career: career.map((c) => ({ years: c.year_from && c.year_to ? `${c.year_from}–${c.year_to}` : c.year_from ? `${c.year_from}` : c.year_to ? `–${c.year_to}` : '', text: c.text, provenance: c.provenance })),
     elections: u.db.all<{ contest_id: number; label: string; year: number; status: string; votes: number | null; share: number | null; kind: string }>(
-      'SELECT c.contest_id, c.label, c.year, k.status, t.votes, t.share, c.kind FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id LEFT JOIN contest_total t ON t.candidacy_id = k.candidacy_id AND t.rev = 0 WHERE k.person_id = ? ORDER BY c.year DESC, c.contest_id DESC', [id])
+      "SELECT c.contest_id, c.label, c.year, k.status, t.votes, t.share, c.kind FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id LEFT JOIN contest_total t ON t.candidacy_id = k.candidacy_id AND c.status <> 'counting' AND t.rev = (SELECT MAX(rev) FROM result_revision r WHERE r.contest_id = c.contest_id) WHERE k.person_id = ? ORDER BY c.year DESC, c.contest_id DESC", [id])
       .map((r) => ({ contestId: r.contest_id, label: r.label, year: r.year, result: r.status, votes: r.votes, share: r.share, kind: r.kind })),
   };
 }

@@ -99,6 +99,11 @@ export interface ShardInput {
   modeGap: Float64Array;             // 4 modes: partisan slope per unit z
   rjFirst: number; rjCount: number;  // reporting jurisdictions of the shard (contiguous)
   contests: KernelContest[];
+  /**
+   * Election-night detail (counted generals only): each Base Unit's part (reporting jurisdiction × district)
+   * so the kernel can also return votes by mode per unit and analytic expectations per (part, mode).
+   */
+  parts?: { of: Int32Array; count: number };
 }
 
 export interface ContestOutput {
@@ -107,9 +112,17 @@ export interface ContestOutput {
   votes: Int32Array;                 // units × (options + 1): candidate votes then undervotes (all modes)
   rjMode: Int32Array;                // rjCount × N_MODES × (options + 1)
   expected: Float64Array;            // expected votes per option (analytic), options + 1
+  /** With `parts`: units × N_MODES × (options + 1) realized votes. */
+  votesByMode?: Int32Array;
+  /** With `parts`: parts × N_MODES × (options + 1) analytic expected votes. */
+  expPartMode?: Float64Array;
 }
 
-export interface ShardOutput { ballots: Int32Array; ballotsByMode: Int32Array; eligible: Int32Array; contests: ContestOutput[]; expectedBallots: number }
+export interface ShardOutput {
+  ballots: Int32Array; ballotsByMode: Int32Array; eligible: Int32Array; contests: ContestOutput[]; expectedBallots: number;
+  /** With `parts`: parts × N_MODES analytic expected ballots. */
+  expBallotsPartMode?: Float64Array;
+}
 
 /** Run the kernel for one shard (a state). */
 export function runShard(inp: ShardInput): ShardOutput {
@@ -131,12 +144,15 @@ export function runShard(inp: ShardInput): ShardOutput {
   }
   // Contest bookkeeping.
   const outs: ContestOutput[] = [];
-  const unitLists: number[][] = []; const voteLists: number[][] = [];
+  const unitLists: number[][] = []; const voteLists: number[][] = []; const modeLists: number[][] = [];
+  const night = inp.parts;
   for (const c of inp.contests) {
     const k = c.options.length + 1;
-    outs.push({ id: c.id, units: new Int32Array(0), votes: new Int32Array(0), rjMode: new Int32Array(inp.rjCount * N_MODES * k), expected: new Float64Array(k) });
-    unitLists.push([]); voteLists.push([]);
+    outs.push({ id: c.id, units: new Int32Array(0), votes: new Int32Array(0), rjMode: new Int32Array(inp.rjCount * N_MODES * k), expected: new Float64Array(k),
+      ...(night ? { expPartMode: new Float64Array(night.count * N_MODES * k) } : {}) });
+    unitLists.push([]); voteLists.push([]); modeLists.push([]);
   }
+  const expBallotsPartMode = night ? new Float64Array(night.count * N_MODES) : undefined;
   const V = new Float64Array(N_MODES * N_TYPES);       // voters by mode and type
   const WA = new Float64Array(4 * N_TYPES);            // voters by (age band × class) group and z bin
   const groupOf = Uint8Array.from({ length: N_COHORTS }, (_, k) => cohortAge(k) * N_CLASS + inp.classOf[k]!);
@@ -224,6 +240,8 @@ export function runShard(inp: ShardInput): ShardOutput {
     let lambda = 0; const lm = new Float64Array(N_MODES);
     for (let m = 0; m < N_MODES; m++) { let s = 0; for (let ty = 0; ty < N_TYPES; ty++) s += V[m * N_TYPES + ty]!; lm[m] = s; lambda += s; }
     expectedBallots += lambda;
+    const unitPart = night ? night.of[i]! : -1;
+    if (expBallotsPartMode) for (let m = 0; m < N_MODES; m++) expBallotsPartMode[unitPart * N_MODES + m]! += lm[m]!;
     const B = r.binomial(E, Math.min(1, lambda / E));
     const bm = r.multinomial(B, lm, new Int32Array(N_MODES));
     ballots[i] = B;
@@ -237,19 +255,23 @@ export function runShard(inp: ShardInput): ShardOutput {
       const P = probTable(ci, county);
       const out = outs[ci]!;
       const tot = new Int32Array(K);
+      const byMode = night ? new Int32Array(N_MODES * K) : null;
       for (let m = 0; m < N_MODES; m++) {
         if (lm[m]! <= 0) continue;
         pbar.fill(0, 0, K);
         for (let j = 0; j < K; j++) { let s = 0; const row = j * N_TYPES; for (let ty = 0; ty < N_TYPES; ty++) s += V[m * N_TYPES + ty]! * P[row + ty]!; pbar[j] = s; out.expected[j]! += s; }
+        if (out.expPartMode) { const eo = (unitPart * N_MODES + m) * K; for (let j = 0; j < K; j++) out.expPartMode[eo + j]! += pbar[j]!; }
         if (bm[m]! === 0) continue;
         r.multinomial(bm[m]!, pbar.subarray(0, K), draw);
         const ro = (rjLocal * N_MODES + m) * K;
         for (let j = 0; j < K; j++) { tot[j]! += draw[j]!; out.rjMode[ro + j]! += draw[j]!; }
+        if (byMode) for (let j = 0; j < K; j++) byMode[m * K + j] = draw[j]!;
       }
       unitLists[ci]!.push(b);
       for (let j = 0; j < K; j++) voteLists[ci]!.push(tot[j]!);
+      if (byMode) for (let j = 0; j < N_MODES * K; j++) modeLists[ci]!.push(byMode[j]!);
     }
   }
-  outs.forEach((o, ci) => { o.units = Int32Array.from(unitLists[ci]!); o.votes = Int32Array.from(voteLists[ci]!); });
-  return { ballots, ballotsByMode, eligible, contests: outs, expectedBallots };
+  outs.forEach((o, ci) => { o.units = Int32Array.from(unitLists[ci]!); o.votes = Int32Array.from(voteLists[ci]!); if (night) o.votesByMode = Int32Array.from(modeLists[ci]!); });
+  return { ballots, ballotsByMode, eligible, contests: outs, expectedBallots, ...(expBallotsPartMode ? { expBallotsPartMode } : {}) };
 }

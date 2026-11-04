@@ -70,6 +70,34 @@ describe.skipIf(!existsSync(`${DIR}manifest.json`) || seeds.length === 0)('2016 
       `database ${(size0 / 1e6).toFixed(1)} MB at creation → ${(u.exportBytes().length / 1e6).toFixed(1)} MB on Feb 1, 2017`,
       `full audit: ${els.length} elections, ${records.toLocaleString('en-US')} unit-contest records, ${failed} failures, ${Math.round(performance.now() - t0)} ms`].join('\n'));
     expect(failed).toBe(0);
+    // Election night: record size, projections by office and time, wrong calls against the certified winners.
+    const nightRow = db.get<{ night_id: number; payload: Uint8Array }>("SELECT night_id, payload FROM night WHERE kind = 'general' ORDER BY night_id DESC LIMIT 1")!;
+    const rec = (await u.elections.nightRecord(nightRow.night_id))!;
+    const ET = 'America/New_York', day0 = zonedToUtc(2016, 11, 8, 0, 0, ET);
+    const lastCall = new Map<number, { t: number; opt: number }>();
+    let wrong = 0, retracted = 0; const wrongList: string[] = [];
+    for (let i = 0; i < rec.events.time.length; i++) { const st = rec.events.status[i]!; if (st === 3) lastCall.set(rec.events.race[i]!, { t: rec.events.time[i]!, opt: rec.events.option[i]! }); if (st === 4) { retracted++; lastCall.delete(rec.events.race[i]!); } }
+    const byOffice = new Map<string, { n: number; called: number; times: number[]; byMorning: number }>();
+    rec.races.forEach((r, ri) => {
+      if (r.cd >= 0 && r.office === 'president') return;
+      const o = byOffice.get(r.office) ?? { n: 0, called: 0, times: [], byMorning: 0 }; o.n++;
+      const c = lastCall.get(ri);
+      if (c) {
+        o.called++; o.times.push(c.t); if (c.t <= rec.nightEnd) o.byMorning++;
+        const win = db.value<number>('SELECT winner_candidacy FROM contest WHERE contest_id = ?', [r.contestId]);
+        const st = db.value<string>('SELECT status FROM contest WHERE contest_id = ?', [r.contestId]);
+        if (st !== 'runoff' && win !== undefined && win !== null && r.candidacyIds[c.opt] !== win) { wrong++; wrongList.push(r.label); }
+      }
+      byOffice.set(r.office, o);
+    });
+    const med = (xs: number[]) => { const a = [...xs].sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)]! : 0; };
+    const fmt = (t: number) => `${Math.floor((t - day0) / 60)}:${String((t - day0) % 60).padStart(2, '0')}`;
+    const control = rec.control.map((c) => `${c.kind} ${c.party} ${c.status ? 'projected' : 'withdrawn'} at ${fmt(c.time)} ET (${c.detail})`);
+    console.log([`night: ${rec.batches.time.length.toLocaleString('en-US')} batches, ${rec.raceRows.race.length.toLocaleString('en-US')} race rows, ${rec.events.time.length} desk events, record ${(nightRow.payload.length / 1e6).toFixed(2)} MB; feed ends +${Math.round((rec.feedEnd - day0) / 1440)} days`,
+      ...[...byOffice].map(([k, o]) => `  ${k}: ${o.called}/${o.n} projected (${o.byMorning} by 6 am), median call ${fmt(med(o.times))} ET`),
+      `  control: ${control.join('; ')}`,
+      `  wrong calls (projected winner ≠ certified winner): ${wrong}${wrongList.length ? ` (${wrongList.join('; ')})` : ''}; withdrawn projections: ${retracted}`].join('\n'));
+    expect(wrong).toBeLessThanOrEqual(2);
     expect(ev.reduce((a, x) => a + x.ev, 0)).toBe(538);
   }, 1_200_000);
 });

@@ -1,0 +1,77 @@
+/** Shared types of the election-night pipeline (docs/architecture/08-election-night.md). */
+import type { CountingRules } from '../rules/counting2016';
+
+export const MODE_ED = 0, MODE_EARLY = 1, MODE_MAIL = 2, MODE_PROV = 3;
+export const FLAG_NORMAL = 0, FLAG_GLITCH = 1, FLAG_CORRECTION = 2;
+
+/** Desk status codes, in the record. */
+export const ST_NONE = 0, ST_TOO_EARLY = 1, ST_TOO_CLOSE = 2, ST_CALLED = 3, ST_WITHDRAWN = 4, ST_RUNOFF = 5;
+export const STATUS_NAME = ['Polls open', 'Too early to call', 'Too close to call', 'Projected', 'Projection withdrawn', 'Runoff projected'] as const;
+
+/** A race tracked on the night: a contest, or a presidential contest restricted to one congressional district (ME/NE). */
+export interface NightRace {
+  contest: number;        // index into the shard's contests
+  cd: number;             // −1 = every unit of the contest; otherwise only units in this congressional district
+  office: string;         // office kind
+  surveyed: boolean;      // covered by the voter survey
+  majority: boolean;      // a majority is required (otherwise a runoff)
+  /** Per option (excluding the undervote): +1 for the option the prior error favours, −1 for its opponent, 0 otherwise. */
+  axis: number[];
+  /** Automatic-recount threshold (fraction of votes), 0 = none. */
+  recount: number;
+}
+
+export interface DeskParams {
+  network: number;
+  callThreshold: number;   // θ_call
+  stressMin: number;       // P under doubled systematic error must stay ≥ this
+  surveyWeight: number;    // precision multiplier of the voter survey
+  latency: [number, number]; // human review, minutes
+  retract: number;         // P(called candidate) below this withdraws the projection
+}
+
+export const FLAGSHIP_DESK: DeskParams = { network: 0, callThreshold: 0.995, stressMin: 0.95, surveyWeight: 1, latency: [3, 10], retract: 0.9 };
+
+export interface NightInput {
+  key: string;             // RNG key of the night (seed | election | state)
+  seed: string;
+  year: number;
+  close: Int32Array;       // per unit: poll closing, UTC minutes
+  rjOffset: Int16Array;    // per RJ (local): UTC offset in minutes on Election Day (local business hours)
+  rjPrecincts: Float32Array; // per RJ (local): target number of precincts
+  rules: CountingRules;
+  mailReject: number;
+  provReject: number;
+  races: NightRace[];
+  desk: DeskParams;
+  /** Pre-election information error of the desk's baseline (margin per ballot along each race's axis). */
+  priorError: { state: number; mode: number[]; race: number[] };
+  surveyBias: number;      // survey nonresponse bias (margin units along the race axis)
+  surveyN: number;
+  coverageStart: number;   // 5:00 pm ET on Election Day
+  /** Diagnostics only (tests): log the desk's reasoning for this race index. */
+  trace?: number;
+}
+
+/** One state's night, produced in a compute worker. All arrays are parallel columns. */
+export interface StateNight {
+  stateIdx: number;
+  parts: { rj: Int32Array; cd: Int32Array; precincts: Int32Array; close: Int32Array };
+  races: { contestId: number; cd: number; k: number; parts: Int32Array }[];
+  batches: { time: Int32Array; rj: Int32Array; mode: Uint8Array; flag: Uint8Array };
+  partRows: { batch: Int32Array; part: Int32Array; ballots: Int32Array; precincts: Int32Array };
+  raceRows: { batch: Int32Array; race: Int32Array; part: Int32Array; votes: Int32Array /* rows × K of that race, concatenated */ };
+  /** Per race: votes cast but never counted (rejected mail and provisional ballots), K values. */
+  rejected: Int32Array[];
+  /** Per race: rejected ballots by (unit, mode) for the certified archive: unit ids, modes and K values per row. */
+  rejectedUnits: { units: Int32Array; modes: Uint8Array; votes: Int32Array }[];
+  /** Expected-vote estimates (wire): rows of (time, race, expected ballots). */
+  wire: { time: Int32Array; race: Int32Array; expected: Float64Array };
+  /** Desk events: (time, race, status, option index or −1, P×10⁴, flags). */
+  events: { time: Int32Array; race: Int32Array; status: Uint8Array; option: Int16Array; option2: Int16Array; prob: Int16Array; flags: Uint8Array };
+  /** Voter-survey toplines per surveyed race (shares of the options, K−1). */
+  survey: { race: number; shares: number[]; n: number }[];
+  closeFirst: number; closeLast: number;
+}
+
+export const EVENT_POLLCLOSE_CALL = 1;  // flags bit: projection made at poll closing

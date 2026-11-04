@@ -48,4 +48,23 @@ describe('keyed RNG streams', () => {
     let b = 0; for (let i = 0; i < 20_000; i++) b += r.beta(2, 6); expect(b / 20_000).toBeCloseTo(0.25, 2);
     const d = r.dirichlet([1, 2, 3]); expect(d.reduce((a, x) => a + x, 0)).toBeCloseTo(1, 12);
   });
+  it('hypergeometric has the exact mean and variance and stays in its support', () => {
+    for (const [good, bad, n] of [[5, 7, 4], [40, 60, 30], [3000, 1000, 2500], [120_000, 80_000, 50_000], [1, 999, 500], [700, 300, 1000]] as const) {
+      const r = Rng.stream('s', 'hg', good, bad, n); const T = 20_000; let s = 0, s2 = 0;
+      const N = good + bad, lo = Math.max(0, n - bad), hi = Math.min(n, good);
+      for (let i = 0; i < T; i++) { const x = r.hypergeometric(good, bad, n); expect(x >= lo && x <= hi).toBe(true); s += x; s2 += x * x; }
+      const mean = s / T, v = s2 / T - mean * mean, mu = n * good / N, sig2 = n * (good / N) * (bad / N) * (N - n) / Math.max(1, N - 1);
+      expect(Math.abs(mean - mu)).toBeLessThan(5 * Math.sqrt(sig2 / T) + 1e-9);
+      if (sig2 > 0) expect(Math.abs(v / sig2 - 1)).toBeLessThan(0.07);
+    }
+  });
+  it('multivariate hypergeometric partitions exactly (property)', () => {
+    fc.assert(fc.property(fc.array(fc.integer({ min: 0, max: 5000 }), { minLength: 1, maxLength: 7 }), fc.double({ min: 0, max: 1, noNaN: true }), fc.integer(),
+      (counts, frac, seed) => {
+        const total = counts.reduce((a, b) => a + b, 0), n = Math.floor(total * frac);
+        const out = Rng.stream('mvhg', seed).mvHypergeometric(counts, n, new Int32Array(counts.length));
+        let s = 0; for (let i = 0; i < counts.length; i++) { if (out[i]! < 0 || out[i]! > counts[i]!) return false; s += out[i]!; }
+        return s === n;
+      }));
+  });
 });

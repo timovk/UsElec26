@@ -40,14 +40,14 @@ export function Results({ year: yearParam }: { year?: number }) {
         <div className="grid cols-3" style={{ marginTop: 10 }}>
           {s.hasPresident && (
             <section className="card">
-              <h2>President</h2>
+              <h2>President {s.projected && <span className="badge live">Projected</span>}</h2>
               {s.president.map((p) => (
                 <div key={p.name} className="row between" style={{ padding: '6px 0', borderBottom: '1px solid var(--line-soft)' }}>
                   <span className="row"><PartyBadge party={p.party} /> <strong>{p.name}</strong></span>
                   <span className="num"><span className="bignum" style={{ fontSize: 22, color: PARTY_COLORS[p.party] }}>{p.ev}</span> EV · {(100 * p.share).toFixed(1)}%</span>
                 </div>
               ))}
-              <p className="tiny muted">Electoral votes as cast by the electors; popular vote summed from every state's archived result.</p>
+              <p className="tiny muted">{s.projected ? 'Electoral votes as projected by the MNN decision desk; the count continues until each state certifies and the electors meet.' : "Electoral votes as cast by the electors; popular vote summed from every state's archived result."}</p>
             </section>
           )}
           <section className="card">

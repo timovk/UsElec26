@@ -90,9 +90,19 @@ CREATE TABLE electoral_vote (election_id INTEGER NOT NULL, state_idx INTEGER NOT
 CREATE TABLE pending_special (office_id INTEGER PRIMARY KEY, since INTEGER NOT NULL, reason TEXT NOT NULL);
 `;
 
+const V3 = `
+CREATE TABLE night (night_id INTEGER PRIMARY KEY, day INTEGER NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, lock_time INTEGER NOT NULL,
+  coverage_start INTEGER NOT NULL, night_end INTEGER NOT NULL, feed_end INTEGER NOT NULL, created_time INTEGER NOT NULL, sha256 TEXT NOT NULL, payload BLOB NOT NULL);
+CREATE INDEX night_day ON night(day);
+CREATE TABLE night_election (night_id INTEGER NOT NULL, election_id INTEGER NOT NULL, PRIMARY KEY (night_id, election_id));
+CREATE TABLE county_rollup_rev (election_id INTEGER NOT NULL, state_idx INTEGER NOT NULL, rev INTEGER NOT NULL, payload BLOB NOT NULL,
+  PRIMARY KEY (election_id, state_idx, rev));
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, description: 'Phase 1 foundational universe schema', up: (db) => db.exec(V1) },
   { version: 2, description: 'Phase 2 elections, contests, candidacies and the results archive', up: (db) => db.exec(V2) },
+  { version: 3, description: 'Phase 3 election nights (sealed count records) and certified rollups', up: (db) => db.exec(V3) },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -29,7 +29,9 @@ export function genesis(input: GenesisInput, progress: Progress = () => {}): { w
   progress('Generating a fictional electorate', 0.15);
   const electorate = generateElectorate(seed, pack, pop);
   progress('Computing political geography', 0.55);
-  const bu = buLean(electorate, pack, pop);
+  // Rounded to the stored precision (Float32) so a universe behaves identically before and after a reload.
+  const raw = buLean(electorate, pack, pop);
+  const bu = { dVotes: Float64Array.from(Float32Array.from(raw.dVotes)), votes: Float64Array.from(Float32Array.from(raw.votes)) };
   const lean = { bu, ...aggregateLean(bu, pack) };
   progress('Forming the government', 0.75);
 

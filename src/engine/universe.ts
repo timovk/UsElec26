@@ -24,7 +24,7 @@ import { InlineRunner, type ShardRunner } from './computePool';
 import { SIM_START } from '../core/time';
 
 const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
-export const ENGINE_VERSION = '0.2.0';
+export const ENGINE_VERSION = '0.3.0';
 
 export type AdvanceTarget = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number } | { kind: 'nextElection' };
 
@@ -49,7 +49,7 @@ export class Universe {
     const getRunner = () => this.runner;
     const host: ElectionHost = {
       world, db, get runner() { return getRunner(); },
-      schedule: (t, k, d, p) => this.schedule(t, k, d, p), news: (k, h, b, r) => this.news(k, h, b, r),
+      schedule: (t, k, d, p) => this.schedule(t, k, d, p), news: (k, h, b, r, tm) => this.news(k, h, b, r, tm),
       newPerson: (r, tier, party, st, opts) => this.newPerson(r, tier, party, st, opts),
       startTerm: (o, p, a, pr) => this.startTerm(o, p, a, pr), endTerm: (o, r) => this.endTerm(o, r),
       succession: (o, p) => this.succession(o, p), vacate: (o, r, res) => this.vacate(o, r, res),
@@ -251,7 +251,9 @@ export class Universe {
       case 'primary': await E.primary(n('election')); return;
       case 'pres_nomination': await E.presNomination(n('election')); return;
       case 'convention': E.convention(n('year')); return;
-      case 'general': await E.general(n('year'), n('day')); await E.generalSummary(n('year'), n('day')); return;
+      case 'general': await E.general(n('year'), n('day')); return;
+      case 'certify_state': await E.certifyState(n('election'), n('night')); return;
+      case 'night_news': await E.nightNews(n('night'), n('from'), n('to'), !!d.summary); return;
       case 'runoff': await E.runoff(n('election')); return;
       case 'special': await E.special(n('election')); return;
       case 'certify': E.certify(n('year'), n('day')); return;
@@ -272,9 +274,9 @@ export class Universe {
     }
   }
 
-  private news(kind: string, headline: string, body: string, refs: Record<string, unknown>): void {
+  private news(kind: string, headline: string, body: string, refs: Record<string, unknown>, time?: SimTime): void {
     const w = this.world;
-    const item = { id: w.ids.news++, time: w.time, kind, headline, body, refs };
+    const item = { id: w.ids.news++, time: time ?? w.time, kind, headline, body, refs };
     w.pending.news.push(item); this.newsSink?.push(item);
   }
   /** Collects news produced during an advance (pending writes may be flushed mid-event by election commits). */

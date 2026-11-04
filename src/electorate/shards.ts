@@ -6,7 +6,7 @@ import { MARG_STRIDE, type Population } from '../population/population';
 import type { Electorate } from './model';
 import type { Environment } from './environment';
 import { N_MODES, cohortClasses, type KernelContest, type ShardInput } from './kernel';
-import { ELECTION_RULES_2016 } from '../rules/elections2016';
+import { ELECTION_RULES_2016, MODE_USAGE_2016 } from '../rules/elections2016';
 
 export interface StateRange { buStart: number; buEnd: number; countyFirst: number; countyEnd: number; rjFirst: number; rjCount: number }
 
@@ -19,14 +19,20 @@ export function stateRanges(pack: GeoPack): StateRange[] {
   });
 }
 
-/** Base logits of the four ballot modes by age band, from the state's 2016 voting rules. */
+/**
+ * Base logits of the four ballot modes by age band, from the state's 2016 voting options and approximate
+ * 2016 usage levels (older voters favour mail and early voting).
+ */
 export function modeLogits(usps: string): Float64Array {
   const m = ELECTION_RULES_2016[usps]?.modes ?? { allMail: false, earlyInPerson: true, noExcuseAbsentee: true };
+  const use = MODE_USAGE_2016[usps] ?? [0.2, 0.12, 0.01];
+  const early = m.earlyInPerson && !m.allMail ? use[0] : 0, mail = use[1], prov = use[2];
+  const ed = Math.max(0.03, 1 - early - mail - prov);
   const out = new Float64Array(4 * N_MODES);
-  const ageMail = [-0.25, 0, 0.3, 0.85], ageEarly = [-0.1, 0, 0.15, 0.3];
+  // Age effects are centred on a typical electorate so the usage levels hold on average.
+  const ageMail = [-0.55, -0.3, 0, 0.55], ageEarly = [-0.22, -0.12, 0.03, 0.18];
   for (let a = 0; a < 4; a++) {
-    const base = m.allMail ? [0.4, -Infinity, 3.4 + ageMail[a]! * 0.3, -3.2] : [
-      0, m.earlyInPerson ? -0.85 + ageEarly[a]! : -Infinity, (m.noExcuseAbsentee ? -1.45 : -2.9) + ageMail[a]!, -4.3];
+    const base = [0, early > 0 ? Math.log(early / ed) + ageEarly[a]! : -Infinity, Math.log(mail / ed) + ageMail[a]!, Math.log(prov / ed)];
     for (let k = 0; k < N_MODES; k++) out[a * N_MODES + k] = base[k]!;
   }
   return out;

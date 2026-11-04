@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { engine } from '../state/engineClient';
 import { useApp } from '../state/store';
-import type { CalendarEntry, DeskSummary, NewsDto, YearSummary } from '../../engine/protocol';
-import { formatDate } from '../../core/time';
+import type { CalendarEntry, DeskSummary, NewsDto, NightListItem, YearSummary } from '../../engine/protocol';
+import { formatDate, formatTime } from '../../core/time';
 import { OfficeHolder, PARTY_COLORS, PARTY_NAME, PartyBadge, SeatBar, Truth, fmtLean } from '../components/common';
 
 export function useQuery<T>(q: Parameters<typeof engine.query>[0], deps: unknown[] = []): T | null {
@@ -45,7 +45,10 @@ export function Desk() {
   const hasResults = (x: unknown): x is YearSummary => !!x && !Array.isArray(x) && 'chambers' in (x as object) && ((x as YearSummary).president.length > 0 || (x as YearSummary).chambers.length > 0);
   const lastS = hasResults(s0) ? s0 : hasResults(s1) ? s1 : null;
   const [showCabinet, setShowCabinet] = useState(false);
+  const nights = useQuery<NightListItem[]>({ kind: 'nights' });
   if (!d) return <p className="muted">Loading…</p>;
+  const now = d.universe.time;
+  const night = nights?.find((n) => now >= n.lockTime && now < n.feedEnd);
   const pres = d.executive[0]!, vp = d.executive[1]!;
   const presParty = pres.holder?.party ?? 0;
   return (
@@ -88,10 +91,22 @@ export function Desk() {
         </section>
       </div>
 
+      {night && (
+        <section className="card" style={{ marginTop: 16, borderColor: 'var(--gold)' }}>
+          <div className="row between wrap">
+            <div>
+              <div className="kicker">Election Night · {night.label}</div>
+              <strong>{now < night.coverageStart ? `Polls are open. Coverage begins at ${formatTime(night.coverageStart)}.` : now < night.nightEnd ? 'The count is under way.' : 'Counting continues; states certify over the coming weeks.'}</strong>
+            </div>
+            <a className="btn primary" href={`#/night/${night.id}`}>★ Watch Election Night</a>
+          </div>
+        </section>
+      )}
+
       <div className="grid cols-2" style={{ marginTop: 16 }}>
         <section className="card">
           {lastS && <div style={{ marginBottom: 14 }}>
-            <h2>Latest results · {lastS.year} <a className="small" href={`#/results/${lastS.year}`}>All results ›</a></h2>
+            <h2>Latest results · {lastS.year}{lastS.projected && <span className="badge live" style={{ marginLeft: 6 }}>Projected</span>} <a className="small" href={`#/results/${lastS.year}`}>All results ›</a></h2>
             {lastS.president.slice(0, 2).map((p) => <div key={p.name} className="row between small"><span className="row"><PartyBadge party={p.party} />{p.name}</span><span className="num"><strong style={{ color: PARTY_COLORS[p.party] }}>{p.ev}</strong> EV · {(100 * p.share).toFixed(1)}%</span></div>)}
             {lastS.chambers.map((c) => <div key={c.label} className="small muted">{c.label}: {c.after.map((x) => `${PARTY_NAME[x.party] ?? 'Vacant'} ${x.seats}`).join(' · ')}</div>)}
             <div className="small muted">{lastS.flips.length} seat{lastS.flips.length === 1 ? '' : 's'} changed party.</div>

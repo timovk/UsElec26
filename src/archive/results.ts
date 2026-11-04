@@ -5,6 +5,7 @@
  */
 import { ColumnTransform, crc32, decodeIntColumns, decodeJson, encodeIntColumns, encodeJson, sha256Hex } from '../core/codec';
 import type { Db } from '../persistence/db';
+import { decodeNightRecord } from '../counting/record';
 import { N_MODES } from '../electorate/kernel';
 
 export interface ContestResult {
@@ -49,17 +50,96 @@ export async function prepareContest(r: ContestResult): Promise<PreparedContest>
   return { result: r, totals, blobs, sha256: await sha256Hex(all) };
 }
 
-/** Write a prepared contest result as revision 0 (inside the caller's transaction). */
-export function writeContest(db: Db, p: PreparedContest, time: number, kind: string, reason: string): void {
-  const r = p.result, k = K(r);
-  const votes = p.totals.slice(0, k - 1), valid = votes.reduce((a, b) => a + b, 0);
-  const order = votes.map((v, j) => [v, j] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
-  order.forEach(([v, j], rank) => db.run('INSERT INTO contest_total VALUES (?,?,?,?,?,?)', [r.contestId, 0, r.candidacyIds[j]!, v, valid > 0 ? v / valid : 0, rank + 1]));
-  const ballots = p.totals.reduce((a, b) => a + b, 0);
-  db.run('INSERT INTO contest_turnout VALUES (?,?,?,?,?,?)', [r.contestId, 0, ballots, valid, p.totals[k - 1]!, r.eligible]);
-  for (const b of p.blobs) db.run('INSERT INTO result_blob VALUES (?,?,?,?,?)', [r.contestId, 0, b.grain, b.payload, crc32(b.payload)]);
-  db.run('INSERT INTO result_revision VALUES (?,?,?,?,?,?)', [r.contestId, 0, kind, time, reason, p.sha256]);
+/**
+ * A certified revision derived from the cast ballots: certified = cast − rejected at every unit, so the unit
+ * grain is not stored again. Its seal chains to the cast revision's seal and covers the totals and the
+ * RJ × mode table; the audit recomputes the unit grain from the cast and rejected blobs.
+ */
+export async function prepareDerived(r: ContestResult, rev: number, castSha: string): Promise<PreparedContest> {
+  const k = K(r);
+  const blobs: { grain: string; payload: Uint8Array }[] = [];
+  if (r.rjMode.length) {
+    const rows = r.rjMode;
+    const rc = [{ values: rows.map((x) => x.rj), transform: ColumnTransform.Delta }, { values: rows.map((x) => x.mode), transform: ColumnTransform.Raw }];
+    for (let j = 0; j < k; j++) rc.push({ values: rows.map((x) => x.votes[j]!), transform: ColumnTransform.Raw });
+    blobs.push({ grain: 'rjmode', payload: await encodeIntColumns(rc) });
+  }
+  const totals = totalsOf(r);
+  return { result: r, totals, blobs, sha256: await derivedSeal(r.contestId, rev, r.candidacyIds, totals, r.eligible, castSha, blobs[0]?.payload) };
+}
+
+export async function derivedSeal(contestId: number, rev: number, candidacyIds: number[], totals: number[], eligible: number, castSha: string, rjmode?: Uint8Array): Promise<string> {
+  const canon = new TextEncoder().encode(JSON.stringify({ contest: contestId, rev, candidacies: candidacyIds, totals, eligible, derivedFrom: castSha }));
+  const all = new Uint8Array(canon.length + (rjmode?.length ?? 0)); all.set(canon, 0); if (rjmode) all.set(rjmode, canon.length);
+  return sha256Hex(all);
+}
+
+/** Write a prepared contest result as a revision (inside the caller's transaction). */
+export function writeContest(db: Db, p: PreparedContest, time: number, kind: string, reason: string, rev = 0): void {
+  const r = p.result;
+  writeTotals(db, r.contestId, r.candidacyIds, p.totals, r.eligible, rev);
+  for (const b of p.blobs) db.run('INSERT INTO result_blob VALUES (?,?,?,?,?)', [r.contestId, rev, b.grain, b.payload, crc32(b.payload)]);
+  db.run('INSERT INTO result_revision VALUES (?,?,?,?,?,?)', [r.contestId, rev, kind, time, reason, p.sha256]);
   for (const c of r.countyTotals.keys()) db.run('INSERT OR IGNORE INTO contest_geo VALUES (?,?)', [c, r.contestId]);
+}
+
+/** Totals rows of a revision (candidates ranked, turnout), without unit-grain blobs. */
+export function writeTotals(db: Db, contestId: number, candidacyIds: number[], totals: number[], eligible: number, rev: number): void {
+  const k = candidacyIds.length + 1;
+  const votes = totals.slice(0, k - 1), valid = votes.reduce((a, b) => a + b, 0);
+  const order = votes.map((v, j) => [v, j] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  order.forEach(([v, j], rank) => db.run('INSERT INTO contest_total VALUES (?,?,?,?,?,?)', [contestId, rev, candidacyIds[j]!, v, valid > 0 ? v / valid : 0, rank + 1]));
+  db.run('INSERT INTO contest_turnout VALUES (?,?,?,?,?,?)', [contestId, rev, totals.reduce((a, b) => a + b, 0), valid, totals[k - 1]!, eligible]);
+}
+
+/** A totals-only revision (unofficial count, canvass) sealed over its canonical totals. */
+export async function writeTotalsRevision(db: Db, contestId: number, candidacyIds: number[], totals: number[], eligible: number, rev: number, kind: string, time: number, reason: string): Promise<() => void> {
+  const sha = await sha256Hex(new TextEncoder().encode(JSON.stringify({ contest: contestId, rev, candidacies: candidacyIds, totals, eligible })));
+  return () => { writeTotals(db, contestId, candidacyIds, totals, eligible, rev); db.run('INSERT INTO result_revision VALUES (?,?,?,?,?,?)', [contestId, rev, kind, time, reason, sha]); };
+}
+
+/** The latest revision of a contest (0 when only the cast or Phase 2 result exists). */
+export function latestRev(db: Db, contestId: number): number { return db.value<number>('SELECT MAX(rev) FROM result_revision WHERE contest_id = ?', [contestId]) ?? 0; }
+
+// ---- Ballots cast but never counted -------------------------------------------------------------------
+/** Rejected mail and provisional ballots by (unit, mode): stored with revision 0 as grain 'rejected'. */
+export async function prepareRejected(units: Int32Array, modes: Uint8Array, votes: Int32Array, k: number): Promise<Uint8Array> {
+  const n = units.length;
+  const cols = [{ values: units, transform: ColumnTransform.Delta }, { values: modes, transform: ColumnTransform.Raw }];
+  for (let j = 0; j < k; j++) { const c = new Int32Array(n); for (let u = 0; u < n; u++) c[u] = votes[u * k + j]!; cols.push({ values: c, transform: ColumnTransform.Raw }); }
+  return encodeIntColumns(cols);
+}
+
+/** Certified unit results: ballots cast minus rejected ballots, per unit and per (RJ, mode). */
+export async function certifiedFromCast(db: Db, contestId: number, candidacyIds: number[], unitRj: (bu: number) => number, countyOf: (bu: number) => number, cdOf: (bu: number) => number): Promise<ContestResult | null> {
+  const k = candidacyIds.length + 1;
+  const cast = db.get<{ payload: Uint8Array }>("SELECT payload FROM result_blob WHERE contest_id = ? AND rev = 0 AND grain = 'bu'", [contestId]);
+  if (!cast) return null;
+  const { units, votes } = await decodeContestBlob(cast.payload, k);
+  const idx = new Map<number, number>(); for (let u = 0; u < units.length; u++) idx.set(units[u]!, u);
+  const v = new Int32Array(units.length * k);
+  for (let u = 0; u < units.length; u++) for (let j = 0; j < k; j++) v[u * k + j] = votes[j]![u]!;
+  const rjm = db.get<{ payload: Uint8Array }>("SELECT payload FROM result_blob WHERE contest_id = ? AND rev = 0 AND grain = 'rjmode'", [contestId]);
+  const rjMap = new Map<number, number[]>();
+  if (rjm) { const cols = await decodeIntColumns(rjm.payload); for (let i = 0; i < cols[0]!.length; i++) rjMap.set(cols[0]![i]! * 4 + cols[1]![i]!, Array.from({ length: k }, (_, j) => cols[2 + j]![i]!)); }
+  const rej = db.get<{ payload: Uint8Array }>("SELECT payload FROM result_blob WHERE contest_id = ? AND rev = 0 AND grain = 'rejected'", [contestId]);
+  if (rej) {
+    const cols = await decodeIntColumns(rej.payload);
+    for (let i = 0; i < cols[0]!.length; i++) {
+      const bu = cols[0]![i]!, mode = cols[1]![i]!, u = idx.get(bu)!;
+      const key = unitRj(bu) * 4 + mode, row = rjMap.get(key);
+      for (let j = 0; j < k; j++) { const x = cols[2 + j]![i]!; v[u * k + j]! -= x; if (row) row[j]! -= x; }
+    }
+  }
+  const county = new Map<number, number[]>(), cd = new Map<number, number[]>();
+  const add = (m: Map<number, number[]>, key: number, u: number) => { let a = m.get(key); if (!a) { a = new Array<number>(k).fill(0); m.set(key, a); } for (let j = 0; j < k; j++) a[j]! += v[u * k + j]!; };
+  for (let u = 0; u < units.length; u++) { add(county, countyOf(units[u]!), u); add(cd, cdOf(units[u]!), u); }
+  const elig = db.value<number>('SELECT eligible FROM contest_turnout WHERE contest_id = ? AND rev = 0', [contestId]) ?? 0;
+  return {
+    contestId, candidacyIds, grain: 'bu', units: Int32Array.from(units), votes: v,
+    rjMode: [...rjMap].sort((a, b) => a[0] - b[0]).map(([key, vv]) => ({ rj: Math.floor(key / 4), mode: key % 4, votes: vv })),
+    eligible: elig, countyTotals: county, cdTotals: cd,
+  };
 }
 
 export async function decodeContestBlob(payload: Uint8Array, k: number): Promise<{ units: Float64Array; votes: Float64Array[] }> {
@@ -76,7 +156,11 @@ export async function prepareRollup(results: ContestResult[]): Promise<Uint8Arra
   return encodeJson(roll);
 }
 
-export async function readRollup(db: Db, electionId: number, stateIdx: number): Promise<StateRollup | null> {
+/** County and district rollup of a state's election: the latest revision (certified), or a given one. */
+export async function readRollup(db: Db, electionId: number, stateIdx: number, rev?: number): Promise<StateRollup | null> {
+  const later = rev === 0 ? undefined : db.get<{ payload: Uint8Array }>(`SELECT payload FROM county_rollup_rev WHERE election_id = ? AND state_idx = ?${rev !== undefined ? ' AND rev = ?' : ''} ORDER BY rev DESC LIMIT 1`, rev !== undefined ? [electionId, stateIdx, rev] : [electionId, stateIdx]);
+  if (later) return decodeJson<StateRollup>(later.payload);
+  if (rev !== undefined && rev > 0) return null;
   const row = db.get<{ payload: Uint8Array }>('SELECT payload FROM county_rollup WHERE election_id = ? AND state_idx = ?', [electionId, stateIdx]);
   return row ? decodeJson<StateRollup>(row.payload) : null;
 }
@@ -105,66 +189,152 @@ export interface AuditFinding { check: string; ok: boolean; detail: string }
  * votes + undervotes equal its ballots; ballots ≤ eligible; county rollups equal unit sums; SHA-256 seals are
  * recomputed from the stored totals and blobs and must match.
  */
+/** The last night record verified by the audit (one night serves every state election of a general). */
+let auditNightCache: { sha: string; rec: Awaited<ReturnType<typeof decodeNightRecord>>; sums: number[][]; cumOk: boolean[]; rows: number[] } | null = null;
+
+/** Per-race totals of a night's feed, whether every running total stayed within its final, and rows per race. */
+function feedSums(rec: Awaited<ReturnType<typeof decodeNightRecord>>): { sums: number[][]; cumOk: boolean[]; rows: number[] } {
+  const R = rec.races.length, sums = rec.races.map((r) => new Array<number>(r.k).fill(0)), rows = new Array<number>(R).fill(0);
+  const rr = rec.raceRows;
+  for (let i = 0; i < rr.race.length; i++) { const r = rr.race[i]!, k = rec.races[r]!.k; rows[r]!++; for (let j = 0; j < k; j++) sums[r]![j]! += rr.votes[rr.off[i]! + j]!; }
+  const cum = rec.races.map((r) => new Array<number>(r.k).fill(0)), cumOk = new Array<boolean>(R).fill(true);
+  for (let i = 0; i < rr.race.length; i++) { const r = rr.race[i]!, k = rec.races[r]!.k; for (let j = 0; j < k; j++) { const v = (cum[r]![j]! += rr.votes[rr.off[i]! + j]!); if (v > sums[r]![j]! || v < 0) cumOk[r] = false; } }
+  return { sums, cumOk, rows };
+}
+
 export async function auditElection(db: Db, electionId: number, buState: (bu: number) => number, stateBuStart: (s: number) => number, buCounty: (bu: number) => number): Promise<AuditFinding[]> {
   const findings: AuditFinding[] = [];
   const fail = (check: string, detail: string) => findings.push({ check, ok: false, detail });
   const contests = db.all<{ contest_id: number; kind: string; state_idx: number | null }>('SELECT contest_id, kind, state_idx FROM contest WHERE election_id = ? ORDER BY contest_id', [electionId]);
   const turnoutByState = new Map<number, Awaited<ReturnType<typeof readTurnout>>>();
-  let checkedUnits = 0, checkedContests = 0;
+  let checkedUnits = 0, checkedContests = 0, checkedRows = 0;
+  // The election's night record, if it was counted.
+  const nightRow = db.get<{ payload: Uint8Array; sha256: string }>('SELECT n.payload, n.sha256 FROM night n JOIN night_election e ON e.night_id = n.night_id WHERE e.election_id = ?', [electionId]);
+  let night: Awaited<ReturnType<typeof decodeNightRecord>> | null = null;
+  if (nightRow) {
+    if (auditNightCache?.sha === nightRow.sha256) night = auditNightCache.rec;
+    else if (await sha256Hex(nightRow.payload) !== nightRow.sha256) fail('Night record seal', `election ${electionId}: night record altered`);
+    else { night = await decodeNightRecord(nightRow.payload); auditNightCache = { sha: nightRow.sha256, rec: night, ...feedSums(night) }; }
+  }
+  const totalsOfRev = (cid: number, rev: number, cands: number[]) => {
+    const t = db.get<{ undervotes: number; eligible: number }>('SELECT undervotes, eligible FROM contest_turnout WHERE contest_id = ? AND rev = ?', [cid, rev]);
+    return { votes: [...cands.map((x) => db.value<number>('SELECT votes FROM contest_total WHERE contest_id = ? AND rev = ? AND candidacy_id = ?', [cid, rev, x]) ?? 0), t?.undervotes ?? 0], eligible: t?.eligible ?? 0, present: !!t };
+  };
   for (const c of contests) {
-    const rev = db.get<{ sha256: string }>('SELECT sha256 FROM result_revision WHERE contest_id = ? AND rev = 0', [c.contest_id]);
-    if (!rev) continue;
+    const revs = db.all<{ rev: number; sha256: string }>('SELECT rev, sha256 FROM result_revision WHERE contest_id = ? ORDER BY rev', [c.contest_id]);
+    if (!revs.length) continue;
     checkedContests++;
     const cands = db.all<{ candidacy_id: number }>('SELECT candidacy_id FROM candidacy WHERE contest_id = ? ORDER BY ballot_order', [c.contest_id]).map((x) => x.candidacy_id);
     const k = cands.length + 1;
-    const blob = db.get<{ grain: string; payload: Uint8Array; crc32: number }>("SELECT grain, payload, crc32 FROM result_blob WHERE contest_id = ? AND rev = 0 AND grain IN ('bu','cpart')", [c.contest_id]);
-    if (!blob) { fail('Unit-grain results present', `contest ${c.contest_id} has no unit-grain blob`); continue; }
-    if (crc32(blob.payload) !== blob.crc32) { fail('Blob checksums', `contest ${c.contest_id}`); continue; }
-    const { units, votes } = await decodeContestBlob(blob.payload, k);
-    // Seal: recompute SHA-256 over the canonical encoding and the stored blobs.
-    {
-      const tot = cands.map((cid) => db.value<number>('SELECT votes FROM contest_total WHERE contest_id = ? AND rev = 0 AND candidacy_id = ?', [c.contest_id, cid]) ?? 0);
-      const t = db.get<{ undervotes: number; eligible: number }>('SELECT undervotes, eligible FROM contest_turnout WHERE contest_id = ? AND rev = 0', [c.contest_id]);
-      const canon = new TextEncoder().encode(JSON.stringify({ contest: c.contest_id, candidacies: cands, totals: [...tot, t?.undervotes ?? 0], eligible: t?.eligible ?? 0 }));
-      const blobs = db.all<{ payload: Uint8Array }>("SELECT payload FROM result_blob WHERE contest_id = ? AND rev = 0 ORDER BY CASE grain WHEN 'rjmode' THEN 1 ELSE 0 END", [c.contest_id]);
+    const unitsByRev = new Map<number, { units: Float64Array; votes: Float64Array[] }>();
+    const derived = new Set<number>();
+    for (const rv of revs) {
+      const tot = totalsOfRev(c.contest_id, rv.rev, cands);
+      const blob = db.get<{ grain: string; payload: Uint8Array; crc32: number }>("SELECT grain, payload, crc32 FROM result_blob WHERE contest_id = ? AND rev = ? AND grain IN ('bu','cpart')", [c.contest_id, rv.rev]);
+      const kind = db.value<string>('SELECT kind FROM result_revision WHERE contest_id = ? AND rev = ?', [c.contest_id, rv.rev]);
+      if (!blob && kind === 'certified') {
+        // Derived revision: recompute the unit grain (cast − rejected) and verify seal, totals and rollup.
+        const castSha = revs.find((x) => x.rev === 0)?.sha256 ?? '';
+        const rjm = db.get<{ payload: Uint8Array }>("SELECT payload FROM result_blob WHERE contest_id = ? AND rev = ? AND grain = 'rjmode'", [c.contest_id, rv.rev]);
+        if (await derivedSeal(c.contest_id, rv.rev, cands, tot.votes, tot.eligible, castSha, rjm?.payload) !== rv.sha256) fail('Result seals', `contest ${c.contest_id} rev ${rv.rev}: seal mismatch (archive altered)`);
+        derived.add(rv.rev);
+        continue;
+      }
+      if (!blob) {
+        // Totals-only revision (unofficial count, canvass): sealed over its canonical totals.
+        const sha = await sha256Hex(new TextEncoder().encode(JSON.stringify({ contest: c.contest_id, rev: rv.rev, candidacies: cands, totals: tot.votes, eligible: tot.eligible })));
+        if (sha !== rv.sha256) fail('Result seals', `contest ${c.contest_id} rev ${rv.rev}: seal mismatch (archive altered)`);
+        continue;
+      }
+      if (crc32(blob.payload) !== blob.crc32) { fail('Blob checksums', `contest ${c.contest_id} rev ${rv.rev}`); continue; }
+      const { units, votes } = await decodeContestBlob(blob.payload, k);
+      unitsByRev.set(rv.rev, { units, votes });
+      // Seal: recompute SHA-256 over the canonical totals and the result blobs (not the rejected-ballot blob).
+      const canon = new TextEncoder().encode(JSON.stringify({ contest: c.contest_id, candidacies: cands, totals: tot.votes, eligible: tot.eligible }));
+      const blobs = db.all<{ payload: Uint8Array }>("SELECT payload FROM result_blob WHERE contest_id = ? AND rev = ? AND grain <> 'rejected' ORDER BY CASE grain WHEN 'rjmode' THEN 1 ELSE 0 END", [c.contest_id, rv.rev]);
       const all = new Uint8Array(canon.length + blobs.reduce((a, b) => a + b.payload.length, 0));
       all.set(canon, 0); let o = canon.length; for (const b of blobs) { all.set(b.payload, o); o += b.payload.length; }
-      if (await sha256Hex(all) !== rev.sha256) fail('Result seals', `contest ${c.contest_id}: seal mismatch (archive altered)`);
-    }
-    const totals = db.all<{ candidacy_id: number; votes: number }>('SELECT candidacy_id, votes FROM contest_total WHERE contest_id = ? AND rev = 0', [c.contest_id]);
-    cands.forEach((cid, j) => {
-      const sum = votes[j]!.reduce((a, b) => a + b, 0), stored = totals.find((t) => t.candidacy_id === cid)?.votes;
-      if (sum !== stored) fail('Candidate totals = Σ units', `contest ${c.contest_id} candidacy ${cid}: ${stored} ≠ ${sum}`);
-    });
-    const tt = db.get<{ ballots: number; undervotes: number }>('SELECT ballots, undervotes FROM contest_turnout WHERE contest_id = ? AND rev = 0', [c.contest_id]);
-    const under = votes[k - 1]!.reduce((a, b) => a + b, 0);
-    if (tt && tt.undervotes !== under) fail('Undervotes = Σ units', `contest ${c.contest_id}`);
-    if (blob.grain === 'bu') {
+      if (await sha256Hex(all) !== rv.sha256) fail('Result seals', `contest ${c.contest_id} rev ${rv.rev}: seal mismatch (archive altered)`);
+      for (let j = 0; j < k; j++) {
+        const sum = votes[j]!.reduce((a, b) => a + b, 0);
+        if (sum !== tot.votes[j]) fail(j < k - 1 ? 'Candidate totals = Σ units' : 'Undervotes = Σ units', `contest ${c.contest_id} rev ${rv.rev} option ${j}: ${tot.votes[j]} ≠ ${sum}`);
+      }
+      if (blob.grain !== 'bu') continue;
       for (let u = 0; u < units.length; u++) {
         const bu = units[u]!, s = buState(bu);
         if (!turnoutByState.has(s)) turnoutByState.set(s, await readTurnout(db, electionId, s));
         const t = turnoutByState.get(s);
         if (!t) { fail('Per-unit turnout present', `state ${s}`); break; }
         const i = bu - stateBuStart(s);
-        let sum = 0; for (let j = 0; j < k; j++) sum += votes[j]![u]!;
-        if (sum !== t.ballots[i]) { fail('Votes + undervotes = ballots (every unit)', `contest ${c.contest_id} BU ${bu}: ${sum} ≠ ${t.ballots[i]}`); break; }
+        let sum = 0; for (let j = 0; j < k; j++) { const v = votes[j]![u]!; if (v < 0) { fail('No negative counts', `contest ${c.contest_id} rev ${rv.rev} BU ${bu}`); break; } sum += v; }
+        // Cast ballots: votes + undervotes = ballots. Counted revisions: never more than were cast.
+        if (rv.rev === 0 ? sum !== t.ballots[i] : sum > t.ballots[i]!) { fail('Votes + undervotes = ballots (every unit)', `contest ${c.contest_id} rev ${rv.rev} BU ${bu}: ${sum} vs ${t.ballots[i]}`); break; }
         if (t.ballots[i]! > t.eligible[i]!) { fail('Ballots ≤ eligible', `BU ${bu}`); break; }
         checkedUnits++;
       }
-      // county rollup equals unit sums
       if (c.state_idx !== null) {
-        const roll = await readRollup(db, electionId, c.state_idx);
+        const roll = await readRollup(db, electionId, c.state_idx, rv.rev);
         const entry = roll?.contests.find((x) => x.id === c.contest_id);
-        if (!entry) fail('County rollup present', `contest ${c.contest_id}`);
+        if (!entry) fail('County rollup present', `contest ${c.contest_id} rev ${rv.rev}`);
         else {
           const sums = new Map<number, number[]>();
           for (let u = 0; u < units.length; u++) { const cc = buCounty(units[u]!); const a = sums.get(cc) ?? new Array(k).fill(0); for (let j = 0; j < k; j++) a[j] += votes[j]![u]!; sums.set(cc, a); }
-          for (const [cc, v] of entry.counties) if (JSON.stringify(sums.get(cc)) !== JSON.stringify(v)) { fail('County rollup = Σ units', `contest ${c.contest_id} county ${cc}`); break; }
+          for (const [cc, v] of entry.counties) if (JSON.stringify(sums.get(cc)) !== JSON.stringify(v)) { fail('County rollup = Σ units', `contest ${c.contest_id} rev ${rv.rev} county ${cc}`); break; }
+        }
+      }
+    }
+    // Counted contests: certified = cast − rejected (every unit); canvass = certified; unofficial ≤ canvass; feed = canvass.
+    const cast = unitsByRev.get(0);
+    if (cast && derived.has(3)) {
+      // Unit grain of the certified revision, recomputed from the cast and rejected blobs.
+      const rej = db.get<{ payload: Uint8Array }>("SELECT payload FROM result_blob WHERE contest_id = ? AND rev = 0 AND grain = 'rejected'", [c.contest_id]);
+      const votes = cast.votes.map((v) => Float64Array.from(v)), idx = new Map<number, number>();
+      for (let u = 0; u < cast.units.length; u++) idx.set(cast.units[u]!, u);
+      if (rej) { const cols = await decodeIntColumns(rej.payload); for (let i = 0; i < cols[0]!.length; i++) { const u = idx.get(cols[0]![i]!); if (u === undefined) { fail('Rejected ballots belong to cast units', `contest ${c.contest_id}`); break; } for (let j = 0; j < k; j++) votes[j]![u]! -= cols[2 + j]![i]!; } }
+      const t3 = totalsOfRev(c.contest_id, 3, cands);
+      for (let j = 0; j < k; j++) { let sum = 0; for (let u = 0; u < cast.units.length; u++) { if (votes[j]![u]! < 0) { fail('No negative counts', `contest ${c.contest_id} rev 3`); break; } sum += votes[j]![u]!; } if (sum !== t3.votes[j]) fail('Certified totals = Σ (cast − rejected)', `contest ${c.contest_id} option ${j}: ${t3.votes[j]} ≠ ${sum}`); }
+      if (c.state_idx !== null) {
+        const roll = await readRollup(db, electionId, c.state_idx, 3);
+        const entry = roll?.contests.find((x) => x.id === c.contest_id);
+        if (!entry) fail('County rollup present', `contest ${c.contest_id} rev 3`);
+        else {
+          const sums = new Map<number, number[]>();
+          for (let u = 0; u < cast.units.length; u++) { const cc = buCounty(cast.units[u]!); const a = sums.get(cc) ?? new Array(k).fill(0); for (let j = 0; j < k; j++) a[j] += votes[j]![u]!; sums.set(cc, a); }
+          for (const [cc, v] of entry.counties) if (JSON.stringify(sums.get(cc)) !== JSON.stringify(v)) { fail('County rollup = Σ units', `contest ${c.contest_id} rev 3 county ${cc}`); break; }
+        }
+      }
+      unitsByRev.set(3, { units: cast.units, votes });
+      checkedUnits += cast.units.length;
+    }
+    const cert = unitsByRev.get(3);
+    if (cast && cert) {
+      const rej = db.get<{ payload: Uint8Array }>("SELECT payload FROM result_blob WHERE contest_id = ? AND rev = 0 AND grain = 'rejected'", [c.contest_id]);
+      const minus = new Map<number, number[]>();
+      if (rej) { const cols = await decodeIntColumns(rej.payload); for (let i = 0; i < cols[0]!.length; i++) { const a = minus.get(cols[0]![i]!) ?? new Array<number>(k).fill(0); for (let j = 0; j < k; j++) a[j]! += cols[2 + j]![i]!; minus.set(cols[0]![i]!, a); } }
+      const ci = new Map<number, number>(); for (let u = 0; u < cert.units.length; u++) ci.set(cert.units[u]!, u);
+      if (cert.units.length !== cast.units.length) fail('Certified = cast − rejected (every unit)', `contest ${c.contest_id}: unit lists differ`);
+      else for (let u = 0; u < cast.units.length; u++) {
+        const v = ci.get(cast.units[u]!); const m = minus.get(cast.units[u]!);
+        if (v === undefined) { fail('Certified = cast − rejected (every unit)', `contest ${c.contest_id} BU ${cast.units[u]}`); break; }
+        let bad = false; for (let j = 0; j < k; j++) if (cast.votes[j]![u]! - (m?.[j] ?? 0) !== cert.votes[j]![v]!) bad = true;
+        if (bad) { fail('Certified = cast − rejected (every unit)', `contest ${c.contest_id} BU ${cast.units[u]}`); break; }
+      }
+      const t2 = totalsOfRev(c.contest_id, 2, cands), t3 = totalsOfRev(c.contest_id, 3, cands), t1 = totalsOfRev(c.contest_id, 1, cands);
+      if (t2.present && JSON.stringify(t2.votes) !== JSON.stringify(t3.votes)) fail('Canvass = certified', `contest ${c.contest_id}`);
+      if (t1.present && t1.votes.some((v, j) => v > t2.votes[j]!)) fail('Unofficial ≤ canvass', `contest ${c.contest_id}`);
+      if (night) {
+        const ri = night.races.findIndex((r) => r.contestId === c.contest_id && r.cd < 0);
+        if (ri < 0) fail('Night feed covers the contest', `contest ${c.contest_id}`);
+        else {
+          const f = auditNightCache!;
+          if (JSON.stringify(f.sums[ri]) !== JSON.stringify(t2.votes)) fail('Σ night batches = canvass totals', `contest ${c.contest_id}: ${JSON.stringify(f.sums[ri])} vs ${JSON.stringify(t2.votes)}`);
+          if (!f.cumOk[ri]) fail('Cumulative count ≤ final', `contest ${c.contest_id}`);
+          checkedRows += f.rows[ri]!;
         }
       }
     }
   }
-  findings.unshift({ check: 'Contests audited', ok: true, detail: `${checkedContests} contests, ${checkedUnits.toLocaleString('en-US')} unit-contest records` });
+  findings.unshift({ check: 'Contests audited', ok: true, detail: `${checkedContests} contests, ${checkedUnits.toLocaleString('en-US')} unit-contest records${checkedRows ? `, ${checkedRows.toLocaleString('en-US')} night batch rows` : ''}` });
   if (!findings.some((f) => !f.ok)) findings.push({ check: 'All archive invariants', ok: true, detail: 'ok' });
   return findings;
 }

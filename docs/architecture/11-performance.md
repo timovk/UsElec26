@@ -42,6 +42,20 @@ runs the same kernels on the user's device and reports real figures.
 One lesson: every OPFS transaction commit costs a sync, about 85 ms in headless Chromium here. Writing the 51
 states of a general election in separate transactions cost 4.4 s. They are now written in one.
 
+### Measured in Phase 3 (see [../phase-3-report.md](../phase-3-report.md) §7)
+
+| Operation | Chromium, 3 compute workers (4-core server) | Node, 1 thread |
+|---|---|---|
+| General election day at the ballot lock (kernel, count plan, wire, survey, desk, sealing, night record) | 13.7 s: shards 1.1 s, kernel + night jobs 5.2 s, tally 0.2 s, seal cast 3.2 s, night record 1.6 s, write 1.5 s | 17.2 s: kernel + night jobs 14.4 s, seal 1.1 s, record 0.9 s |
+| Advance through all of 2016 (no viewing) | 38 s | ~46 s |
+| Playback frame (Broadcast Worker, ~560 races) | interactive at 10 Hz; 5:00 pm → midnight in 45 s at 600× including live advances | — |
+| Night record | 1.66 MB, 67k batches, 280k race rows | |
+| Archive audit including the night (≈1.6M unit records) | — | 3.5 s |
+
+Against the Chromebook budget (§11.1: ≤ 40 s for a year with a general election, excluding watching the night), the
+server measurement of 38 s suggests roughly 55–115 s on a Chromebook. Known levers: seal and encode results in the
+compute workers (≈2 s of the 3.2 s seal step), cheaper primaries, and fewer evaluations by the desk on quiet races.
+
 ## 11.3 Likely bottlenecks and mitigations
 
 | Bottleneck | Mitigation |

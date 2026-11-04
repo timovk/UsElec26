@@ -44,6 +44,12 @@ rev 3  certified    the legal result
 rev 4+ recount / court-ordered correction  (each with reason, superseding revision, and net change)
 ```
 
+**As built in Phase 3:** rev 0 holds the cast ballots at Base-Unit grain plus a 'rejected' blob (mail and provisional
+ballots cast but never counted, by unit and mode). Rev 1 (unofficial) is the feed's total without provisional batches;
+rev 2 (canvass) is the whole feed; rev 3 (certified) equals rev 2 and is stored as *derived* from rev 0 − rejected (totals,
+RJ × mode table and certified rollups, with a seal chained to the rev 0 seal) rather than as a second full unit-grain
+copy. The audit recomputes the certified unit grain. Recounts (rev 4+) are not yet implemented.
+
 Recounts do **not** rerun the election. A recount re-tabulates the cast ballots with a modeled
 tabulation-error process: per-mode, per-technology error rates of about 0.005–0.1% of ballots, realized as
 small signed deltas per RJ. The margin changes by a realistic few dozen to few hundred votes, and the

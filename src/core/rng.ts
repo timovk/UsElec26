@@ -187,6 +187,60 @@ export class Rng {
     return out;
   }
 
+  /**
+   * Hypergeometric: the number of `good` items in a sample of `sample` drawn without replacement from
+   * `good + bad` items. Exact, by inversion searching outward from the mode (Kemp's chop-down), so the
+   * expected cost grows with the standard deviation, not the population. Deterministic (dexp/dlog only).
+   */
+  hypergeometric(good: number, bad: number, sample: number): number {
+    const N = good + bad;
+    if (sample <= 0 || good <= 0) return 0;
+    if (sample >= N) return good;
+    if (bad <= 0) return sample;
+    // Symmetries keep the search short: sample ≤ N/2 and good ≤ bad.
+    if (sample > N / 2) return good - this.hypergeometric(good, bad, N - sample);
+    if (good > bad) return sample - this.hypergeometric(bad, good, sample);
+    const lo = Math.max(0, sample - bad), hi = Math.min(sample, good);
+    const m = Math.min(hi, Math.max(lo, Math.floor((sample + 1) * (good + 1) / (N + 2))));
+    const logPm = logFactorial(good) - logFactorial(m) - logFactorial(good - m) + logFactorial(bad) - logFactorial(sample - m)
+      - logFactorial(bad - sample + m) - (logFactorial(N) - logFactorial(sample) - logFactorial(N - sample));
+    const pm = dexp(logPm);
+    let u = this.float() - pm;
+    if (u <= 0) return m;
+    // ratio p(k+1)/p(k) = (good-k)(sample-k) / ((k+1)(bad-sample+k+1))
+    let up = m, pUp = pm, dn = m, pDn = pm;
+    for (;;) {
+      const canUp = up < hi, canDn = dn > lo;
+      if (!canUp && !canDn) return m; // rounding exhausted the mass: return the mode
+      if (canUp) {
+        pUp *= ((good - up) * (sample - up)) / ((up + 1) * (bad - sample + up + 1)); up++;
+        u -= pUp; if (u <= 0) return up;
+      }
+      if (canDn) {
+        pDn *= (dn * (bad - sample + dn)) / ((good - dn + 1) * (sample - dn + 1)); dn--;
+        u -= pDn; if (u <= 0) return dn;
+      }
+    }
+  }
+
+  /**
+   * Multivariate hypergeometric: draw `sample` items without replacement from categories with `counts`
+   * (by sequential conditional hypergeometric draws). Writes into `out`; Σ out = sample and out ≤ counts.
+   */
+  mvHypergeometric(counts: ArrayLike<number>, sample: number, out: Int32Array): Int32Array {
+    let total = 0;
+    for (let i = 0; i < counts.length; i++) total += counts[i]!;
+    let rem = Math.min(sample, total);
+    for (let i = 0; i < counts.length - 1; i++) {
+      const c = counts[i]!;
+      total -= c;
+      const x = rem > 0 ? this.hypergeometric(c, total, rem) : 0;
+      out[i] = x; rem -= x;
+    }
+    out[counts.length - 1] = rem;
+    return out;
+  }
+
   /** Index drawn proportionally to non-negative weights. */
   weighted(weights: ArrayLike<number>): number {
     let total = 0;

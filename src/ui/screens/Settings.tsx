@@ -65,7 +65,7 @@ export function Settings() {
         </section>
         <section className="card">
           <h2>About</h2>
-          <p className="small">Election Night: America · engine {engineVersion} · Phase 2 (core elections and the archive).</p>
+          <p className="small">Election Night: America · engine {engineVersion} · Phase 3 (election-night counting).</p>
           <p className="small">Geography and population: U.S. Census Bureau (2010 Census, ACS 2012–2016, CVAP 2012–2016, 2016 cartographic boundaries, 115th Congress and 2016 legislative block equivalency files). Names: Census 2010 surnames and 1990 given names. All politicians, parties' coalitions and events are fictional.</p>
           <p className="tiny muted">Reduced motion follows your system setting. Audio arrives with the election-night broadcast (Phase 4).</p>
         </section>

@@ -67,6 +67,8 @@ Deliverables: these documents and spikes. Exit: your approval and the decisions 
 - **Risks:** calibration of ticket splitting and undervotes; kernel performance at the full BU count.
 
 ### Phase 3: Election-night counting
+**Status:** implemented — see [../phase-3-report.md](../phase-3-report.md). Deviations: one network (flagship); survey toplines only; recounts deferred; primaries are still decided at the close of voting (their nights arrive with Phase 5 primaries).
+
 | Milestone | Deliverables |
 |---|---|
 | M3.1 Poll closings | Local-time closing rules → RJ schedules across split zones |

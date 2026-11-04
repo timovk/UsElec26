@@ -19,7 +19,7 @@ describe('2016 election cycle (fixture)', () => {
     const count = (sql: string) => Number(db.value(sql));
     console.log(news.filter((n) => ['results', 'electoral_college', 'nomination', 'contingent', 'inauguration'].includes(n.kind)).map((n) => `${n.headline} — ${n.body}`).slice(0, 12).join('\n'));
     // Every headline produced during the advance is returned, including those flushed mid-event by election commits.
-    expect(news.some((n) => n.kind === 'results' && /wins the presidency/.test(n.headline))).toBe(true);
+    expect(news.some((n) => n.kind === 'results' && /win the presidency/.test(n.headline))).toBe(true);
     expect(news.length).toBe(count('SELECT COUNT(*) FROM news') - 1);
     expect(count("SELECT COUNT(*) FROM contest WHERE kind = 'pres_state'")).toBe(51);
     expect(count("SELECT COUNT(*) FROM contest WHERE kind IN ('general') AND year = 2016 AND parent_contest IS NULL AND office_id IN (SELECT office_id FROM office WHERE kind = 'us_representative')")).toBe(435);
@@ -33,6 +33,25 @@ describe('2016 election cycle (fixture)', () => {
     const pres = db.get<{ start_time: number }>("SELECT t.start_time FROM office_term t JOIN office o ON o.office_id = t.office_id WHERE o.kind = 'president' AND t.end_time IS NULL");
     expect(pres!.start_time).toBe(zonedToUtc(2017, 1, 20, 12, 0, 'America/New_York'));
     expect(integrityReport(db).checks.filter((c) => !c.ok)).toEqual([]);
+    // Election night: sealed record, no desk event before polls close, replay ends exactly at the certified count.
+    const { sha256Hex } = await import('../../../src/core/codec');
+    const { Playback } = await import('../../../src/broadcast/playback');
+    const night = db.get<{ night_id: number; payload: Uint8Array; sha256: string }>("SELECT night_id, payload, sha256 FROM night WHERE kind = 'general'")!;
+    expect(await sha256Hex(night.payload)).toBe(night.sha256);
+    const rec = (await u.elections.nightRecord(night.night_id))!;
+    for (let i = 0; i < rec.events.time.length; i++) expect(rec.events.time[i]!).toBeGreaterThanOrEqual(rec.races[rec.events.race[i]!]!.close);
+    const pb = new Playback(rec), end = pb.at(rec.feedEnd), again = new Playback(rec).at(rec.feedEnd);
+    let checked = 0;
+    rec.races.forEach((race, r) => {
+      if (race.cd >= 0) return;
+      const totals = race.candidacyIds.map((cid) => Number(db.value('SELECT votes FROM contest_total WHERE contest_id = ? AND rev = 3 AND candidacy_id = ?', [race.contestId, cid])));
+      expect(Array.from(end.races[r]!.votes).slice(0, race.k - 1)).toEqual(totals);
+      expect(Array.from(again.races[r]!.votes)).toEqual(Array.from(end.races[r]!.votes));
+      checked++;
+    });
+    expect(checked).toBeGreaterThan(500);
+    // Before the first poll closes the count shows nothing.
+    expect(pb.at(rec.coverageStart).races.every((x) => x.ballots === 0 || x.status === 0)).toBe(true);
   }, 300_000);
 });
 
@@ -75,7 +94,7 @@ describe('election determinism and continuity (fixture)', () => {
 describe('compute pool (fixture)', () => {
   it('1 worker, 4 workers and inline execution give an identical universe', async () => {
     const { WorkerPoolRunner } = await import('../../../src/engine/computePool');
-    const { runShard } = await import('../../../src/electorate/kernel');
+    const { runJob } = await import('../../../src/engine/nightJob');
     const { contentHash } = await import('../../../src/persistence/audit');
     const { Rng } = await import('../../../src/core/rng');
     // A stand-in for a Compute Worker: structured-clones the input (as postMessage does) and replies after a
@@ -85,8 +104,8 @@ describe('compute pool (fixture)', () => {
       const w = {
         onmessage: null as ((ev: MessageEvent) => void) | null, onerror: null as ((ev: ErrorEvent) => void) | null,
         postMessage(inp: unknown) {
-          const copy = structuredClone(inp) as Parameters<typeof runShard>[0];
-          setTimeout(() => w.onmessage?.({ data: { ok: true, out: runShard(copy) } } as MessageEvent), Math.floor(jitter.float() * 4));
+          const copy = structuredClone(inp) as Parameters<typeof runJob>[0];
+          setTimeout(() => w.onmessage?.({ data: { ok: true, out: runJob(copy) } } as MessageEvent), Math.floor(jitter.float() * 4));
         },
         terminate() {},
       };
