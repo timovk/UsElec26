@@ -1,0 +1,255 @@
+/**
+ * The shared-electorate ballot kernel (docs/architecture/04-statistical-methodology.md §4.4–4.5).
+ *
+ * For every Base Unit the eligible electorate is spread over 48 voter types (4 cohort classes × 12
+ * latent-partisanship bins). Turnout and ballot mode are computed per type, then every contest's
+ * choice probabilities are computed from per-(contest, county) utility tables over the same types.
+ * Ballots are drawn ONCE per (unit, mode); every contest on the ballot partitions exactly those ballots
+ * into candidate votes and undervotes. Pure function of its input: shards (states) can run anywhere,
+ * in any order, on any number of workers, with identical results.
+ */
+import { Rng } from '../core/rng';
+import { dexp, dlogistic, dtanh, normCdf } from '../core/math';
+import { N_COHORTS, cohortAge, rake, type Marginals } from '../population/cohorts';
+import type { ElectorateParams } from './model';
+import { DIMS } from './model';
+
+export const ZG = 12, Z_LO = -6, Z_W = 1;
+export const N_CLASS = 4, N_TYPES = N_CLASS * ZG, N_MODES = 4;
+export const MODE_NAMES = ['Election Day', 'Early in person', 'Mail/absentee', 'Provisional'] as const;
+export const zCenter = (g: number): number => Z_LO + (g + 0.5) * Z_W;
+
+// ---- Deterministic lookup tables (built once from the deterministic math library) -------------
+const PHI_LO = -9, PHI_STEP = 0.004, PHI_N = Math.round(18 / PHI_STEP) + 1;
+const PHI = new Float64Array(PHI_N);
+for (let i = 0; i < PHI_N; i++) PHI[i] = normCdf(PHI_LO + i * PHI_STEP);
+function phi(x: number): number {
+  let t = (x - PHI_LO) / PHI_STEP;
+  if (t <= 0) return 0; if (t >= PHI_N - 1) return 1;
+  const i = t | 0; t -= i; return PHI[i]! + (PHI[i + 1]! - PHI[i]!) * t;
+}
+const LG_LO = -20, LG_STEP = 0.004, LG_N = Math.round(40 / LG_STEP) + 1;
+const LOGI = new Float64Array(LG_N);
+for (let i = 0; i < LG_N; i++) LOGI[i] = dlogistic(LG_LO + i * LG_STEP);
+function logi(x: number): number {
+  let t = (x - LG_LO) / LG_STEP;
+  if (t <= 0) return LOGI[0]!; if (t >= LG_N - 1) return LOGI[LG_N - 1]!;
+  const i = t | 0; t -= i; return LOGI[i]! + (LOGI[i + 1]! - LOGI[i]!) * t;
+}
+const ZC = Float64Array.from({ length: ZG }, (_, g) => zCenter(g));
+const ABSZ = ZC.map(Math.abs);
+const TANHZ = ZC.map((z) => dtanh(z / 2));
+const EDGES = Float64Array.from({ length: ZG + 1 }, (_, g) => Z_LO + g * Z_W);
+
+/** Four cohort classes: deterministic k-means on cohort issue positions (initialised by partisan-axis quantiles). */
+export function cohortClasses(p: Pick<ElectorateParams, 'cohortPos' | 'platforms'>): { classOf: Uint8Array; centroids: number[][] } {
+  const axis = p.platforms.D.map((d, i) => d - p.platforms.R[i]!);
+  const pos = (k: number) => p.cohortPos.slice(k * DIMS, k * DIMS + DIMS);
+  const order = Array.from({ length: N_COHORTS }, (_, k) => k).sort((a, b) => {
+    const pa = pos(a).reduce((s, x, i) => s + x * axis[i]!, 0), pb = pos(b).reduce((s, x, i) => s + x * axis[i]!, 0);
+    return pa - pb || a - b;
+  });
+  let centroids = [0, 1, 2, 3].map((q) => pos(order[Math.floor((q + 0.5) * N_COHORTS / N_CLASS)]!));
+  const classOf = new Uint8Array(N_COHORTS);
+  for (let it = 0; it < 20; it++) {
+    for (let k = 0; k < N_COHORTS; k++) {
+      let best = 0, bd = Infinity;
+      centroids.forEach((c, h) => { const dd = c.reduce((s, x, i) => s + (x - pos(k)[i]!) ** 2, 0); if (dd < bd) { bd = dd; best = h; } });
+      classOf[k] = best;
+    }
+    centroids = centroids.map((c, h) => {
+      const members = Array.from(classOf).map((x, k) => (x === h ? k : -1)).filter((k) => k >= 0);
+      if (!members.length) return c;
+      return c.map((_, i) => members.reduce((s, k) => s + pos(k)[i]!, 0) / members.length);
+    });
+  }
+  return { classOf, centroids };
+}
+
+// ---- Inputs and outputs ----------------------------------------------------------------------------
+export interface KernelOption {
+  partySign: number;     // +0.5 Democratic, −0.5 Republican, 0 otherwise
+  base: number;          // contest-wide valence (quality, incumbency, campaign, scandal), logit units
+  classFit: number[];    // N_CLASS ideology-fit terms
+  minorAppeal: number;   // weight on −|z| (non-partisan appeal of minor/independent candidates)
+  homeCounty: number;    // county index with a home bonus, −1 if none
+  homeState: boolean;    // candidate's home state is this shard's state
+}
+
+export interface KernelContest {
+  id: number;
+  cd: number;            // −1 statewide; otherwise only Base Units in this congressional district vote
+  weight: number;        // partisan salience w_e
+  abstain: number;       // undervote utility
+  options: KernelOption[];
+}
+
+export interface ShardInput {
+  seedKey: string;
+  kind: 'general' | 'primary' | 'allparty';
+  primaryParty: number;              // 1 or 2 for party primaries, 0 otherwise
+  crossover: number;                 // primary: participation of non-members (by primary type)
+  homeStateBonus: number; homeCountyBonus: number;
+  /** Per BU: marginals (13 floats: age×4, male, race×4, college-by-age×4) are raked to the county joint inside the kernel. */
+  bus: { start: number; count: number; county: Uint16Array; cd: Uint16Array; rj: Uint16Array; vep: Float32Array; shift: Float32Array; turnout: Float32Array; marg: Float32Array };
+  counties: { first: number; mu: Float32Array; turnout: Float32Array; joint: Float32Array }; // local county index = county − first
+  classOf: Uint8Array; sigma: Float64Array; tau: Float64Array;          // per cohort; tau includes the election-type intercept
+  betaInt: number; enth: number;
+  modeLogits: Float64Array;          // 4 age bands × 4 modes
+  modeGap: Float64Array;             // 4 modes: partisan slope per unit z
+  rjFirst: number; rjCount: number;  // reporting jurisdictions of the shard (contiguous)
+  contests: KernelContest[];
+}
+
+export interface ContestOutput {
+  id: number;
+  units: Int32Array;                 // global BU indices that voted in the contest
+  votes: Int32Array;                 // units × (options + 1): candidate votes then undervotes (all modes)
+  rjMode: Int32Array;                // rjCount × N_MODES × (options + 1)
+  expected: Float64Array;            // expected votes per option (analytic), options + 1
+}
+
+export interface ShardOutput { ballots: Int32Array; ballotsByMode: Int32Array; eligible: Int32Array; contests: ContestOutput[]; expectedBallots: number }
+
+/** Run the kernel for one shard (a state). */
+export function runShard(inp: ShardInput): ShardOutput {
+  const n = inp.bus.count;
+  const C = inp.contests.length;
+  const ballots = new Int32Array(n), ballotsByMode = new Int32Array(n * N_MODES), eligible = new Int32Array(n);
+  // Mode shares by (age band, z bin).
+  const modeP = new Float64Array(4 * ZG * N_MODES);
+  for (let a = 0; a < 4; a++) for (let g = 0; g < ZG; g++) {
+    let s = 0; const u = new Float64Array(N_MODES);
+    for (let m = 0; m < N_MODES; m++) { const l = inp.modeLogits[a * N_MODES + m]!; u[m] = Number.isFinite(l) ? dexp(l + inp.modeGap[m]! * ZC[g]!) : 0; s += u[m]!; }
+    for (let m = 0; m < N_MODES; m++) modeP[(a * ZG + g) * N_MODES + m] = u[m]! / s;
+  }
+  // Primary participation by z bin.
+  const part = new Float64Array(ZG).fill(1);
+  if (inp.kind === 'primary') for (let g = 0; g < ZG; g++) {
+    const z = inp.primaryParty === 1 ? ZC[g]! : -ZC[g]!;
+    part[g] = dlogistic(2.2 * (z - 0.4)) + inp.crossover * (1 - dlogistic(2.2 * (z - 0.4)));
+  }
+  // Contest bookkeeping.
+  const outs: ContestOutput[] = [];
+  const unitLists: number[][] = []; const voteLists: number[][] = [];
+  for (const c of inp.contests) {
+    const k = c.options.length + 1;
+    outs.push({ id: c.id, units: new Int32Array(0), votes: new Int32Array(0), rjMode: new Int32Array(inp.rjCount * N_MODES * k), expected: new Float64Array(k) });
+    unitLists.push([]); voteLists.push([]);
+  }
+  const V = new Float64Array(N_MODES * N_TYPES);       // voters by mode and type
+  const WA = new Float64Array(4 * N_TYPES);            // voters by (age band × class) group and z bin
+  const groupOf = Uint8Array.from({ length: N_COHORTS }, (_, k) => cohortAge(k) * N_CLASS + inp.classOf[k]!);
+  const gS = new Float64Array(16), gM = new Float64Array(16), gV = new Float64Array(16), gT = new Float64Array(16);
+  const cells = new Float64Array(N_COHORTS);
+  const mar: Marginals = { age: new Float64Array(4), male: 0, race: new Float64Array(4), collegeByAge: new Float64Array(4) };
+  const zt = Float64Array.from({ length: ZG }, (_, g) => inp.betaInt * ABSZ[g]! + inp.enth * TANHZ[g]!);
+  const probCache = new Map<number, Float64Array>();    // (contest, county) → P[j][type]
+  const pbar = new Float64Array(16), draw = new Int32Array(16);
+  let expectedBallots = 0;
+  let curCounty = -1;
+
+  const probTable = (ci: number, county: number): Float64Array => {
+    const key = ci * 65536 + county;
+    let t = probCache.get(key);
+    if (t) return t;
+    const c = inp.contests[ci]!; const J = c.options.length;
+    t = new Float64Array((J + 1) * N_TYPES);
+    const u = new Float64Array(J + 1);
+    for (let h = 0; h < N_CLASS; h++) for (let g = 0; g < ZG; g++) {
+      const ty = h * ZG + g;
+      let mx = c.abstain; u[J] = c.abstain;
+      for (let j = 0; j < J; j++) {
+        const o = c.options[j]!;
+        u[j] = c.weight * o.partySign * ZC[g]! + o.base + o.classFit[h]! - o.minorAppeal * ABSZ[g]!
+          + (o.homeState ? inp.homeStateBonus : 0) + (o.homeCounty === county ? inp.homeCountyBonus : 0);
+        if (u[j]! > mx) mx = u[j]!;
+      }
+      let s = 0; for (let j = 0; j <= J; j++) { u[j] = dexp(u[j]! - mx); s += u[j]!; }
+      for (let j = 0; j <= J; j++) t[j * N_TYPES + ty] = u[j]! / s;
+    }
+    probCache.set(key, t);
+    return t;
+  };
+
+  for (let i = 0; i < n; i++) {
+    const b = inp.bus.start + i;
+    const county = inp.bus.county[i]!;
+    if (county !== curCounty) { probCache.clear(); curCounty = county; }
+    const cl = county - inp.counties.first;
+    const E = Math.round(inp.bus.vep[i]!);
+    eligible[i] = E;
+    if (E <= 0) continue;
+    let onBallot = false;
+    for (let ci = 0; ci < C; ci++) { const cd = inp.contests[ci]!.cd; if (cd < 0 || cd === inp.bus.cd[i]) { onBallot = true; break; } }
+    if (!onBallot) { eligible[i] = 0; continue; } // no election here: no ballots, and the unit is not in this electorate
+    // 1. Voter types. Cohorts are first collapsed into 16 (age band × class) groups by moment matching
+    //    (mean, variance and turnout propensity); cohorts in a group share issue positions by construction.
+    //    Each group is then spread over the 12 partisanship bins.
+    WA.fill(0); gS.fill(0); gM.fill(0); gV.fill(0); gT.fill(0);
+    const shift = inp.bus.shift[i]!, tb = inp.bus.turnout[i]! + inp.counties.turnout[cl]!;
+    // Cohort shares of this unit: the county joint table raked to the unit's marginals.
+    for (let k = 0; k < N_COHORTS; k++) cells[k] = inp.counties.joint[cl * N_COHORTS + k]!;
+    const mo13 = i * 13, mg = inp.bus.marg;
+    mar.age[0] = mg[mo13]!; mar.age[1] = mg[mo13 + 1]!; mar.age[2] = mg[mo13 + 2]!; mar.age[3] = mg[mo13 + 3]!; mar.male = mg[mo13 + 4]!;
+    for (let q = 0; q < 4; q++) { mar.race[q] = mg[mo13 + 5 + q]!; mar.collegeByAge[q] = mg[mo13 + 9 + q]!; }
+    rake(cells, mar, 3);
+    for (let k = 0; k < N_COHORTS; k++) {
+      const s = cells[k]!; if (s <= 0) continue;
+      const gi = groupOf[k]!, mu = inp.counties.mu[cl * N_COHORTS + k]! + shift, sg = inp.sigma[k]!;
+      gS[gi]! += s; gM[gi]! += s * mu; gV[gi]! += s * (sg * sg + mu * mu); gT[gi]! += s * inp.tau[k]!;
+    }
+    for (let gi = 0; gi < 16; gi++) {
+      const S = gS[gi]!; if (S <= 0) continue;
+      const mu = gM[gi]! / S, sig = Math.sqrt(Math.max(1e-6, gV[gi]! / S - mu * mu)), inv = 1 / sig, tk = gT[gi]! / S + tb;
+      const weight = S * E, wo = gi * ZG;
+      let g0 = Math.floor((mu - 5 * sig - Z_LO) / Z_W), g1 = Math.ceil((mu + 5 * sig - Z_LO) / Z_W);
+      if (g0 < 0) g0 = 0; if (g1 > ZG - 1) g1 = ZG - 1;
+      let prev = g0 === 0 ? 0 : phi((EDGES[g0]! - mu) * inv);
+      for (let g = g0; g <= g1; g++) {
+        const up = g === ZG - 1 || g === g1 ? 1 : phi((EDGES[g + 1]! - mu) * inv);
+        const mass = up - prev; prev = up;
+        if (mass < 1e-9) continue;
+        WA[wo + g]! += weight * mass * part[g]! * logi(tk + zt[g]!);
+      }
+    }
+    V.fill(0);
+    for (let a = 0; a < 4; a++) for (let h = 0; h < N_CLASS; h++) for (let g = 0; g < ZG; g++) {
+      const w = WA[(a * N_CLASS + h) * ZG + g]!; if (w === 0) continue;
+      const mo = (a * ZG + g) * N_MODES, ty = h * ZG + g;
+      for (let m = 0; m < N_MODES; m++) V[m * N_TYPES + ty]! += w * modeP[mo + m]!;
+    }
+    // 2. Ballots: drawn once per unit, split by mode.
+    const r = Rng.stream(inp.seedKey, 'bu', b);
+    let lambda = 0; const lm = new Float64Array(N_MODES);
+    for (let m = 0; m < N_MODES; m++) { let s = 0; for (let ty = 0; ty < N_TYPES; ty++) s += V[m * N_TYPES + ty]!; lm[m] = s; lambda += s; }
+    expectedBallots += lambda;
+    const B = r.binomial(E, Math.min(1, lambda / E));
+    const bm = r.multinomial(B, lm, new Int32Array(N_MODES));
+    ballots[i] = B;
+    for (let m = 0; m < N_MODES; m++) ballotsByMode[i * N_MODES + m] = bm[m]!;
+    // 3. Contests on this unit's ballot.
+    const rjLocal = inp.bus.rj[i]! - inp.rjFirst;
+    for (let ci = 0; ci < C; ci++) {
+      const c = inp.contests[ci]!;
+      if (c.cd >= 0 && c.cd !== inp.bus.cd[i]) continue;
+      const J = c.options.length, K = J + 1;
+      const P = probTable(ci, county);
+      const out = outs[ci]!;
+      const tot = new Int32Array(K);
+      for (let m = 0; m < N_MODES; m++) {
+        if (lm[m]! <= 0) continue;
+        pbar.fill(0, 0, K);
+        for (let j = 0; j < K; j++) { let s = 0; const row = j * N_TYPES; for (let ty = 0; ty < N_TYPES; ty++) s += V[m * N_TYPES + ty]! * P[row + ty]!; pbar[j] = s; out.expected[j]! += s; }
+        if (bm[m]! === 0) continue;
+        r.multinomial(bm[m]!, pbar.subarray(0, K), draw);
+        const ro = (rjLocal * N_MODES + m) * K;
+        for (let j = 0; j < K; j++) { tot[j]! += draw[j]!; out.rjMode[ro + j]! += draw[j]!; }
+      }
+      unitLists[ci]!.push(b);
+      for (let j = 0; j < K; j++) voteLists[ci]!.push(tot[j]!);
+    }
+  }
+  outs.forEach((o, ci) => { o.units = Int32Array.from(unitLists[ci]!); o.votes = Int32Array.from(voteLists[ci]!); });
+  return { ballots, ballotsByMode, eligible, contests: outs, expectedBallots };
+}

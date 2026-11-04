@@ -46,7 +46,8 @@ export class NameGenerator {
       const given = draw(sex === 'M' ? this.male : this.female, r);
       const surname = draw(this.surnameByRace[race] ?? this.surnameByRace[0]!, r);
       const key = `${given} ${surname}`.toLowerCase();
-      if (this.data.blocklist.has(key) || this.used.has(key)) continue;
+      if (this.data.blocklist.has(key)) continue;
+      if (this.used.has(key) && attempt < 40) continue; // prefer unique names; common names may eventually repeat, as in reality
       this.used.add(key);
       const middle = MIDDLE[r.int(MIDDLE.length)]!;
       const suffix = sex === 'M' && r.bernoulli(0.03) ? (r.bernoulli(0.8) ? 'Jr.' : 'III') : null;

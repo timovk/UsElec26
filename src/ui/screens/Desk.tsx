@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { engine } from '../state/engineClient';
 import { useApp } from '../state/store';
-import type { CalendarEntry, DeskSummary, NewsDto } from '../../engine/protocol';
+import type { CalendarEntry, DeskSummary, NewsDto, YearSummary } from '../../engine/protocol';
 import { formatDate } from '../../core/time';
-import { OfficeHolder, PARTY_NAME, Planned, SeatBar, Truth, fmtLean } from '../components/common';
+import { OfficeHolder, PARTY_COLORS, PARTY_NAME, PartyBadge, SeatBar, Truth, fmtLean } from '../components/common';
 
 export function useQuery<T>(q: Parameters<typeof engine.query>[0], deps: unknown[] = []): T | null {
   const revision = useApp((s) => s.revision);
@@ -37,6 +37,13 @@ export function Desk() {
   const d = useQuery<DeskSummary>({ kind: 'desk' });
   const cal = useQuery<CalendarEntry[]>({ kind: 'calendar' });
   const news = useQuery<NewsDto[]>({ kind: 'news', limit: 25 });
+  const years = useQuery<number[]>({ kind: 'electionYears' });
+  // Latest year with held general-election results: the newest year may so far have held only primaries.
+  const y0 = years?.[0], y1 = years?.[1];
+  const s0 = useQuery<YearSummary | null>(y0 ? { kind: 'yearSummary', year: y0 } : { kind: 'electionYears' }, [y0]);
+  const s1 = useQuery<YearSummary | null>(y1 ? { kind: 'yearSummary', year: y1 } : { kind: 'electionYears' }, [y1]);
+  const hasResults = (x: unknown): x is YearSummary => !!x && !Array.isArray(x) && 'chambers' in (x as object) && ((x as YearSummary).president.length > 0 || (x as YearSummary).chambers.length > 0);
+  const lastS = hasResults(s0) ? s0 : hasResults(s1) ? s1 : null;
   const [showCabinet, setShowCabinet] = useState(false);
   if (!d) return <p className="muted">Loading…</p>;
   const pres = d.executive[0]!, vp = d.executive[1]!;
@@ -83,16 +90,23 @@ export function Desk() {
 
       <div className="grid cols-2" style={{ marginTop: 16 }}>
         <section className="card">
-          <h2>Upcoming elections <Planned phase={2}>Simulation</Planned></h2>
+          {lastS && <div style={{ marginBottom: 14 }}>
+            <h2>Latest results · {lastS.year} <a className="small" href={`#/results/${lastS.year}`}>All results ›</a></h2>
+            {lastS.president.slice(0, 2).map((p) => <div key={p.name} className="row between small"><span className="row"><PartyBadge party={p.party} />{p.name}</span><span className="num"><strong style={{ color: PARTY_COLORS[p.party] }}>{p.ev}</strong> EV · {(100 * p.share).toFixed(1)}%</span></div>)}
+            {lastS.chambers.map((c) => <div key={c.label} className="small muted">{c.label}: {c.after.map((x) => `${PARTY_NAME[x.party] ?? 'Vacant'} ${x.seats}`).join(' · ')}</div>)}
+            <div className="small muted">{lastS.flips.length} seat{lastS.flips.length === 1 ? '' : 's'} changed party.</div>
+          </div>}
+          <h2>Upcoming elections</h2>
           {cal?.map((c) => (
             <div key={c.date} className="news-item">
               <div className="h">{c.label}</div>
               <div className="t">{new Date(`${c.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}</div>
               <div className="small">{c.contests.map((x) => `${x.label}${x.count > 1 ? ` (${x.count})` : ''}`).join(' · ')}</div>
-              <div className="tiny muted">{c.status}</div>
+
             </div>
           ))}
-          <p className="tiny muted">Dates and offices follow federal law and each state's election cycle as of 2016. Primaries, special elections and state legislative contests will appear as they are implemented.</p>
+          {cal?.length === 0 && <p className="muted small">No elections scheduled yet — the calendar for each year is set on January 1.</p>}
+          <p className="tiny muted">Dates and offices follow federal law and each state's 2016 election code. State legislative elections arrive in Phase 6; local elections in Phase 7.</p>
         </section>
         <section className="card">
           <h2>News</h2>

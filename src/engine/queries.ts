@@ -1,18 +1,19 @@
 /** Read-only queries over the universe (never mutate). Every number comes from simulation state. */
-import { ageOn, easternDay, formatDay, generalElectionDay, isoDay, daysToCivil } from '../core/time';
+import { ageOn, easternDay, formatDay, isoDay } from '../core/time';
 import { fullName, PARTY_D, PARTY_R, type Office, type Person } from '../institutions/model';
 import { NONE16 } from '../geo/pack';
-import { STATES_2016, SENATE_CLASS_NEXT_ELECTION } from '../rules/states2016';
 import { N_COHORTS, cohortLabel } from '../population/cohorts';
 import { ISSUE_AXES, TARGET_RANGES, cellLookup } from '../electorate/model';
 import { leanMargin } from './world';
 import type { Universe } from './universe';
+import { runArchiveQuery } from './archiveQueries';
 import type {
   CalendarEntry, ChamberDto, DeskSummary, ElectorateSummary, EntityDetail, GeoMeta, MapLayerDto, NewsDto, OfficeHolderDto, PersonDetail, PersonRef, PersonRow, Query,
 } from './protocol';
 
 export function runQuery(u: Universe, q: Query): unknown {
   switch (q.kind) {
+    case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
     case 'desk': return desk(u);
     case 'geoMeta': return geoMeta(u);
     case 'mapLayer': return mapLayer(u, q.layer, q.metric);
@@ -207,7 +208,10 @@ function person(u: Universe, id: number): PersonDetail | null {
     traits: [['Charisma', t.charisma], ['Campaign skill', t.campaign], ['Fundraising', t.fundraising], ['Leadership', t.leadership], ['Integrity', t.integrity], ['Ambition', t.ambition], ['Name recognition', t.recognition]].map(([label, value]) => ({ label: label as string, value: value as number })),
     ideology: t.ideology.map((v, i) => ({ axis: ISSUE_AXES[i]!, value: v })),
     terms: [...terms, ...pend.filter((x) => !terms.some((y) => y.start_time === x.start_time && y.title === x.title))].map((x) => ({ title: x.title, start: x.start_time, end: x.end_time, acquired: x.acquired, endReason: x.end_reason, provenance: x.provenance })),
-    career: career.map((c) => ({ years: c.year_from && c.year_to ? `${c.year_from}–${c.year_to}` : c.year_from ? `${c.year_from}` : '', text: c.text, provenance: c.provenance })),
+    career: career.map((c) => ({ years: c.year_from && c.year_to ? `${c.year_from}–${c.year_to}` : c.year_from ? `${c.year_from}` : c.year_to ? `–${c.year_to}` : '', text: c.text, provenance: c.provenance })),
+    elections: u.db.all<{ contest_id: number; label: string; year: number; status: string; votes: number | null; share: number | null; kind: string }>(
+      'SELECT c.contest_id, c.label, c.year, k.status, t.votes, t.share, c.kind FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id LEFT JOIN contest_total t ON t.candidacy_id = k.candidacy_id AND t.rev = 0 WHERE k.person_id = ? ORDER BY c.year DESC, c.contest_id DESC', [id])
+      .map((r) => ({ contestId: r.contest_id, label: r.label, year: r.year, result: r.status, votes: r.votes, share: r.share, kind: r.kind })),
   };
 }
 
@@ -217,23 +221,18 @@ function news(u: Universe, limit: number, beforeId?: number): NewsDto[] {
   return rows.map((r) => ({ id: r.news_id, time: r.sim_time, kind: r.kind, headline: r.headline, body: r.body, personId: (JSON.parse(r.refs_json || '{}') as { personId?: number }).personId }));
 }
 
-/** Upcoming regular general elections derived from office terms and the 2016 legal baseline. */
+/** Upcoming elections from the universe's election calendar (scheduled by office terms and the 2016 legal baseline). */
 function calendar(u: Universe): CalendarEntry[] {
-  const w = u.world;
-  const y0 = daysToCivil(today(u)).y;
-  const out: CalendarEntry[] = [];
-  for (let y = y0; y <= y0 + 4; y++) {
-    const day = generalElectionDay(y);
-    if (day < today(u)) continue;
-    const contests: { label: string; count: number }[] = [];
-    if (y % 4 === 0) contests.push({ label: 'President', count: 1 });
-    const senate = w.offices.filter((o) => o.kind === 'us_senator' && ((y - SENATE_CLASS_NEXT_ELECTION[o.senateClass!]!) % 6 + 6) % 6 === 0).length;
-    if (y % 2 === 0) { if (senate) contests.push({ label: 'U.S. Senate', count: senate }); contests.push({ label: 'U.S. House', count: w.offices.filter((o) => o.kind === 'us_representative').length }); }
-    const govs = w.pack.states.filter((s) => { const g = STATES_2016[s.usps]?.governor; return g ? ((y - g.lastElection) % g.termYears + g.termYears) % g.termYears === 0 : false; }).length;
-    if (govs) contests.push({ label: 'Governor', count: govs });
-    if (contests.length) out.push({ date: isoDay(day), dayNumber: day, label: `${y} ${y % 4 === 0 ? 'presidential' : y % 2 === 0 ? 'midterm' : 'off-year'} general election`, contests, status: 'Scheduled — election simulation arrives in Phase 2' });
-  }
-  return out;
+  const today = easternDay(u.world.time);
+  const rows = u.db.all<{ day: number; kind: string; n: number; states: number }>(
+    "SELECT day, kind, COUNT(*) n, COUNT(DISTINCT state_idx) states FROM election WHERE status = 'scheduled' AND day >= ? GROUP BY day, kind ORDER BY day LIMIT 40", [today]);
+  const label = (k: string, _n: number) => ({ general: 'General election', primary: 'Primary elections', primary_runoff: 'Primary runoffs', general_runoff: 'Runoff elections', pres_nomination: 'Presidential nominating primaries', special: 'Special election' } as Record<string, string>)[k] ?? k;
+  return rows.map((r) => {
+    const contests = u.db.all<{ kind: string; n: number }>("SELECT o.kind, COUNT(*) n FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id WHERE e.day = ? AND e.kind = ? GROUP BY o.kind", [r.day, r.kind]);
+    const nice: Record<string, string> = { president: 'President', us_senator: 'U.S. Senate', us_representative: 'U.S. House', governor: 'Governor', lt_governor: 'Lieutenant Governor', attorney_general: 'Attorney General', secretary_of_state: 'Secretary of State' };
+    return { date: isoDay(r.day), dayNumber: r.day, label: `${label(r.kind, r.n)}${r.kind === 'general' ? ` (${r.states} states)` : r.states > 1 ? ` (${r.states} states)` : ''}`,
+      contests: contests.filter((c) => c.kind).map((c) => ({ label: nice[c.kind] ?? c.kind, count: c.n })), status: r.kind === 'general' ? 'Scheduled' : 'Scheduled' };
+  });
 }
 
 function electorate(u: Universe): ElectorateSummary {

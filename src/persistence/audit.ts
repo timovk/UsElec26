@@ -6,12 +6,16 @@ import type { Db } from './db';
 const WALL_CLOCK: Record<string, string[] | 'all'> = { meta: 'all', universe: ['created_real'] };
 
 export async function contentHash(db: Db): Promise<string> {
-  const tables = db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").map((t) => t.name);
+  const tables = db.all<{ name: string; sql: string }>("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
   const parts: string[] = [];
-  for (const t of tables) {
+  for (const { name: t, sql } of tables) {
     const excl = WALL_CLOCK[t];
     if (excl === 'all') continue;
-    const rows = db.all(`SELECT * FROM "${t}" ORDER BY rowid`);
+    // WITHOUT ROWID tables have no rowid; order them by their primary key instead.
+    const order = /WITHOUT\s+ROWID/i.test(sql)
+      ? db.all<{ name: string; pk: number }>(`PRAGMA table_info("${t}")`).filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => `"${c.name}"`).join(', ')
+      : 'rowid';
+    const rows = db.all(`SELECT * FROM "${t}" ORDER BY ${order}`);
     parts.push(t);
     for (const r of rows) {
       const vals = Object.entries(r).filter(([k]) => !(excl ?? []).includes(k)).map(([, v]) => (v instanceof Uint8Array ? `b:${Array.from(v, (x) => x.toString(16).padStart(2, '0')).join('')}` : JSON.stringify(v)));

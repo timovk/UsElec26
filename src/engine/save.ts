@@ -10,9 +10,22 @@ import type { World } from './world';
 
 export interface ScheduledEvent { id: number; time: number; priority: number; kind: string; data: Record<string, unknown> }
 
+/** Small, frequently rewritten state as uncompressed JSON (synchronous, so it commits with the events that change it). */
+export function rawJsonBlob(key: string, value: unknown): { key: string; codec: string; payload: Uint8Array } {
+  return { key, codec: 'rawjson', payload: new TextEncoder().encode(JSON.stringify(value)) };
+}
+
+export async function readJsonState<T>(db: Db, key: string): Promise<T | null> {
+  const row = db.get<{ codec: string }>('SELECT codec FROM state_blob WHERE key = ?', [key]);
+  if (!row) return null;
+  const b = await readStateBlob(db, key);
+  if (!b) return null;
+  return row.codec === 'rawjson' ? JSON.parse(new TextDecoder().decode(b)) as T : decodeJson<T>(b);
+}
+
 export async function prepareStateBlobs(w: World, full: boolean): Promise<{ key: string; codec: string; payload: Uint8Array }[]> {
   const blobs: { key: string; codec: string; payload: Uint8Array }[] = [];
-  blobs.push({ key: 'world.meta', codec: 'json', payload: await encodeJson({ history: w.history, ids: w.ids }) });
+  blobs.push(rawJsonBlob('world.meta', { history: w.history, ids: w.ids }));
   if (full) {
     blobs.push({ key: 'electorate.params', codec: 'json', payload: await encodeJson(w.electorate.params) });
     const f = w.electorate.fields;
@@ -64,8 +77,13 @@ export function writePending(db: Db, w: World): void {
   for (const d of p.deaths) db.run('UPDATE person SET death_day = ? WHERE person_id = ?', [d.day, d.id]);
   if (p.careers.length) db.insertMany('INSERT INTO career_event VALUES (?,?,?,?,?,?,?,?)', p.careers.map(careerRow));
   if (p.news.length) db.insertMany('INSERT INTO news VALUES (?,?,?,?,?,?)', p.news.map(newsRow));
-  for (const v of p.vacanciesSet) db.run('INSERT OR REPLACE INTO vacancy VALUES (?,?,?,?)', [v.officeId, v.since, v.reason, v.resolution]);
-  for (const id of p.vacanciesCleared) db.run('DELETE FROM vacancy WHERE office_id = ?', [id]);
+  // A vacancy can be set and cleared several times between commits; persist each touched office's final state.
+  const touched = new Set([...p.vacanciesSet.map((v) => v.officeId), ...p.vacanciesCleared]);
+  for (const id of touched) {
+    const v = w.vacancies.get(id);
+    if (v) db.run('INSERT OR REPLACE INTO vacancy VALUES (?,?,?,?)', [v.officeId, v.since, v.reason, v.resolution]);
+    else db.run('DELETE FROM vacancy WHERE office_id = ?', [id]);
+  }
   w.pending = { persons: [], terms: [], termEnds: [], deaths: [], careers: [], news: [], vacanciesSet: [], vacanciesCleared: [], traits: [] };
 }
 
@@ -126,7 +144,7 @@ export async function loadRows(db: Db): Promise<LoadedRows> {
   const scheduled = db.all<{ event_id: number; sim_time: number; priority: number; kind: string; data_json: string }>('SELECT * FROM scheduled_event ORDER BY sim_time, priority, event_id')
     .map((e) => ({ id: e.event_id, time: e.sim_time, priority: e.priority, kind: e.kind, data: JSON.parse(e.data_json) as Record<string, unknown> }));
   const need = async (k: string) => { const b = await readStateBlob(db, k); if (!b) throw new Error(`Saved state is missing "${k}".`); return b; };
-  const meta = await decodeJson<LoadedRows['meta']>(await need('world.meta'));
+  const meta = (await readJsonState<LoadedRows['meta']>(db, 'world.meta')) ?? (() => { throw new Error('Saved state is missing "world.meta".'); })();
   const params = await decodeJson<ElectorateParams>(await need('electorate.params'));
   const fb = (await decodeBundle(await need('electorate.fields'))).arrays;
   const lb = (await decodeBundle(await need('lean.bu'))).arrays;

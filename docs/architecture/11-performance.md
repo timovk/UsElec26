@@ -30,6 +30,18 @@
 These are server-CPU numbers. A Chromebook core is roughly 1.5–3× slower. The **Diagnostics** page (Phase 1)
 runs the same kernels on the user's device and reports real figures.
 
+### Measured in Phase 2 (see [../phase-2-report.md](../phase-2-report.md) §7)
+
+| Operation | Chromium, 3 compute workers (4-core server) | Node, 1 thread |
+|---|---|---|
+| General election day (51 states, ~560 contests at Base-Unit grain) | 6.0 s: kernel 1.8 s, tally 0.15 s, seal and archive 2.8 s | 7.7 s: kernel 6.3 s, tally 0.26 s, archive 0.97 s |
+| A primary day | 0.1–2.3 s | — |
+| Advance through all of 2016 (no election night yet) | 21 s (budget ≤ 40 s with Phases 3–5) | ~30 s |
+| Archive audit of all 2016 elections (~810k unit-contest records) | — | 1.5–1.8 s |
+
+One lesson: every OPFS transaction commit costs a sync, about 85 ms in headless Chromium here. Writing the 51
+states of a general election in separate transactions cost 4.4 s. They are now written in one.
+
 ## 11.3 Likely bottlenecks and mitigations
 
 | Bottleneck | Mitigation |

@@ -76,6 +76,12 @@ century**. Treat these figures as ±50% until measured.
 disk). A 64 GB Chromebook typically has several GB available to the app. The cost is shown in Settings →
 Storage. Export files are about the same size, since blobs are already compressed.
 
+**Measured in Phase 2** (real geography, 2016 cycle, three seeds): contest blobs 4.0 MB (Base-Unit grain 3.3 MB, primaries
+at county × district grain 0.1 MB, RJ × mode 0.6 MB), per-Base-Unit turnout 1.8 MB, county rollups 0.1 MB. The universe
+database grew from 18.3 MB to 26.7 MB over the cycle, including rows for candidacies, totals, people and news. Phase 2
+archives primaries at county × congressional-district grain; the atom grain follows when legislative districts arrive
+(Phase 6).
+
 **Levers, in order (none delete history):**
 1. Store BUs in Hilbert-curve order and delta-code against spatial neighbours (expected −15–30%).
 2. A universe-creation option, *Archive detail: county & district level*, stores atom grain instead of BU grain

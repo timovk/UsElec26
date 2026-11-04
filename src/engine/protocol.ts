@@ -4,7 +4,7 @@
  */
 import type { SimTime } from '../core/time';
 
-export type AdvanceTargetMsg = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number };
+export type AdvanceTargetMsg = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number } | { kind: 'nextElection' };
 
 export interface SlotInfo { id: string; name: string; seed: string; currentTime: SimTime; startTime: SimTime; createdReal: string; lastExportReal: string; bytes: number }
 
@@ -36,7 +36,8 @@ export type Query =
   | { kind: 'person'; id: number }
   | { kind: 'news'; limit?: number; beforeId?: number }
   | { kind: 'calendar' }
-  | { kind: 'electorate' };
+  | { kind: 'electorate' }
+  | ArchiveQuery;
 
 export type MapLayer = 'state' | 'county' | 'cd';
 export type MapMetric = 'lean' | 'governor' | 'senate' | 'house';
@@ -91,6 +92,7 @@ export interface PersonDetail {
   traits: { label: string; value: number }[]; ideology: { axis: string; value: number }[];
   terms: { title: string; start: SimTime; end: SimTime | null; acquired: string; endReason: string | null; provenance: string }[];
   career: { years: string; text: string; provenance: string }[];
+  elections: { contestId: number; label: string; year: number; result: string; votes: number | null; share: number | null; kind: string }[];
 }
 
 export interface CalendarEntry { date: string; dayNumber: number; label: string; contests: { label: string; count: number }[]; status: string }
@@ -103,3 +105,41 @@ export interface ElectorateSummary {
 
 export interface DiagnosticsResult { name: string; value: number; unit: string; note: string }
 export type { IntegrityReport } from '../persistence/audit';
+
+// ---- Phase 2: elections and the archive -----------------------------------------------------------
+export type ArchiveQuery =
+  | { kind: 'elections'; year?: number }
+  | { kind: 'electionYears' }
+  | { kind: 'contest'; id: number }
+  | { kind: 'countyHistory'; county: number }
+  | { kind: 'resultsMap'; year: number; office: ResultsOffice; layer: MapLayer }
+  | { kind: 'yearSummary'; year: number }
+  | { kind: 'audit'; year: number };
+
+export type ResultsOffice = 'president' | 'us_senator' | 'governor' | 'us_representative';
+
+export interface ElectionListItem {
+  id: number; day: number; date: string; kind: string; label: string; status: string; stateUsps: string | null; year: number;
+  contests: { id: number; label: string; kind: string; office: string; status: string; winner: CandidateDto | null; margin: number | null }[];
+}
+export interface CandidateDto { candidacyId: number; personId: number; name: string; party: number; incumbent: boolean; status: string; runningMate: string | null; votes: number | null; share: number | null }
+export interface ContestDetail {
+  id: number; label: string; kind: string; method: string; status: string; office: string | null; officeKind: string | null; stateUsps: string | null; stateIdx: number | null; districtLabel: string | null;
+  date: string; electionLabel: string; candidates: CandidateDto[]; ballots: number | null; undervotes: number | null; eligible: number | null;
+  ev: number | null; seal: string | null; revisionKind: string | null; parent: number | null; next: number | null; grain: string | null;
+  counties: { county: number; name: string; votes: number[]; total: number }[];
+  modes: { mode: string; votes: number[] }[];
+  note: string;
+}
+export interface CountyHistoryDto {
+  county: number; name: string; state: string; stateIdx: number;
+  rows: { contestId: number; year: number; date: string; office: string; officeKind: string; label: string; candidates: { name: string; party: number; votes: number; share: number; winner: boolean }[]; total: number; undervotes: number; dMargin: number | null }[];
+}
+export interface ResultsMapDto { year: number; office: ResultsOffice; layer: MapLayer; values: (number | null)[]; legend: string; national: { party: number; votes: number }[] | null; ev: { party: number; ev: number; name: string }[] | null }
+export interface YearSummary {
+  year: number; hasPresident: boolean;
+  president: { name: string; party: number; ev: number; votes: number; share: number }[];
+  chambers: { label: string; before: { party: number; seats: number }[]; after: { party: number; seats: number }[] }[];
+  flips: { label: string; from: number; to: number; contestId: number }[];
+  turnout: { ballots: number; eligible: number } | null;
+}

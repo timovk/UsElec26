@@ -50,7 +50,7 @@ export interface ElectorateFields {
 export interface Electorate { params: ElectorateParams; fields: ElectorateFields; mu: Float32Array; buShift: Float32Array; tables: CellTables }
 
 // ---- Gauss–Hermite quadrature (Numerical Recipes `gauher`), computed once ---------------------
-function gaussHermite(n: number): { x: Float64Array; w: Float64Array } {
+export function gaussHermite(n: number): { x: Float64Array; w: Float64Array } {
   const x = new Float64Array(n), w = new Float64Array(n);
   const PIM4 = 0.7511255444649425; const m = (n + 1) >> 1;
   let z = 0, pp = 0;

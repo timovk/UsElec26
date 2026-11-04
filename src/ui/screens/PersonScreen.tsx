@@ -40,6 +40,13 @@ export function PersonScreen({ id }: { id: number }) {
               <div className="small muted">{t.acquired} {t.provenance !== 'simulated' && <PreSim />}</div>
             </div>
           ))}
+          {p.elections.length > 0 && <><h3>Electoral history</h3>
+            <table className="data"><tbody>{p.elections.map((e) => (
+              <tr key={e.contestId} className="click" onClick={() => { location.hash = `#/contest/${e.contestId}`; }}>
+                <td className="num muted">{e.year}</td><td><a href={`#/contest/${e.contestId}`} style={{ color: 'inherit' }}>{e.label.replace(/^\d{4} /, '')}</a></td>
+                <td className="num">{e.share !== null ? `${(100 * e.share).toFixed(1)}%` : ''}</td>
+                <td className="small" style={{ color: e.result === 'won' ? 'var(--ok)' : e.result === 'lost' || e.result === 'eliminated' ? 'var(--text-2)' : undefined }}>{e.result}</td>
+              </tr>))}</tbody></table></>}
           <h3>Career</h3>
           {p.career.map((c, i) => <div key={i} className="small" style={{ padding: '3px 0' }}><span className="muted num">{c.years}</span> {c.text}</div>)}
           <p className="tiny muted">Pre-simulation career facts are biographical background generated with the universe; the election archive begins with the first simulated election.</p>

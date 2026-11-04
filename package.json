@@ -1,7 +1,7 @@
 {
   "name": "election-night-america",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Election Night: America — a persistent simulation of American electoral history",
   "engines": {

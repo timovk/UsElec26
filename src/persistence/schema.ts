@@ -60,8 +60,39 @@ CREATE TABLE scheduled_event (event_id INTEGER PRIMARY KEY, sim_time INTEGER NOT
   kind TEXT NOT NULL, data_json TEXT NOT NULL);
 `;
 
+const V2 = `
+CREATE TABLE election (election_id INTEGER PRIMARY KEY, day INTEGER NOT NULL, kind TEXT NOT NULL, state_idx INTEGER, party_id INTEGER,
+  year INTEGER NOT NULL, label TEXT NOT NULL, status TEXT NOT NULL, held_time INTEGER, env_json TEXT);
+CREATE INDEX election_day ON election(day);
+CREATE TABLE contest (contest_id INTEGER PRIMARY KEY, election_id INTEGER NOT NULL, office_id INTEGER, kind TEXT NOT NULL, party_id INTEGER,
+  state_idx INTEGER, district_idx INTEGER, method TEXT NOT NULL, label TEXT NOT NULL, status TEXT NOT NULL, winner_candidacy INTEGER,
+  runner_up_candidacy INTEGER, term_start INTEGER, parent_contest INTEGER, next_contest INTEGER, ev INTEGER, year INTEGER NOT NULL);
+CREATE INDEX contest_election ON contest(election_id);
+CREATE INDEX contest_office ON contest(office_id, year);
+CREATE TABLE candidacy (candidacy_id INTEGER PRIMARY KEY, contest_id INTEGER NOT NULL, person_id INTEGER NOT NULL, party_id INTEGER NOT NULL,
+  ballot_order INTEGER NOT NULL, incumbent INTEGER NOT NULL, running_mate INTEGER, status TEXT NOT NULL, quality REAL NOT NULL);
+CREATE INDEX candidacy_contest ON candidacy(contest_id);
+CREATE INDEX candidacy_person ON candidacy(person_id);
+CREATE TABLE contest_total (contest_id INTEGER NOT NULL, rev INTEGER NOT NULL, candidacy_id INTEGER NOT NULL, votes INTEGER NOT NULL,
+  share REAL NOT NULL, rank INTEGER NOT NULL, PRIMARY KEY (contest_id, rev, candidacy_id));
+CREATE TABLE contest_turnout (contest_id INTEGER NOT NULL, rev INTEGER NOT NULL, ballots INTEGER NOT NULL, votes INTEGER NOT NULL,
+  undervotes INTEGER NOT NULL, eligible INTEGER NOT NULL, PRIMARY KEY (contest_id, rev));
+CREATE TABLE result_revision (contest_id INTEGER NOT NULL, rev INTEGER NOT NULL, kind TEXT NOT NULL, created_time INTEGER NOT NULL,
+  reason TEXT, sha256 TEXT NOT NULL, PRIMARY KEY (contest_id, rev));
+CREATE TABLE result_blob (contest_id INTEGER NOT NULL, rev INTEGER NOT NULL, grain TEXT NOT NULL, payload BLOB NOT NULL, crc32 INTEGER NOT NULL,
+  PRIMARY KEY (contest_id, rev, grain));
+CREATE TABLE contest_geo (county_idx INTEGER NOT NULL, contest_id INTEGER NOT NULL, PRIMARY KEY (county_idx, contest_id)) WITHOUT ROWID;
+CREATE TABLE county_rollup (election_id INTEGER NOT NULL, state_idx INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY (election_id, state_idx));
+CREATE TABLE election_turnout (election_id INTEGER NOT NULL, state_idx INTEGER NOT NULL, ballots INTEGER NOT NULL, eligible INTEGER NOT NULL,
+  payload BLOB NOT NULL, PRIMARY KEY (election_id, state_idx));
+CREATE TABLE electoral_vote (election_id INTEGER NOT NULL, state_idx INTEGER NOT NULL, candidacy_id INTEGER NOT NULL, person_id INTEGER NOT NULL,
+  party_id INTEGER NOT NULL, ev INTEGER NOT NULL, unit TEXT NOT NULL);
+CREATE TABLE pending_special (office_id INTEGER PRIMARY KEY, since INTEGER NOT NULL, reason TEXT NOT NULL);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, description: 'Phase 1 foundational universe schema', up: (db) => db.exec(V1) },
+  { version: 2, description: 'Phase 2 elections, contests, candidacies and the results archive', up: (db) => db.exec(V2) },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -8,15 +8,17 @@ fictional electorate, set in real American geography and institutions, beginning
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Architecture & feasibility | ✅ [docs/architecture](docs/architecture/README.md) |
-| 1 | Foundational universe: geography, population, electorate, government, people, clock, saves, dashboard | ✅ implemented, awaiting approval ([report](docs/phase-1-report.md)) |
-| 2 | Core elections: calendar, candidates, shared-electorate ballots, President/Senate/House/Governor, archive | next |
-| 3–10 | Election-night counting, broadcast, campaigns and polls, political evolution, full coverage, archive, advanced systems, polish | [roadmap](docs/architecture/10-roadmap.md) |
+| 1 | Foundational universe: geography, population, electorate, government, people, clock, saves, dashboard | ✅ approved ([report](docs/phase-1-report.md)) |
+| 2 | Core elections: calendar, candidates, shared-electorate ballots, President/Senate/House/Governor, archive | ✅ implemented, awaiting approval ([report](docs/phase-2-report.md)) |
+| 3 | Election-night counting: poll closings, reporting, count plan, decision desk | next |
+| 4–10 | Broadcast, campaigns and polls, political evolution, full coverage, archive, advanced systems, polish | [roadmap](docs/architecture/10-roadmap.md) |
 
 ## Using it (Chromebook)
 
-1. Open **https://timovk.github.io/UsElec26/** in Chrome (available once GitHub Pages is enabled; see the Phase 1 report §7).
+1. Open **https://timovk.github.io/UsElec26/** in Chrome.
 2. Optional: click *Install* in the address bar. The app then opens in its own window and works offline.
-3. Create a universe, explore the Desk, Map and People screens, and advance time.
+3. Create a universe, explore the Desk, Map and People screens, and advance time. **Next election 🗳** holds the next
+   election day; **Results**, contest and county pages and **Map → Election results** show the sealed archive.
 4. **Back up regularly** with **Export**. Universes are stored only in this browser until you export them. The save dialog
    can write directly to Google Drive.
 
@@ -28,6 +30,7 @@ Everything runs in the browser. There is no server. The commands below are for d
 npm ci
 npm run dev                         # local dev server
 npx vitest run                      # unit, property and real-data tests
+ENA_CYCLE=S-A,S-B npx vitest run tests/unit/elections/cycleReal.test.ts   # 2016 cycle on the real geography
 npx vite build && npx playwright test   # end-to-end in Chromium
 node tools/bench/run.mjs 4          # benchmark with 4× CPU throttling
 node tools/geo-pipeline/run.mjs     # rebuild the Census geography pack (downloads ~1.7 GB; see its README)
@@ -36,6 +39,7 @@ node tools/geo-pipeline/run.mjs     # rebuild the Census geography pack (downloa
 Key documents:
 - [Architecture](docs/architecture/README.md)
 - [Phase 1 report](docs/phase-1-report.md)
+- [Phase 2 report](docs/phase-2-report.md)
 - [Geography pack format](docs/data/geo-pack-format.md)
 - [Geography validation](docs/data/geo-pack-2016.1-validation.md)
 - [Data sources and licenses](docs/data-sources.md)

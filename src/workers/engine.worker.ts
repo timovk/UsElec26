@@ -15,6 +15,7 @@ import { decodeEna, encodeEna } from '../persistence/enaFile';
 import { parseNameFile, type NameFileV1 } from '../politicians/nameData';
 import type { NameData } from '../politicians/names';
 import { runDiagnostics } from '../engine/diagnostics';
+import { WorkerPoolRunner, type ShardRunner } from '../engine/computePool';
 import { sqliteWriteBench } from '../persistence/bench';
 import type { Sqlite3Static } from '@sqlite.org/sqlite-wasm';
 
@@ -29,6 +30,16 @@ let universe: Universe | null = null;
 let names: NameData | null = null;
 let playing: { daysPerSecond: number; timer: ReturnType<typeof setTimeout> | null } | null = null;
 let busy: Promise<unknown> = Promise.resolve();
+let pool: ShardRunner | null = null;
+function attach(u: Universe): Universe {
+  try {
+    pool ??= new WorkerPoolRunner(() => new Worker(new URL('./compute.worker.ts', import.meta.url), { type: 'module', name: 'compute' }), Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)));
+    u.runner = pool;
+  } catch (e) { console.warn('compute workers unavailable; running inline', e); }
+  let lastEmit = 0;
+  u.onProgress = (step, fraction) => { const t = performance.now(); if (t - lastEmit > 150 || fraction >= 1) { lastEmit = t; emit({ event: 'progress', step, fraction }); } };
+  return u;
+}
 
 const emit = (e: EngineEvent) => self.postMessage(e);
 
@@ -129,7 +140,7 @@ async function handle(req: Request): Promise<unknown> {
         packFiles.set(f, b);
       }));
       if (storage instanceof OpfsStorage) await storage.ensureCapacity(2);
-      universe = await Universe.create(storage!, { name: req.name, seed: req.seed }, packFiles, await getNames(), (step, fraction) => emit({ event: 'progress', step, fraction }));
+      universe = attach(await Universe.create(storage!, { name: req.name, seed: req.seed }, packFiles, await getNames(), (step, fraction) => emit({ event: 'progress', step, fraction })));
       return slotInfo(universe.fileName);
     }
     case 'open': {
@@ -137,7 +148,7 @@ async function handle(req: Request): Promise<unknown> {
       if (universe && universe.fileName === fileFor(req.id)) return slotInfo(universe.fileName);
       universe?.close(); universe = null;
       let n: NameData | null; try { n = await getNames(); } catch { n = null; }
-      universe = await Universe.open(storage!, fileFor(req.id), n);
+      universe = attach(await Universe.open(storage!, fileFor(req.id), n));
       return slotInfo(universe.fileName);
     }
     case 'close': stopPlay(); universe?.close(); universe = null; return null;

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { EntityDetail, GeoMeta, MapLayer, MapLayerDto, MapMetric } from '../../engine/protocol';
+import type { EntityDetail, GeoMeta, MapLayer, MapLayerDto, MapMetric, ResultsMapDto, ResultsOffice } from '../../engine/protocol';
 import { LEGEND_MARGIN, MARGIN_STOPS, MapRenderer, loadBasemap, marginColor, partyShareColor, type Basemap } from '../map/renderer';
 import { useQuery } from './Desk';
-import { OfficeHolder, Truth, fmtLean } from '../components/common';
+import { OfficeHolder, PARTY_COLORS, PARTY_NAME, Truth, fmtInt, fmtLean } from '../components/common';
 
 let basemapPromise: Promise<Basemap> | null = null;
 const getBasemap = () => (basemapPromise ??= loadBasemap(import.meta.env.BASE_URL));
@@ -12,13 +12,22 @@ const METRICS: { id: MapMetric; label: string }[] = [
 ];
 const LAYERS: { id: MapLayer; label: string }[] = [{ id: 'state', label: 'States' }, { id: 'county', label: 'Counties' }, { id: 'cd', label: 'Districts' }];
 
-export function MapScreen() {
+const RESULT_OFFICES: { id: ResultsOffice; label: string }[] = [{ id: 'president', label: 'President' }, { id: 'us_senator', label: 'Senate' }, { id: 'governor', label: 'Governor' }, { id: 'us_representative', label: 'House' }];
+
+export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
   const [basemap, setBasemap] = useState<Basemap | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [layer, setLayer] = useState<MapLayer>('county');
   const [metric, setMetric] = useState<MapMetric>('lean');
+  const [view, setView] = useState<'current' | 'results'>(initial ? 'results' : 'current');
+  const years = useQuery<number[]>({ kind: 'electionYears' });
+  const [year, setYear] = useState<number | null>(initial?.year ?? null);
+  const [office, setOffice] = useState<ResultsOffice>('president');
+  const resYear = year ?? years?.find((y) => y % 2 === 0) ?? null;
+  const results = useQuery<ResultsMapDto | null>(view === 'results' && resYear ? { kind: 'resultsMap', year: resYear, office, layer } : { kind: 'electionYears' }, [view, resYear, office, layer]);
+  const res = results && !Array.isArray(results) && 'values' in results ? results : null;
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
   const [selected, setSelected] = useState<{ layer: MapLayer; idx: number } | null>(null);
   const meta = useQuery<GeoMeta>({ kind: 'geoMeta' });
@@ -55,15 +64,24 @@ export function MapScreen() {
 
   useEffect(() => {
     const r = rendererRef.current, geom = geomFor(layer);
-    if (!r || !geom || !data || !idToIdx || data.layer !== layer || data.metric !== metric) return;
+    if (!r || !geom || !idToIdx) return;
     const map = idToIdx[layer];
+    if (view === 'results') {
+      if (!res || res.layer !== layer) return;
+      r.layer = geom;
+      r.fills = geom.ids.map((id) => { const i = map.get(id); return i === undefined ? null : marginColor(res.values[i] ?? null); });
+      r.drawCountyMesh = layer === 'county';
+      r.highlight = selected && selected.layer === layer ? geom.ids.findIndex((id) => map.get(id) === selected.idx) : -1;
+      r.draw(); return;
+    }
+    if (!data || data.layer !== layer || data.metric !== metric) return;
     r.layer = geom;
     r.fills = geom.ids.map((id) => { const i = map.get(id); const v = i === undefined ? null : data.values[i] ?? null; return metric === 'lean' ? marginColor(v) : partyShareColor(v); });
     r.drawCountyMesh = layer === 'county'; r.outlineMesh = layer === 'cd' ? null : null;
     r.highlight = selected && selected.layer === layer ? geom.ids.findIndex((id) => map.get(id) === selected.idx) : -1;
     r.draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, layer, metric, idToIdx, basemap, selected]);
+  }, [data, layer, metric, idToIdx, basemap, selected, view, res]);
 
   // interactions
   useEffect(() => {
@@ -86,7 +104,8 @@ export function MapScreen() {
       const idx = map.get(geom.ids[i]!);
       if (idx === undefined) { setTip(null); return; }
       const name = layer === 'state' ? meta.states[idx]!.name : layer === 'county' ? `${meta.counties[idx]!.name}, ${meta.states[meta.counties[idx]!.stateIdx]!.usps}` : meta.cds[idx]!.label;
-      setTip({ x: e.offsetX + 14, y: e.offsetY + 12, text: `${name} — ${valueLabel(data.values[idx] ?? null)}` });
+      const rv = view === 'results' ? res?.values[idx] ?? null : null;
+      setTip({ x: e.offsetX + 14, y: e.offsetY + 12, text: view === 'results' ? `${name} — ${rv === null ? 'No contest' : fmtLean(rv)}` : `${name} — ${valueLabel(data.values[idx] ?? null)}` });
     };
     const onUp = (e: PointerEvent) => {
       canvas.classList.remove('dragging');
@@ -101,7 +120,7 @@ export function MapScreen() {
     canvas.addEventListener('pointermove', onMove); canvas.addEventListener('pointerup', onUp); canvas.addEventListener('pointerleave', onLeave);
     return () => { canvas.removeEventListener('wheel', onWheel); canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointermove', onMove); canvas.removeEventListener('pointerup', onUp); canvas.removeEventListener('pointerleave', onLeave); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basemap, idToIdx, layer, meta, data, metric]);
+  }, [basemap, idToIdx, layer, meta, data, metric, view, res]);
 
   const zoom = (f: number) => { const r = rendererRef.current, c = canvasRef.current; if (!r || !c) return; r.zoomAt(c.width / 2, c.height / 2, f); r.draw(); };
   const zoomToSelected = () => {
@@ -119,7 +138,10 @@ export function MapScreen() {
         <div><div className="kicker">Interactive map</div><h1 className="screen-title">The political map</h1></div>
         <div className="row wrap">
           <div className="seg" role="group" aria-label="Geography">{LAYERS.map((l) => <button key={l.id} className={layer === l.id ? 'on' : ''} onClick={() => setLayer(l.id)} disabled={l.id === 'cd' && !basemap?.cds}>{l.label}</button>)}</div>
-          <div className="seg" role="group" aria-label="Metric">{METRICS.map((m) => <button key={m.id} className={metric === m.id ? 'on' : ''} onClick={() => setMetric(m.id)}>{m.label}</button>)}</div>
+          <div className="seg" role="group" aria-label="View"><button className={view === 'current' ? 'on' : ''} onClick={() => setView('current')}>Today</button><button className={view === 'results' ? 'on' : ''} onClick={() => setView('results')} disabled={!years?.length}>Election results</button></div>
+          {view === 'current' ? <div className="seg" role="group" aria-label="Metric">{METRICS.map((m) => <button key={m.id} className={metric === m.id ? 'on' : ''} onClick={() => setMetric(m.id)}>{m.label}</button>)}</div> : <>
+            <select value={resYear ?? ''} onChange={(e) => setYear(Number(e.target.value))} aria-label="Election year">{years?.map((y) => <option key={y} value={y}>{y}</option>)}</select>
+            <div className="seg" role="group" aria-label="Office">{RESULT_OFFICES.map((o) => <button key={o.id} className={office === o.id ? 'on' : ''} onClick={() => setOffice(o.id)}>{o.label}</button>)}</div></>}
         </div>
       </div>
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1fr) 330px', alignItems: 'start' }}>
@@ -134,7 +156,7 @@ export function MapScreen() {
             </div>
           </div>
           <div className="row between wrap" style={{ marginTop: 8 }}>
-            {metric === 'lean' ? (
+            {view === 'results' || metric === 'lean' ? (
               <div className="legend" aria-label="Legend">
                 <span>R+30</span>{[...LEGEND_MARGIN.r].reverse().map((c) => <span key={c} className="sw" style={{ background: c }} />)}
                 {LEGEND_MARGIN.d.map((c) => <span key={c} className="sw" style={{ background: c }} />)}<span>D+30</span>
@@ -143,17 +165,24 @@ export function MapScreen() {
             ) : (
               <div className="legend"><span className="sw" style={{ background: '#1f5fd6' }} /> Democratic <span className="sw" style={{ background: '#8a5fc4', marginLeft: 8 }} /> Split <span className="sw" style={{ background: '#d7263d', marginLeft: 8 }} /> Republican</div>
             )}
-            <div className="row">{data?.provenance === 'simulationTruth' ? <Truth /> : <span className="badge record">Officeholders on this date</span>}<span className="tiny muted">{data?.legend}</span></div>
+            <div className="row">{view === 'results' ? <span className="badge record">Archived results · {resYear}</span> : data?.provenance === 'simulationTruth' ? <Truth /> : <span className="badge record">Officeholders on this date</span>}<span className="tiny muted">{view === 'results' ? res?.legend : data?.legend}</span></div>
           </div>
           <p className="tiny muted">Boundaries: U.S. Census Bureau cartographic boundary files (2016 vintage), 115th Congress districts. Scroll or use ＋/－ to zoom, drag to pan, click for details.</p>
         </div>
         <aside className="card">
+          {view === 'results' && res?.ev && res.ev.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div className="kicker">{resYear} presidential election</div>
+              {res.ev.map((x) => <div key={x.name} className="row between" style={{ padding: '4px 0' }}><span style={{ color: PARTY_COLORS[x.party], fontWeight: 600 }}>{x.name}</span><span className="num"><strong>{x.ev}</strong> EV</span></div>)}
+              {res.national && <div className="tiny muted">Popular vote: {res.national.slice(0, 3).map((n) => `${PARTY_NAME[n.party]} ${fmtInt(n.votes)}`).join(' · ')}</div>}
+            </div>
+          )}
           {!entity ? <p className="muted">Click a state, county or district to see its details and officeholders.</p> : (
             <>
               <div className="kicker">{entity.layer === 'cd' ? 'Congressional district' : entity.layer}</div>
               <h2 style={{ marginBottom: 2 }}>{entity.title}</h2>
               <div className="small muted" style={{ marginBottom: 10 }}>{entity.subtitle}</div>
-              <button className="btn small" onClick={zoomToSelected}>Zoom to</button>
+              <div className="row"><button className="btn small" onClick={zoomToSelected}>Zoom to</button>{entity.layer === 'county' && <a className="btn small" href={`#/county/${entity.idx}`}>Election history</a>}</div>
               <table className="data" style={{ marginTop: 10 }}><tbody>{entity.stats.map((s) => <tr key={s.label}><td className="muted">{s.label}</td><td className="num">{s.value}{s.provenance && <span className="badge truth" style={{ marginLeft: 6 }}>◆</span>}</td></tr>)}</tbody></table>
               <h3>Officials</h3>
               {entity.officials.map((o) => <OfficeHolder key={o.officeId} o={o} />)}

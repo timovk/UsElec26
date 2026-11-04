@@ -3,12 +3,12 @@ import { engine } from '../state/engineClient';
 import { useApp } from '../state/store';
 import type { AdvanceTargetMsg, NewsDto } from '../../engine/protocol';
 import { formatDate, formatTime } from '../../core/time';
-import { Planned, fmtBytes } from '../components/common';
+import { fmtBytes } from '../components/common';
 
 const SPEEDS = [{ label: '1 day/s', v: 1 }, { label: '1 week/s', v: 7 }, { label: '1 month/s', v: 30 }, { label: '3 months/s', v: 90 }];
 
 export function TimeBar() {
-  const { active, time, playing, set, toast, bump } = useApp();
+  const { active, time, playing, set, toast, bump, progress } = useApp();
   const [speed, setSpeed] = useState(7);
   const [busy, setBusy] = useState(false);
   if (!active || time === null) {
@@ -20,7 +20,7 @@ export function TimeBar() {
       const news = await engine.request<NewsDto[]>({ type: 'advance', target });
       bump();
       if (target.kind === 'nextEvent' && news.length === 0) toast('Nothing notable happened in the next year of simulated time.');
-      else if (news.length) toast(news.length === 1 ? news[0]!.headline : `${news.length} developments — see the news feed on the Desk.`);
+      else if (news.length) { const top = news.find((n) => n.kind === 'results') ?? news[news.length - 1]!; toast(news.length === 1 ? top.headline : `${top.headline} (+${news.length - 1} more on the Desk)`); }
     } catch (e) { toast((e as Error).message, 'error'); }
     finally { setBusy(false); }
   };
@@ -45,7 +45,8 @@ export function TimeBar() {
       <button className="btn small" disabled={busy || playing} onClick={() => void advance({ kind: 'days', days: 30 })}>+1 month</button>
       <button className="btn small" disabled={busy || playing} onClick={() => void advance({ kind: 'days', days: 365 })}>+1 year</button>
       <button className="btn small" disabled={busy || playing} onClick={() => void advance({ kind: 'nextEvent', maxDays: 366 })} title="Advance until something newsworthy happens (at most one year)">Next event ⏭</button>
-      <span title="Election simulation is not implemented yet"><Planned phase={2}>Next election</Planned></span>
+      <button className="btn small" disabled={busy || playing} onClick={() => void advance({ kind: 'nextElection' })} title="Advance to the next election day and hold it">Next election 🗳</button>
+      {busy && progress && <span className="small muted">{progress.step}… {Math.round(progress.fraction * 100)}%</span>}
       <StorageChip />
     </div>
   );

@@ -49,6 +49,8 @@ Deliverables: these documents and spikes. Exit: your approval and the decisions 
 - **Risks:** Census data access; BU count above budget; OPFS quirks; calibration difficulty.
 
 ### Phase 2: Core election simulation
+**Status:** implemented — see [../phase-2-report.md](../phase-2-report.md). Deviations: primaries are archived at county × district grain until atoms exist (Phase 6); presidential nominations use one simplified national primary.
+
 | Milestone | Deliverables |
 |---|---|
 | M2.1 Rules & calendar | 2016 baseline rules (federal, governor, primary types and dates, filing deadlines) with citations; calendar from office terms |

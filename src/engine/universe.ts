@@ -18,11 +18,15 @@ import { NameGenerator, type NameData } from '../politicians/names';
 import { generatePerson } from '../politicians/generate';
 import { genesis, type Progress } from './genesis';
 import { aggregateLean, emptyPending, type World } from './world';
-import { loadRows, prepareStateBlobs, writeChamberCompositions, writeGenesis, writePending, writeStateBlobs, type ScheduledEvent } from './save';
+import { loadRows, prepareStateBlobs, rawJsonBlob, readJsonState, writeChamberCompositions, writeGenesis, writePending, writeStateBlobs, type ScheduledEvent } from './save';
+import { ElectionEngine, emptyElectionState, type ElectionHost, type ElectionState, type PersonOptions } from './elections';
+import { InlineRunner, type ShardRunner } from './computePool';
+import { SIM_START } from '../core/time';
 
-export const ENGINE_VERSION = '0.1.0';
+const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
+export const ENGINE_VERSION = '0.2.0';
 
-export type AdvanceTarget = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number };
+export type AdvanceTarget = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number } | { kind: 'nextElection' };
 
 export interface CreateOptions { name: string; seed?: string }
 
@@ -35,8 +39,25 @@ export class Universe {
   private queue: ScheduledEvent[] = [];
   private names: NameGenerator | null = null;
   private dirtyChambers = false;
+  /** Kernel shard executor: inline by default; the Engine Worker installs a Compute Worker pool. */
+  runner: ShardRunner = new InlineRunner();
+  onProgress: (step: string, fraction: number) => void = () => {};
+  readonly elections: ElectionEngine;
+  private electionStateJson = '';
 
-  private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null) {}
+  private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null, electionState: ElectionState) {
+    const getRunner = () => this.runner;
+    const host: ElectionHost = {
+      world, db, get runner() { return getRunner(); },
+      schedule: (t, k, d, p) => this.schedule(t, k, d, p), news: (k, h, b, r) => this.news(k, h, b, r),
+      newPerson: (r, tier, party, st, opts) => this.newPerson(r, tier, party, st, opts),
+      startTerm: (o, p, a, pr) => this.startTerm(o, p, a, pr), endTerm: (o, r) => this.endTerm(o, r),
+      succession: (o, p) => this.succession(o, p), vacate: (o, r, res) => this.vacate(o, r, res),
+      commit: (extra) => this.commit(null, extra), progress: (st, f) => this.onProgress(st, f),
+    };
+    this.elections = new ElectionEngine(host, electionState);
+    this.electionStateJson = JSON.stringify(electionState);
+  }
 
   get id(): string { return this.fileName.slice(UNIVERSE_DIR.length, -'.sqlite3'.length); }
 
@@ -50,6 +71,7 @@ export class Universe {
     const id = `${randomSeed().toLowerCase()}-${seed.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8)}`;
     const fileName = `${UNIVERSE_DIR}u-${id}.sqlite3`;
     const events: ScheduledEvent[] = scheduled.map((s, i) => ({ id: i + 1, time: s.time, priority: 10, kind: 'assume_office', data: { ...s } }));
+    events.push({ id: events.length + 1, time: SIM_START + 5, priority: 1, kind: 'plan_year', data: { year: 2016 } });
     world.ids.event = events.length + 1;
     const db = storage.open(fileName);
     try {
@@ -65,7 +87,7 @@ export class Universe {
       db.tx(() => {
         writeGenesis(db, world, careers, events, { createdReal: new Date().toISOString(), geoPack: pack.version, geoSha: packSha, engineVersion: ENGINE_VERSION, options: { seed } });
         writePending(db, world);
-        writeStateBlobs(db, world.time, blobs);
+        writeStateBlobs(db, world.time, [...blobs, rawJsonBlob('elections.state', emptyElectionState())]);
         db.insertMany('INSERT INTO geo_pack_file VALUES (?,?,?)', packRows);
         db.run('INSERT INTO engine_ledger(from_time, to_time, engine_version, schema_version) VALUES (?,?,?,?)', [world.startTime, null, ENGINE_VERSION, SCHEMA_VERSION]);
         db.run('INSERT INTO command_log(sim_time, command_json) VALUES (?,?)', [world.time, JSON.stringify({ kind: 'universe.create', name: world.name, seed })]);
@@ -73,7 +95,7 @@ export class Universe {
       });
       storage.flush(fileName, db);
     } catch (e) { db.close(); storage.remove(fileName); throw e; }
-    const u = new Universe(storage, fileName, db, world, names);
+    const u = new Universe(storage, fileName, db, world, names, emptyElectionState());
     u.queue = scheduledFromDb(db);
     for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
     return u;
@@ -106,8 +128,13 @@ export class Universe {
           db.run('INSERT INTO engine_ledger(from_time, to_time, engine_version, schema_version) VALUES (?,?,?,?)', [world.time, null, ENGINE_VERSION, SCHEMA_VERSION]);
         });
       }
-      const u = new Universe(storage, fileName, db, world, names);
+      const es = await readJsonState<ElectionState>(db, 'elections.state');
+      const u = new Universe(storage, fileName, db, world, names, es ?? emptyElectionState());
       u.queue = rows.scheduled;
+      if (!es) { // Universe saved by Phase 1: plan the current year's elections from now on.
+        u.schedule(world.time + 1, 'plan_year', { year: daysToCivil(easternDay(world.time)).y }, 1);
+        u.commit(null);
+      }
       for (const r of db.all<{ office_id: number; party_id: number }>('SELECT office_id, party_id FROM office_term t WHERE party_id IS NOT NULL AND term_id = (SELECT term_id FROM office_term x WHERE x.office_id = t.office_id ORDER BY start_time DESC, term_id DESC LIMIT 1)')) u.lastParty.set(r.office_id, r.party_id);
       for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
       return u;
@@ -130,31 +157,46 @@ export class Universe {
   async advance(target: AdvanceTarget, command = true): Promise<NewsItem[]> {
     const w = this.world;
     const start = w.time;
-    const until = target.kind === 'days' ? start + Math.max(0, target.days) * MINUTES_PER_DAY
-      : target.kind === 'until' ? Math.max(start, target.time) : start + (target.maxDays ?? 366) * MINUTES_PER_DAY;
+    let until = target.kind === 'days' ? start + Math.max(0, target.days) * MINUTES_PER_DAY
+      : target.kind === 'until' ? Math.max(start, target.time) : target.kind === 'nextEvent' ? start + (target.maxDays ?? 366) * MINUTES_PER_DAY : start + 3 * 366 * MINUTES_PER_DAY;
+    // Next election: run until the first election event (the calendar may not be planned yet, so this is decided
+    // as events run), finish every other event at that same moment (all of a day's primaries), then stop.
+    let stopAfter: number | null = null;
     const produced: NewsItem[] = [];
-    const newsBefore = () => w.pending.news.length;
-    for (;;) {
-      const tick = Universe.nextDailyTick(w.time);
-      const ev = this.queue[0];
-      const next = ev && ev.time <= tick ? ev.time : tick;
-      if (next > until) break;
-      const n0 = newsBefore();
-      w.time = next;
-      if (ev && ev.time === next) { this.queue.shift(); this.runEvent(ev); }
-      else this.dailyTick(easternDay(next));
-      for (let i = n0; i < w.pending.news.length; i++) produced.push(w.pending.news[i]!);
-      if (target.kind === 'nextEvent' && w.pending.news.length > n0) break;
-    }
+    this.newsSink = produced;
+    try {
+      for (;;) {
+        const tick = Universe.nextDailyTick(w.time);
+        const ev = this.queue[0];
+        const next = ev && ev.time <= tick ? ev.time : tick;
+        if (next > until || (stopAfter !== null && next > stopAfter)) break;
+        const n0 = produced.length;
+        w.time = next;
+        if (ev && ev.time === next) {
+          this.queue.shift(); await this.runEvent(ev);
+          if (target.kind === 'nextElection' && ELECTION_EVENTS.has(ev.kind)) stopAfter = ev.time;
+        } else this.dailyTick(easternDay(next));
+        if (target.kind === 'nextEvent' && produced.length > n0) break;
+      }
+    } finally { this.newsSink = null; }
+    if (stopAfter !== null) until = w.time;
     if (target.kind !== 'nextEvent' || produced.length === 0) w.time = Math.max(w.time, until);
     if (target.kind === 'nextEvent' && produced.length === 0) w.time = until;
     await this.flush(command ? target : null);
     return produced;
   }
 
-  private async flush(command: AdvanceTarget | null): Promise<void> {
+  private async flush(command: AdvanceTarget | null): Promise<void> { this.commit(command); }
+
+  /**
+   * Write everything that changed since the last commit in ONE transaction: pending rows, scheduled-event
+   * changes, chamber compositions, small state, the clock, and any extra rows (election results).
+   */
+  commit(command: AdvanceTarget | null, extra?: () => void): void {
     const w = this.world;
-    const blobs = await prepareStateBlobs(w, false);
+    const blobs = [rawJsonBlob('world.meta', { history: w.history, ids: w.ids })];
+    const es = JSON.stringify(this.elections.state);
+    if (es !== this.electionStateJson) { blobs.push(rawJsonBlob('elections.state', this.elections.state)); this.electionStateJson = es; }
     const removedSet = new Set(this.removedEvents.splice(0));
     const addedAll = this.addedEvents.splice(0);
     const added = addedAll.filter((e) => !removedSet.has(e.id));          // created and consumed in this interval: never persisted
@@ -166,6 +208,7 @@ export class Universe {
       this.dirtyChambers = false;
       for (const id of removed) this.db.run('DELETE FROM scheduled_event WHERE event_id = ?', [id]);
       for (const e of added) this.db.run('INSERT INTO scheduled_event VALUES (?,?,?,?,?)', [e.id, e.time, e.priority, e.kind, JSON.stringify(e.data)]);
+      extra?.();
       writeStateBlobs(this.db, w.time, blobs);
       this.db.run('UPDATE universe SET clock_time = ? WHERE id = 1', [w.time]);
       if (command) this.db.run('INSERT INTO command_log(sim_time, command_json) VALUES (?,?)', [w.time, JSON.stringify({ kind: 'clock.advance', target: command })]);
@@ -177,7 +220,7 @@ export class Universe {
   private compositionSnaps: import('../institutions/model').Chamber[] = [];
   private addedEvents: ScheduledEvent[] = [];
 
-  private schedule(time: SimTime, kind: string, data: Record<string, unknown>, priority = 10): void {
+  schedule(time: SimTime, kind: string, data: Record<string, unknown>, priority = 10): void {
     const e: ScheduledEvent = { id: this.world.ids.event++, time, priority, kind, data };
     this.queue.push(e);
     this.queue.sort((a, b) => a.time - b.time || a.priority - b.priority || a.id - b.id);
@@ -197,14 +240,28 @@ export class Universe {
     }
   }
 
-  private runEvent(ev: ScheduledEvent): void {
+  private async runEvent(ev: ScheduledEvent): Promise<void> {
     this.removedEvents.push(ev.id);
     const d = ev.data as Record<string, number | string>;
+    const E = this.elections, n = (k: string) => Number(d[k]);
     switch (ev.kind) {
+      case 'plan_year': E.planYear(n('year')); return;
+      case 'filing': E.filing(n('year'), n('state')); return;
+      case 'pres_filing': E.presFiling(n('year')); return;
+      case 'primary': await E.primary(n('election')); return;
+      case 'pres_nomination': await E.presNomination(n('election')); return;
+      case 'convention': E.convention(n('year')); return;
+      case 'general': await E.general(n('year'), n('day')); await E.generalSummary(n('year'), n('day')); return;
+      case 'runoff': await E.runoff(n('election')); return;
+      case 'special': await E.special(n('election')); return;
+      case 'certify': E.certify(n('year'), n('day')); return;
+      case 'electors': await E.electors(n('year')); return;
+      case 'ec_count': await E.ecCount(n('year')); return;
+      case 'take_office': E.takeOffice(n('office'), n('person'), (d.how as string | undefined) ?? null, d.contest !== undefined ? n('contest') : null); return;
       case 'assume_office': {
         const person = this.world.persons.get(d.personId as number);
-        if (!person || person.deathDay !== null) { this.vacate(d.officeId as number, 'officer-elect died before taking office'); return; }
         this.endTerm(d.officeId as number, 'term ended');
+        if (!person || person.deathDay !== null) { this.vacate(d.officeId as number, 'officer-elect died before taking office'); return; }
         this.startTerm(d.officeId as number, person, d.acquired as string, PRE_SIM);
         const o = this.world.officeById.get(d.officeId as number)!;
         this.news('inauguration', `${fullName(person)} sworn in as ${o.title}`, `${fullName(person)} (${this.partyAbbrev(person.partyId)}) took the oath of office.`, { personId: person.id, officeId: o.id });
@@ -217,8 +274,11 @@ export class Universe {
 
   private news(kind: string, headline: string, body: string, refs: Record<string, unknown>): void {
     const w = this.world;
-    w.pending.news.push({ id: w.ids.news++, time: w.time, kind, headline, body, refs });
+    const item = { id: w.ids.news++, time: w.time, kind, headline, body, refs };
+    w.pending.news.push(item); this.newsSink?.push(item);
   }
+  /** Collects news produced during an advance (pending writes may be flushed mid-event by election commits). */
+  private newsSink: NewsItem[] | null = null;
 
   private partyAbbrev(id: number): string { return this.world.parties.find((p) => p.id === id)?.abbrev ?? '?'; }
 
@@ -270,16 +330,18 @@ export class Universe {
     this.world.vacancies.set(officeId, v); this.world.pending.vacanciesSet.push(v);
     const delay = { president: 0, vice_president: 45, cabinet: 40, us_senator: 12, us_representative: -1, governor: 0, lt_governor: 30, attorney_general: 30,
       secretary_of_state: 30, congress_leader: 10, state_leg_leader: 10 }[o.kind];
+    if (o.kind === 'us_representative') { this.elections.houseSpecial(officeId); return; }
+    if (o.kind === 'us_senator') this.elections.senateSpecialNeeded(officeId, reason);
     if (o.kind === 'us_senator' && STATES_2016[this.world.pack.states[o.stateIdx!]!.usps]?.senateVacancy === 'special_only') return;
     if (delay >= 0) this.schedule(this.world.time + Math.max(1, delay) * MINUTES_PER_DAY, 'fill', { officeId });
   }
 
   private vacancyResolution(o: Office): string {
     switch (o.kind) {
-      case 'us_representative': return 'Special election required (elections arrive in Phase 2)';
+      case 'us_representative': return 'Special election to be scheduled';
       case 'us_senator': {
         const rule = STATES_2016[this.world.pack.states[o.stateIdx!]!.usps]?.senateVacancy;
-        return rule === 'special_only' ? 'Special election required; state law allows no interim appointment (Phase 2)' : 'Gubernatorial appointment pending; special election to follow (Phase 2)';
+        return rule === 'special_only' ? 'Special election at the next regular general election; state law allows no interim appointment' : 'Gubernatorial appointment pending; special election at the next regular general election';
       }
       case 'vice_president': return 'Presidential nomination and congressional confirmation (25th Amendment)';
       case 'cabinet': return 'Presidential nomination and Senate confirmation';
@@ -369,7 +431,7 @@ export class Universe {
         const rule = STATES_2016[usps]?.senateVacancy;
         const lastParty = this.lastPartyOf(officeId);
         party = rule === 'appoint_same_party' && lastParty ? lastParty : govParty(o.stateIdx!); tier = 'A';
-        how = `appointed by the Governor; serves until a special election (Phase 2)`;
+        how = 'appointed by the Governor; serves until a special election';
         break;
       }
       case 'congress_leader': {
@@ -397,7 +459,7 @@ export class Universe {
   /** Party of the most recent holder of each office (in memory; rebuilt from the database on load). */
   private lastParty = new Map<number, number>();
 
-  private newPerson(r: Rng, tier: Person['tier'], party: number, stateIdx: number): Person {
+  private newPerson(r: Rng, tier: Person['tier'], party: number, stateIdx: number, opts: PersonOptions = {}): Person {
     const w = this.world;
     if (!this.names) {
       if (!this.nameData) throw new Error('Name data unavailable; cannot create new people offline before first load.');
@@ -405,12 +467,22 @@ export class Universe {
       for (const p of w.persons.values()) this.names.reserve(p.given, p.surname);
     }
     const plat = party === PARTY_R ? w.electorate.params.platforms.R : w.electorate.params.platforms.D;
-    const p = generatePerson({ id: w.ids.person++, tier, stateIdx, homeCounty: w.pack.counties.find((c) => c.stateIdx === stateIdx)?.idx ?? null, partyId: party,
-      raceShares: [0.7, 0.12, 0.1, 0.08], femaleShare: 0.3, ageMean: 55, ageSd: 9, minAge: 30, asOfYear: utcToZoned(w.time, 'America/New_York').y,
-      platform: plat, moderation: 0.15, prominence: tier === 'A' ? 0.3 : 0.1, createdTime: w.time }, r, this.names);
+    const homeCounty = opts.homeCounty !== undefined ? opts.homeCounty : w.pack.counties.find((c) => c.stateIdx === stateIdx)?.idx ?? null;
+    // Race/ethnicity of the person follows the electorate of the home county.
+    const race = [0.7, 0.12, 0.1, 0.08];
+    if (homeCounty !== null) {
+      const c = w.pack.counties[homeCounty]!; const acc = [0, 0, 0, 0];
+      for (let b = c.buStart; b < c.buStart + c.buCount; b++) for (let q = 0; q < 4; q++) acc[q]! += w.pop.vep[b]! * w.pop.marg[b * 13 + 5 + q]!;
+      const t = acc.reduce((a, x) => a + x, 0); if (t > 0) for (let q = 0; q < 4; q++) race[q] = acc[q]! / t;
+    }
+    const year = utcToZoned(w.time, 'America/New_York').y;
+    const p = generatePerson({ id: w.ids.person++, tier, stateIdx, homeCounty, partyId: party,
+      raceShares: race, femaleShare: 0.3, ageMean: opts.ageMean ?? 52, ageSd: 9, minAge: 30, asOfYear: year,
+      platform: party > 2 ? plat.map((x) => x * 0.2) : plat, moderation: 0.15, prominence: opts.prominence ?? (tier === 'A' ? 0.3 : 0.1), createdTime: w.time }, r, this.names);
     p.provenance = SIMULATED;
-    p.bio = `${fullName(p)} entered the universe's public life in ${utcToZoned(w.time, 'America/New_York').y}.`;
+    p.bio = opts.background ? `${fullName(p)} entered public life as a ${opts.background.text.split(' (')[0]!.toLowerCase()}.` : `${fullName(p)} entered the universe's public life in ${year}.`;
     w.persons.set(p.id, p); w.pending.persons.push(p);
+    if (opts.background) w.pending.careers.push({ id: w.ids.career++, personId: p.id, yearFrom: null, yearTo: year, simTime: w.time, kind: 'background', text: opts.background.text, provenance: 'generated background' });
     return p;
   }
 
