@@ -1,0 +1,56 @@
+# 11 — Performance Strategy
+
+## 11.1 Budgets (reference Chromebook, §1.5)
+
+| Operation | Budget | Notes |
+|---|---|---|
+| First load (network) | ≤ 5 s to interactive Hub | App shell ≤ 400 KB gz; SQLite WASM ≈ 1 MB; geography lazily loaded |
+| Warm start (cached, offline) | ≤ 2 s to Hub; ≤ 3 s to open a universe | |
+| Create universe | ≤ 15 s | With a progress display |
+| Advance 1 simulated day (no election) | ≤ 50 ms | Event-driven; most days touch little state |
+| Advance 1 month | ≤ 1.5 s | Includes polls and an economic release |
+| Advance 1 year with a general election, excluding the night | ≤ 40 s | Kernel ≈ 5–8 s, count plan ≈ 4 s, observers ≈ 3 s, forecasts |
+| Election-night frame (main thread) | ≤ 4 ms per diff | Diffs at ≤ 10 Hz; animations on the compositor |
+| County map recolor | ≤ 50 ms | Canvas2D redraw on change |
+| Pan/zoom animation | ≥ 50 fps | Cached-bitmap transform, crisp re-raster at the end |
+| Archive: county history over 100 years | ≤ 200 ms | §7.8 |
+| 100-year headless run | ≤ 60 min on reference; ≤ 20 min on desktop | Mostly daily processes plus about 50 generals |
+| Memory (all threads) | ≤ 600 MB typical, ≤ 900 MB peak | 4 GB Chromebooks must work |
+
+## 11.2 Measured in Phase 0 (see [15-feasibility-spikes.md](15-feasibility-spikes.md))
+
+| Spike | Result (2.1 GHz Xeon, 1 thread unless noted) | Consequence |
+|---|---|---|
+| Ballot kernel: 230k BU × 4 modes × 8 contests, realized per (BU, mode, contest) | **2.8 s**, 22.1M binomial draws, 0 sum violations | Within budget once split across a 3–4 worker pool on Chromebook-class cores (estimate 2–5 s) |
+| Same kernel but realized per latent stratum (5 strata) | 15.5 s | Rejected. Strata are kept analytic, which led to the type design in §4.4. |
+| Same, 12 contests per ballot | 4.2 s | Linear scaling in contests |
+| Archive encoding: column varint + deflate-raw | **1.06 bytes/count** (from 4 bytes raw) | Basis of the §7.4 budget |
+| Canvas2D: 3,142 counties fill + stroke at 2× DPR, headless Chromium, software raster | **32 ms median**, 41 ms p90; parse and Path2D build 67 ms | Redraw on change only; bitmap caching for motion; WebGL2 for denser layers |
+
+These are server-CPU numbers. A Chromebook core is roughly 1.5–3× slower. The **Diagnostics** page (Phase 1)
+runs the same kernels on the user's device and reports real figures.
+
+## 11.3 Likely bottlenecks and mitigations
+
+| Bottleneck | Mitigation |
+|---|---|
+| Ballot realization at national BU scale | Type-collapsed aggregation (choice probabilities per county, not per BU); typed arrays; skip empty (BU, mode) cells; shard by state across the pool with keyed RNG; port to WASM (Rust) only if measurements miss the budget |
+| Daily simulation cost over 100 years | Discrete-event scheduling; multi-rate processes; poll fieldwork through cached swing-response curves (no BU-level work per poll); idle days cost ≈ 0 |
+| Forecast Monte Carlo | Aggregated state/district model (not BU); 20k draws across the pool; analytic shortcuts for safe races; daily only in the final 100 days |
+| Count plan + desk evaluation | Hypergeometric chunking in the pool; desks evaluate analytically in O(RJs in contest) per update, with Monte Carlo only near thresholds; evaluation throttled to at most once per simulated minute per contest |
+| Map rendering on weak GPUs | Pre-projected quantized geometry; Path2D cache; redraw-on-change; cached bitmaps during motion; LOD by zoom; viewport culling with flatbush; WebGL2 texture-based recolor for ≥ 10k features |
+| Geography download size | Per-state lazy loading; service-worker cache; an optional "make available offline" prefetch |
+| SQLite write amplification | Blobs, not rows, for numeric mass; one transaction per simulated day or batch; 8–16 KB page size (benchmarked in Phase 1); hot-state checkpoints only for changed keys |
+| Archive query latency | Materialized rollups per (election, state); `contest_geo` index; LRU of decoded blobs in the engine worker |
+| React re-render storms during a night | Worker-side diffing; ≤ 10 Hz updates; memoized panels; virtualized tables; no React inside the map |
+| GC pauses | Transferable buffers instead of structured clones; preallocated typed arrays in kernels; no per-frame allocation in renderers |
+| Thermal throttling on fanless devices | Pool size `min(4, cores − 1)`; budgets carry roughly 2× headroom; long jobs yield, report progress and can be cancelled |
+
+## 11.4 Measurement discipline
+
+- **Bench harness** (`tools/bench/`): Playwright drives Chromium with DevTools CPU throttling (4×) to
+  approximate the reference device, runs named benchmarks, and writes JSON results to `tools/bench/results/`.
+  CI compares results against the budgets and the last baseline and fails on regressions above 20%.
+- **On-device Diagnostics** (Settings → Diagnostics): runs a reduced suite (kernel, codec, map redraw, DB
+  write/read) on the user's Chromebook and shows the numbers. You can paste them into an issue to calibrate the budgets.
+- Benchmarks report medians and p90 over repeated runs, never best-case numbers.
