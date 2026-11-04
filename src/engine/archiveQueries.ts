@@ -68,8 +68,10 @@ async function elections(u: Universe, year?: number): Promise<ElectionListItem[]
     tops.set(c.contest_id, [...lv.votes].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([cid, v]) => ({ cid, votes: v, share: valid ? v / valid : 0 })));
     projected.set(c.contest_id, lv.called);
   }
+  const nightOf = new Map(u.db.all<{ election_id: number; night_id: number }>('SELECT ne.election_id, ne.night_id FROM night_election ne JOIN election e ON e.election_id = ne.election_id WHERE e.year = ?', [y]).map((r) => [r.election_id, r.night_id]));
   return els.map((e) => ({
     id: e.election_id, day: e.day, date: isoDay(e.day), kind: e.kind, label: e.label, status: e.status, stateUsps: e.state_idx !== null ? u.world.pack.states[e.state_idx]!.usps : null, year: e.year,
+    nightId: nightOf.get(e.election_id) ?? null,
     contests: contests.filter((c) => c.election_id === e.election_id).map((c) => {
       const t = tops.get(c.contest_id);
       const winId = c.status === 'counting' ? projected.get(c.contest_id) ?? null : c.winner_candidacy;
@@ -141,6 +143,7 @@ async function contest(u: Universe, id: number): Promise<ContestDetail | null> {
     date: formatDay(e.day, true), electionLabel: e.label, candidates: cands, ballots: turnout?.ballots ?? null, undervotes: turnout?.undervotes ?? null, eligible: turnout?.eligible ?? null,
     ev: c.ev, seal: rev?.sha256 ?? null, revisionKind: live ? 'counting' : rev?.kind ?? null, parent: c.parent_contest, next: c.next_contest, grain: blob?.grain ?? (live ? 'live' : rv > 0 ? 'bu' : null),
     counties, modes,
+    nightId: u.db.value<number>('SELECT night_id FROM night_election WHERE election_id = ?', [c.election_id]) ?? null,
     counting: live ? { expected: live.expected, precincts: live.precincts, totalPrecincts: live.totalPrecincts, status: live.status, called: live.called, calledAt: live.calledAt, prob: live.prob, nightId: live.nightId } : null,
     revisions: live ? [] : u.db.all<{ rev: number; kind: string; created_time: number }>('SELECT rev, kind, created_time FROM result_revision WHERE contest_id = ? ORDER BY rev', [id]).map((x) => ({ rev: x.rev, kind: x.kind, time: x.created_time })),
     note: live ? 'Unofficial: the count so far, as reported to the wire. Ballots are revealed by the count; the certified result follows the canvass.'

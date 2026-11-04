@@ -15,6 +15,7 @@ export function ContestScreen({ id }: { id: number }) {
       <div className="kicker" style={{ marginTop: 8 }}>{c.electionLabel} · {c.date}</div>
       <h1 className="screen-title">{c.label.replace(/^\d{4} /, '')}</h1>
       <p className="screen-sub">{c.office ?? 'President of the United States'}{c.districtLabel ? ` · ${c.districtLabel}` : ''}{c.ev ? ` · ${c.ev} electoral votes` : ''}
+        {c.nightId !== null && !c.counting && <> · <a href={`#/night/${c.nightId}`}>★ Watch this election night</a></>}
         {c.parent && <> · <a href={`#/contest/${c.parent}`}>first round</a></>}{c.next && <> · <a href={`#/contest/${c.next}`}>{c.status === 'runoff' ? 'runoff' : 'next round'}</a></>}</p>
       <div className="grid cols-2">
         <section className="card">

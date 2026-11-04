@@ -12,6 +12,7 @@ import { formatDate, formatTime } from '../../core/time';
 import { MapRenderer, loadBasemap, type Basemap } from '../map/renderer';
 import { PARTY_COLORS, PARTY_NAME, PartyBadge, fmtInt } from '../components/common';
 import { useQuery } from './Desk';
+import { go } from '../app/router';
 
 const ET = 'America/New_York';
 const SPEEDS = [1, 10, 30, 60, 120, 300, 600];
@@ -31,9 +32,24 @@ const leaderOf = (r: NightRaceFrame | undefined, k: number) => {
   return best;
 };
 
+const ofOffice = (o: string) => (o === 'other' ? (x: NightMetaDto['races'][number]) => !['president', 'us_senator', 'governor', 'us_representative'].includes(x.office) : (x: NightMetaDto['races'][number]) => x.office === o);
+
+const NO_NIGHT_NOTE = 'General elections, special elections and general runoffs are counted on election night. Primaries are still decided when their polls close (their nights arrive with Phase 5).';
+
+/** Picks the night to show — the one in the address (#/night/<id>), otherwise the latest — and remounts the view per night. */
 export function ElectionNight({ id }: { id?: number }) {
   const nights = useQuery<NightListItem[]>({ kind: 'nights' });
-  const nightId = id ?? nights?.[0]?.id;
+  if (!nights) return <p className="muted">Loading…</p>;
+  if (!nights.length) return (
+    <><h1 className="screen-title">Election Night</h1>
+      <p className="muted">No election has been counted yet. Advance to Election Day (the <strong>Next election 🗳</strong> button stops at the ballot lock on the morning of Election Day), then return here at 5:00 pm ET to watch the count.</p>
+      <p className="tiny muted">{NO_NIGHT_NOTE}</p></>
+  );
+  const nightId = id !== undefined && nights.some((n) => n.id === id) ? id : nights[0]!.id;
+  return <NightView key={nightId} nightId={nightId} nights={nights} />;
+}
+
+function NightView({ nightId, nights }: { nightId: number; nights: NightListItem[] }) {
   const { time: edge, toast } = useApp();
   const [meta, setMeta] = useState<NightMetaDto | null>(null);
   const [geo, setGeo] = useState<GeoMeta | null>(null);
@@ -123,11 +139,6 @@ export function ElectionNight({ id }: { id?: number }) {
     setT(target);
   };
 
-  if (!nights) return <p className="muted">Loading…</p>;
-  if (!nights.length) return (
-    <><h1 className="screen-title">Election Night</h1>
-      <p className="muted">No election has been counted yet. Advance to Election Day (the <strong>Next election 🗳</strong> button stops at the ballot lock on the morning of Election Day), then return here at 5:00 pm ET to watch the count.</p></>
-  );
   if (!meta || pos === null || edge === null) return <p className="muted">Loading the night record…</p>;
   const t = pos;
 
@@ -136,22 +147,34 @@ export function ElectionNight({ id }: { id?: number }) {
   const beforeCoverage = edge < meta.coverageStart;
   const rangeEnd = days ? meta.feedEnd : meta.nightEnd;
   const r = (i: number) => races[i];
+  // Offices on this night's ballots; the list and the map fall back to what the night actually has (a special may be House only).
+  const available = OFFICES.map((o) => o.id).filter((o) => meta.races.some(ofOffice(o)));
+  const effOffice = available.includes(office) ? office : available[0] ?? 'president';
+  const mapOffice = ['president', 'us_senator', 'governor'].includes(effOffice) ? effOffice : ['president', 'us_senator', 'governor'].find((o) => available.includes(o)) ?? effOffice;
   const presByState = new Map<number, number>();
-  meta.races.forEach((x) => { if (x.office === 'president' && x.cd < 0) presByState.set(x.stateIdx, x.i); });
-  const ofOffice = (o: string) => (o === 'other' ? (x: NightMetaDto['races'][number]) => !['president', 'us_senator', 'governor', 'us_representative'].includes(x.office) : (x: NightMetaDto['races'][number]) => x.office === o);
-  const list = meta.races.filter(ofOffice(office)).filter((x) => {
+  meta.races.forEach((x) => { if (x.office === mapOffice && x.cd < 0 && !presByState.has(x.stateIdx)) presByState.set(x.stateIdx, x.i); });
+  meta.races.forEach((x) => { if (!presByState.has(x.stateIdx) && x.cd < 0) presByState.set(x.stateIdx, x.i); });
+  const list = meta.races.filter(ofOffice(effOffice)).filter((x) => {
     const f = r(x.i); if (filter === 'called' && f?.s !== ST.CALLED) return false; if (filter === 'open' && f?.s === ST.CALLED) return false;
     return !search || `${x.short} ${x.label} ${x.candidates.map((c) => c.name).join(' ')}`.toLowerCase().includes(search.toLowerCase());
   });
   const next = (kind: NightMarker['kind']) => markers.find((m) => m.kind === kind && m.time > t + 0.5);
-  const past = markers.filter((m) => m.time <= t && (m.kind !== 'call' || ['president', 'us_senator', 'governor'].includes(meta.races[m.race]?.office ?? ''))).slice(-40).reverse();
+  // A chamber's control is only reported when it is at stake (records sealed before this rule may list it for a one-seat special).
+  const atStake = (k: string | undefined) => k === 'president' || meta.races.filter((x) => x.office === (k === 'senate' ? 'us_senator' : 'us_representative') && x.cd < 0).length >= 10;
+  const past = markers.filter((m) => m.time <= t && (m.kind !== 'call' || ['president', 'us_senator', 'governor'].includes(meta.races[m.race]?.office ?? ''))
+    && (m.kind !== 'control' || atStake(tally?.control[m.race]?.kind))).slice(-40).reverse();
   const focused = focus !== null ? meta.races[focus] : undefined;
 
   return (
     <div className="night">
       <div className="night-head">
         <div>
-          <div className="kicker">{meta.network} Election Night · {meta.label}</div>
+          <div className="row" style={{ gap: 8 }}>
+            <span className="kicker">{meta.network} Election Night</span>
+            <select aria-label="Choose an election night" value={nightId} onChange={(e) => go(`night/${e.target.value}`)} style={{ maxWidth: 320 }}>
+              {nights.map((n) => <option key={n.id} value={n.id}>{n.date} · {n.label}</option>)}
+            </select>
+          </div>
           <div className="night-clock">{clock(t)} <span className="tiny muted">{formatDate(Math.floor(t), ET)}</span></div>
         </div>
         <span className={`badge ${live ? 'live' : 'replay'}`}>{live ? '● LIVE' : 'REPLAY'}</span>
@@ -184,7 +207,7 @@ export function ElectionNight({ id }: { id?: number }) {
             : <p className="muted small">Select a state on the map or a race in the list.</p>}
           <h3>Races</h3>
           <div className="row wrap" style={{ gap: 6, marginBottom: 6 }}>
-            <select value={office} onChange={(e) => setOffice(e.target.value)} aria-label="Office">{OFFICES.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select>
+            <select value={effOffice} onChange={(e) => setOffice(e.target.value)} aria-label="Office">{OFFICES.filter((o) => available.includes(o.id)).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select>
             <div className="seg">{(['all', 'open', 'called'] as const).map((k) => <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{k === 'all' ? 'All' : k === 'open' ? 'Not projected' : 'Projected'}</button>)}</div>
             <input placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: 110 }} />
           </div>
@@ -213,23 +236,23 @@ export function ElectionNight({ id }: { id?: number }) {
             <div key={i} className="news-item">
               <div className="t">{clock(m.time)}</div>
               <div className="small">{m.kind === 'close' ? `Polls close: ${meta.states.filter((s) => s.closeLast === m.time).map((s) => s.usps).join(', ')}`
-                : m.kind === 'control' ? controlText(tally?.control.find((c) => c.time === m.time), meta)
+                : m.kind === 'control' ? controlText(tally?.control[m.race])
                 : <a href="#" onClick={(e) => { e.preventDefault(); setFocus(m.race); }}>{callText(meta.races[m.race]!, r(m.race))}</a>}</div>
             </div>
           ))}
         </section>
       </div>
-      <p className="tiny muted">Functional election-night view (Phase 3). Calls are made by the fictional MNN decision desk from the count, the voter survey and pre-election information; the full broadcast presentation, commentary and Key Race Alerts arrive in Phase 4.</p>
+      <p className="tiny muted">{NO_NIGHT_NOTE} Functional election-night view (Phase 3). Calls are made by the fictional MNN decision desk from the count, the voter survey and pre-election information; the full broadcast presentation, commentary and Key Race Alerts arrive in Phase 4.</p>
     </div>
   );
 }
 
-function controlText(c: NightFrameDto['control'][number] | undefined, meta: NightMetaDto): string {
-  void meta;
+const PLURAL: Record<number, string> = { 1: 'Democrats', 2: 'Republicans', 3: 'Libertarians', 4: 'Greens', 5: 'Independents' };
+function controlText(c: NightFrameDto['control'][number] | undefined): string {
   if (!c) return 'Control projection';
-  const who = PARTY_NAME[c.party] ?? 'Independent';
-  if (c.kind === 'president') return c.status === 1 ? `MNN projects the ${who} ticket wins the presidency (${c.detail})` : 'Presidential projection withdrawn';
-  return `MNN projects ${who}s control the ${c.kind === 'senate' ? 'Senate' : 'House'} (${c.detail})`;
+  const chamber = c.kind === 'senate' ? 'Senate' : 'House';
+  if (c.kind === 'president') return c.status === 1 ? `MNN projects the ${PARTY_NAME[c.party] ?? 'Independent'} ticket wins the presidency (${c.detail})` : 'Presidential projection withdrawn';
+  return c.status === 1 ? `MNN projects ${PLURAL[c.party] ?? 'Independents'} control the ${chamber} (${c.detail})` : `${chamber} control projection withdrawn`;
 }
 
 function callText(m: NightMetaDto['races'][number], f: NightRaceFrame | undefined): string {
@@ -304,7 +327,7 @@ function Timeline({ start, end, t, edge, markers, onSeek }: { start: number; end
     <div className="timeline" ref={ref} onClick={click} role="slider" aria-label="Night timeline" aria-valuemin={start} aria-valuemax={end} aria-valuenow={Math.floor(t)} tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'ArrowRight') onSeek(t + 15); if (e.key === 'ArrowLeft') onSeek(t - 15); }}>
       <div className="watched" style={{ width: pos(Math.min(edge, end)) }} />
-      {markers.filter((m) => m.time >= start && m.time <= end && m.kind !== 'call').map((m, i) => <div key={i} className={`mk ${m.kind}`} style={{ left: pos(m.time) }} />)}
+      {markers.filter((m) => m.time >= start && m.time <= end && m.kind === 'close').map((m, i) => <div key={i} className={`mk ${m.kind}`} style={{ left: pos(m.time) }} />)}
       <div className="head" style={{ left: pos(t) }} />
     </div>
   );

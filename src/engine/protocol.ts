@@ -160,6 +160,8 @@ export type ResultsOffice = 'president' | 'us_senator' | 'governor' | 'us_repres
 
 export interface ElectionListItem {
   id: number; day: number; date: string; kind: string; label: string; status: string; stateUsps: string | null; year: number;
+  /** The election night that counted this election (null for primaries and elections held before Phase 3). */
+  nightId: number | null;
   contests: { id: number; label: string; kind: string; office: string; status: string; winner: CandidateDto | null; margin: number | null }[];
 }
 export interface CandidateDto { candidacyId: number; personId: number; name: string; party: number; incumbent: boolean; status: string; runningMate: string | null; votes: number | null; share: number | null }
@@ -172,6 +174,8 @@ export interface ContestDetail {
   note: string;
   /** While the contest is being counted: the wire's expected vote, precincts and the desk's status. */
   counting: { expected: number; precincts: number; totalPrecincts: number; status: number; called: number | null; calledAt: SimTime | null; prob: number; nightId: number } | null;
+  /** The election night that counted this contest (null for primaries and elections held before Phase 3). */
+  nightId: number | null;
   revisions: { rev: number; kind: string; time: SimTime }[];
 }
 export interface CountyHistoryDto {

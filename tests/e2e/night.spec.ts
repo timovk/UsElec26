@@ -61,6 +61,9 @@ test('watch election night: coverage, live playback, projections, skip ahead', a
   const ev = await page.locator('.night-map').innerText();
   expect(ev).toMatch(/Electoral votes/);
   await page.screenshot({ path: 'test-results/e2e-night-morning.png' });
+  // Any counted election can be chosen from the picker.
+  const picker = page.getByLabel('Choose an election night');
+  await expect(picker.locator('option', { hasText: '2016 general election' })).toHaveCount(1);
   await page.getByRole('button', { name: '⏮' }).click();
   await expect(page.locator('.night-clock')).toContainText('5:00 PM');
   await expect(page.getByText('REPLAY')).toBeVisible();

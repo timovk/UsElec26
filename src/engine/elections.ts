@@ -48,6 +48,7 @@ const ET = 'America/New_York' as const;
 const at = (day: DayNumber, h: number, m = 0): SimTime => { const c = daysToCivil(day); return zonedToUtc(c.y, c.m, c.d, h, m, ET); };
 const formatTimeET = (t: SimTime) => formatTime(t, ET);
 const PARTY_NAME: Record<number, string> = { 1: 'Democratic', 2: 'Republican', 3: 'Libertarian', 4: 'Green', 5: 'Independent' };
+const PARTY_PLURAL: Record<number, string> = { 1: 'Democrats', 2: 'Republicans', 3: 'Libertarians', 4: 'Greens', 5: 'Independents' };
 /** Ballot order on general-election ballots: Democrat, Republican, then minor parties and independents. */
 const BALLOT_ORDER = (party: number) => ({ 1: 0, 2: 1, 3: 13, 4: 14, 5: 15 } as Record<number, number>)[party] ?? 20;
 const STATEWIDE: OfficeKind[] = ['governor', 'lt_governor', 'attorney_general', 'secretary_of_state'];
@@ -633,6 +634,8 @@ export class ElectionEngine {
     const personOf = (cid: number) => this.db.value<number>('SELECT person_id FROM candidacy WHERE candidacy_id = ?', [cid]) ?? null;
     let pres: { party: number; person: number | null } | null = null;
     const nominee = new Map<number, number>();
+    // Control is projected only when a chamber is at stake: at least 10 of its seats are on this night's ballots.
+    const atStake = { senate: rec.races.filter((r) => r.office === 'us_senator' && r.cd < 0).length >= 10, house: rec.races.filter((r) => r.office === 'us_representative').length >= 10 };
     const ctl: Record<string, number> = { senate: 0, house: 0 };
     const ev = rec.events;
     for (let i = 0; i < ev.time.length; i++) {
@@ -652,6 +655,7 @@ export class ElectionEngine {
         out.push({ time: t, kind: 'president', party: pres.party, person: pres.person, status: 1, detail: `${top[1].ev} electoral votes projected` });
       } else if (pres && (!top || top[1].ev < 270)) { out.push({ time: t, kind: 'president', party: pres.party, person: pres.person, status: 0, detail: 'Projection withdrawn' }); pres = null; }
       for (const [kind, office] of [['senate', 'us_senator'], ['house', 'us_representative']] as const) {
+        if (!atStake[kind]) continue; // a special election for one seat does not put control on the ballot
         const base = ch[kind], seats: Record<number, number> = { ...base.holdovers };
         for (const [race, opt] of called) { const rc = rec.races[race]!; if (rc.office !== office || rc.cd >= 0 && office !== 'us_representative') continue; const p = rc.parties[opt]!; seats[p] = (seats[p] ?? 0) + 1; }
         let winner = 0;
@@ -766,12 +770,14 @@ export class ElectionEngine {
     house = Object.fromEntries(Object.entries(house));
     const hp = Object.entries(house);
     if (hp.length) this.h.news('projection', `MNN projects ${hp.reduce((a, [, n]) => a + n, 0)} more House races`, hp.map(([p, n]) => `${abbr(Number(p))} ${n}`).join(', '), {}, last);
+    // Records sealed before control required a chamber at stake may carry control lines for one-seat specials.
+    const stake = (k: string) => k === 'president' || rec.races.filter((r) => r.office === (k === 'senate' ? 'us_senator' : 'us_representative') && r.cd < 0).length >= 10;
     for (const c of rec.control) {
-      if (c.time <= from || c.time > to) continue;
-      const pn = PARTY_NAME[c.party] ?? 'Independent';
+      if (c.time <= from || c.time > to || !stake(c.kind)) continue;
+      const pn = PARTY_NAME[c.party] ?? 'Independent', plural = PARTY_PLURAL[c.party] ?? 'Independents';
       const person = c.person !== null ? this.w.persons.get(c.person) : undefined;
       if (c.kind === 'president') this.h.news('results', c.status ? `MNN projects ${person ? fullName(person) : `the ${pn} ticket`} will win the presidency` : 'MNN withdraws its presidential projection', c.status ? `${c.detail}. Electors meet in December; Congress counts the votes on January 6.` : c.detail, person ? { personId: person.id } : {}, c.time);
-      else this.h.news('results', c.status ? `MNN projects ${pn}s will control the ${c.kind === 'senate' ? 'Senate' : 'House'}` : `MNN withdraws its ${c.kind === 'senate' ? 'Senate' : 'House'} control projection`, c.detail, {}, c.time);
+      else this.h.news('results', c.status ? `MNN projects ${plural} will control the ${c.kind === 'senate' ? 'Senate' : 'House'}` : `MNN withdraws its ${c.kind === 'senate' ? 'Senate' : 'House'} control projection`, c.detail, {}, c.time);
     }
     if (summary) {
       const open = new Map<number, number>(); for (let i = 0; i < ev.time.length; i++) { if (ev.time[i]! > to) break; open.set(ev.race[i]!, ev.status[i]!); }

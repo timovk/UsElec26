@@ -10,7 +10,7 @@
    - the entire count is computed and sealed once as the **night record**: every batch of votes with its time, the wire's expected vote, and every decision-desk status and projection, through the end of counting weeks later.
 
    The Desk shows a ★ **Watch Election Night** card.
-2. **Watch the night.** Open **Election Night** and click **Start coverage at 5:00 pm ET**, then **▶ Play** at 1× to 600× (60× is one simulated minute per second). On screen:
+2. **Watch the night.** Open **Election Night**: it shows the latest counted election, and the picker next to the title (or **★ night** links in Results, and **★ Watch this election night** on contest pages) opens any earlier one. Click **Start coverage at 5:00 pm ET**, then **▶ Play** at 1× to 600× (60× is one simulated minute per second). On screen:
    - a national map filling in: solid = projected, pale = leading, dark = polls open;
    - electoral-vote, Senate and House bars, with the 270 and majority lines and the seats not up;
    - a race list filtered by office and status, and a focused race board;
@@ -208,6 +208,7 @@ I propose doing the first as the opening task of Phase 4 once I have your Chrome
   - certified revisions afterwards;
   - Election Night screen, Desk card, Projected badges.
 - **Fixes:**
+  - after the first release: night picker and links from Results and contest pages; chamber control is projected only when at least 10 of the chamber's seats are on the ballot (one-seat specials no longer report "control");
   - lean precision (reload determinism);
   - electoral votes summed by nominee in projections;
   - wording of the projection news.

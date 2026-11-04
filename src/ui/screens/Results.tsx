@@ -89,7 +89,7 @@ export function Results({ year: yearParam }: { year?: number }) {
               <td className="muted">{KIND_LABEL[c.kind] ?? c.kind}</td>
               <td>{c.winner ? <span className="row"><PartyBadge party={c.winner.party} />{c.winner.name}</span> : <span className="muted">{c.status === 'runoff' ? 'Runoff' : '—'}</span>}</td>
               <td className="num">{c.margin !== null && c.winner ? `${c.margin.toFixed(1)} pts` : ''}</td>
-              <td className="muted small">{c.status}</td>
+              <td className="muted small">{c.status}{c.election.nightId !== null && <> · <a href={`#/night/${c.election.nightId}`} onClick={(e) => e.stopPropagation()} title="Watch this election night">★ night</a></>}</td>
             </tr>
           ))}</tbody>
         </table>

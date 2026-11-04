@@ -149,7 +149,7 @@ export class Playback {
     const closes = new Set<number>(); for (const s of this.rec.states) closes.add(s.closeLast);
     for (const t of closes) out.push({ time: t, kind: 'close', race: -1 });
     for (let i = 0; i < this.rec.events.time.length; i++) if (this.rec.events.status[i] === ST_CALLED) out.push({ time: this.rec.events.time[i]!, kind: 'call', race: this.rec.events.race[i]! });
-    for (const c of this.rec.control) out.push({ time: c.time, kind: 'control', race: -1 });
+    this.rec.control.forEach((c, i) => out.push({ time: c.time, kind: 'control', race: i })); // race = index of the control event
     return out.sort((a, b) => a.time - b.time);
   }
 }
