@@ -71,7 +71,12 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
 }
 
 /** Collect shard outputs into per-contest results (unit grain or county-part grain). */
-export function aggregate(pack: GeoPack, shards: { input: ShardInput; output: ShardOutput }[], contests: Map<number, { candidacyIds: number[]; grain: 'bu' | 'cpart' }>): Map<number, ContestResult> {
+/** County and congressional district of a base unit: from the pack (engine) or from a shard's own columns (worker). */
+export interface BuGeo { county(bu: number): number; cd(bu: number): number }
+export const packGeo = (pack: GeoPack): BuGeo => ({ county: (bu) => pack.bu.county[bu]!, cd: (bu) => pack.bu.cd[bu]! });
+export const shardGeo = (inp: ShardInput): BuGeo => ({ county: (bu) => inp.bus.county[bu - inp.bus.start]!, cd: (bu) => inp.bus.cd[bu - inp.bus.start]! });
+
+export function aggregate(geo: BuGeo, shards: { input: ShardInput; output: ShardOutput }[], contests: Map<number, { candidacyIds: number[]; grain: 'bu' | 'cpart' }>): Map<number, ContestResult> {
   const res = new Map<number, ContestResult>();
   const acc = new Map<number, { units: number[]; votes: number[]; rj: Map<number, number[]>; elig: number; county: Map<number, number[]>; cd: Map<number, number[]>; cpart: Map<number, number[]> }>();
   for (const { input, output } of shards) {
@@ -83,7 +88,7 @@ export function aggregate(pack: GeoPack, shards: { input: ShardInput; output: Sh
       let a = acc.get(co.id);
       if (!a) { a = { units: [], votes: [], rj: new Map(), elig: 0, county: new Map(), cd: new Map(), cpart: new Map() }; acc.set(co.id, a); }
       for (let u = 0; u < co.units.length; u++) {
-        const bu = co.units[u]!, county = pack.bu.county[bu]!, cd = pack.bu.cd[bu]!;
+        const bu = co.units[u]!, county = geo.county(bu), cd = geo.cd(bu);
         a.elig += eligByBu.get(bu) ?? 0;
         const add = (m: Map<number, number[]>, key: number) => { let v = m.get(key); if (!v) { v = new Array<number>(k).fill(0); m.set(key, v); } for (let j = 0; j < k; j++) v[j]! += co.votes[u * k + j]!; };
         add(a.county, county); add(a.cd, cd);

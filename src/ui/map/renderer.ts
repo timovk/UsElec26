@@ -90,7 +90,33 @@ export class MapRenderer {
   /** Zoom level relative to the national view. */
   get zoom(): number { return this.view.s / this.baseS; }
 
+  /** Optional overlay drawn after the fills (in map units), e.g. a dimmed outside for a state view. */
+  dimOutside: Path2D | null = null;
+  /** Areas outlined in gold (e.g. counties with vote still outstanding). */
+  outlines: Path2D | null = null;
+  /** Areas flashing after a change (a new projection): path, colour and the time the flash ends. */
+  flashes: { path: Path2D; color: string; start: number; end: number }[] = [];
+  private flashRaf = 0;
+  /** Start a flash and keep redrawing until every flash has faded. */
+  flash(path: Path2D, color: string, ms: number): void {
+    const now = performance.now();
+    this.flashes.push({ path, color, start: now, end: now + ms });
+    if (this.flashRaf) return;
+    const step = () => {
+      const t = performance.now(); this.flashes = this.flashes.filter((f) => f.end > t);
+      this.draw();
+      this.flashRaf = this.flashes.length ? requestAnimationFrame(step) : 0;
+    };
+    this.flashRaf = requestAnimationFrame(step);
+  }
+
   draw(): void {
+    const t0 = performance.now();
+    this.drawInner();
+    perfSample('draw', performance.now() - t0);
+  }
+
+  private drawInner(): void {
     const c = this.ctx, { s, tx, ty } = this.view;
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.fillStyle = '#070c1b'; c.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -98,12 +124,43 @@ export class MapRenderer {
     c.fillStyle = '#1a2142'; c.fill(this.basemap.nation);
     const layer = this.layer;
     if (layer) for (let i = 0; i < layer.paths.length; i++) { const f = this.fills[i]; if (f) { c.fillStyle = f; c.fill(layer.paths[i]!); } }
+    if (this.dimOutside) { c.fillStyle = 'rgba(7,12,27,0.72)'; c.fill(this.dimOutside, 'evenodd'); }
+    if (this.flashes.length) {
+      const now = performance.now();
+      for (const f of this.flashes) { const u = Math.min(1, Math.max(0, (now - f.start) / (f.end - f.start))); c.globalAlpha = 0.85 * (1 - u); c.fillStyle = '#ffffff'; c.fill(f.path); c.globalAlpha = 1; }
+    }
     c.lineJoin = 'round';
     const px = 1 / s; // one canvas pixel in map units
     if (this.drawCountyMesh) { c.strokeStyle = 'rgba(7,12,27,0.55)'; c.lineWidth = Math.min(0.6, 0.5 * px * Math.sqrt(this.zoom)); c.stroke(this.basemap.countyMesh); }
     if (this.outlineMesh) { c.strokeStyle = 'rgba(7,12,27,0.8)'; c.lineWidth = px; c.stroke(this.outlineMesh); }
     c.strokeStyle = '#e8ecff'; c.lineWidth = 1.2 * px * Math.min(2, Math.sqrt(this.zoom)); c.stroke(this.basemap.stateMesh);
+    if (this.outlines) { c.strokeStyle = '#ffc53d'; c.lineWidth = 1.6 * px; c.stroke(this.outlines); }
     if (layer && this.highlight >= 0) { c.strokeStyle = '#ffc53d'; c.lineWidth = 3 * px; c.stroke(layer.paths[this.highlight]!); }
+  }
+
+  /** The view that fits a box (map units), without applying it. */
+  viewFor(b: [number, number, number, number]): View {
+    const keep = this.view; this.fitBox(b); const v = this.view; this.view = keep; return v;
+  }
+  nationalView(): View { const keep = this.view; this.reset(); const v = this.view; this.view = keep; return v; }
+
+  private anim = 0;
+  /** Fly to a view (scale interpolated geometrically), redrawing the vector map each frame. */
+  animateTo(target: View, ms: number, done?: () => void): void {
+    cancelAnimationFrame(this.anim);
+    if (ms <= 0) { this.view = target; this.draw(); done?.(); return; }
+    const a = { ...this.view }, t0 = performance.now();
+    // Keep the point under the centre moving in a straight line on screen while the scale changes smoothly.
+    const W = this.canvas.width / 2, H = this.canvas.height / 2;
+    const ca = [(W - a.tx) / a.s, (H - a.ty) / a.s], cb = [(W - target.tx) / target.s, (H - target.ty) / target.s];
+    const step = (now: number) => {
+      const u = Math.min(1, (now - t0) / ms), e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      const sc = a.s * Math.pow(target.s / a.s, e), cx = ca[0]! + (cb[0]! - ca[0]!) * e, cy = ca[1]! + (cb[1]! - ca[1]!) * e;
+      this.view = { s: sc, tx: W - cx * sc, ty: H - cy * sc };
+      const f0 = performance.now(); this.drawInner(); perfSample('frame', performance.now() - f0);
+      if (u < 1) this.anim = requestAnimationFrame(step); else { this.view = target; this.draw(); done?.(); }
+    };
+    this.anim = requestAnimationFrame(step);
   }
 
   /** Begin a gesture: snapshot the current frame to transform it cheaply. */
@@ -153,6 +210,12 @@ export class MapRenderer {
   }
 
   reset(): void { const s = this.baseS; this.view = { s, tx: (this.canvas.width - 975 * s) / 2, ty: (this.canvas.height - 610 * s) / 2 }; }
+}
+
+/** Frame-time samples for the performance benchmarks (enabled by setting window.__enaPerf = {}). */
+function perfSample(kind: string, ms: number): void {
+  const g = globalThis as unknown as { __enaPerf?: Record<string, number[]> };
+  if (g.__enaPerf) (g.__enaPerf[kind] ??= []).push(ms);
 }
 
 // ---- Colour scales -------------------------------------------------------------------------------

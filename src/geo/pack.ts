@@ -87,3 +87,20 @@ export function validatePack(p: GeoPack): void {
   }
   for (const c of p.counties) if (c.buCount > 0 && p.bu.county[c.buStart] !== c.idx) fail(`county ${c.geoid} buStart`);
 }
+
+/** Congressional district code as used on screen: "FL-07", "AK-AL". */
+export function cdCode(pack: Pick<GeoPack, 'states' | 'cds'>, cd: number): string {
+  const d = pack.cds[cd]; if (!d) return '';
+  if (d.code) return d.code;
+  const usps = pack.states[d.stateIdx]!.usps;
+  return `${usps}-${!d.district ? 'AL' : String(d.district).padStart(2, '0')}`;
+}
+
+/** Congressional district as spoken: "Florida's 7th District", "Alaska's at-large district". */
+export function cdSpoken(pack: Pick<GeoPack, 'states' | 'cds'>, cd: number): string {
+  const d = pack.cds[cd]; if (!d) return 'the district';
+  const name = pack.states[d.stateIdx]!.name, n = d.district ?? 0;
+  if (!n) return `${name}'s at-large district`;
+  const sfx = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th';
+  return `${name}'s ${n}${sfx} District`;
+}

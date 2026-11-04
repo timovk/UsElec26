@@ -23,6 +23,13 @@ export interface Snapshot {
 
 const CHECK = 1000;
 
+export interface RaceDetail {
+  batches: { time: number; rj: number; mode: number; votes: number[] }[];
+  byMode: number[][];
+  events: { time: number; status: number; option: number; prob: number; ballots: number; expected: number }[];
+  history: { time: number; ballots: number; votes: number[] }[];
+}
+
 export class Playback {
   private offs: Int32Array;               // per race: offset into the flat vote array
   private width: number;
@@ -30,6 +37,7 @@ export class Playback {
   private racesOfPart: number[][];
   private eventsByRace: number[][];
   private wireByRace: number[][];
+  private wireByPart: number[][];
 
   constructor(readonly rec: NightRecord) {
     const R = rec.races.length;
@@ -42,6 +50,8 @@ export class Playback {
     for (let i = 0; i < rec.events.time.length; i++) this.eventsByRace[rec.events.race[i]!]!.push(i);
     this.wireByRace = Array.from({ length: R }, () => []);
     for (let i = 0; i < rec.wire.time.length; i++) this.wireByRace[rec.wire.race[i]!]!.push(i);
+    this.wireByPart = Array.from({ length: rec.parts.rj.length }, () => []);
+    for (let i = 0; i < rec.partWire.time.length; i++) this.wireByPart[rec.partWire.part[i]!]!.push(i);
     // Checkpoints of cumulative votes and precincts.
     const votes = new Float64Array(this.width), prec = new Float64Array(R);
     const nb = rec.batches.time.length;
@@ -131,6 +141,18 @@ export class Playback {
     return out;
   }
 
+  /** The wire's expected ballots of one race by reporting jurisdiction at t (records without part-level wire: empty). */
+  rjExpected(r: number, t: number): Map<number, number> {
+    const out = new Map<number, number>(), pw = this.rec.partWire;
+    for (const p of this.rec.races[r]!.parts) {
+      const idx = this.wireByPart[p]!; const i = this.lastAtOrBefore(idx, pw.time, t);
+      if (i < 0) continue;
+      const rj = this.rec.parts.rj[p]!;
+      out.set(rj, (out.get(rj) ?? 0) + pw.expected[idx[i]!]!);
+    }
+    return out;
+  }
+
   /** Counted votes of one race by part (reporting jurisdiction × district) up to t. */
   raceByPart(r: number, t: number): Map<number, Float64Array> {
     const out = new Map<number, Float64Array>(), end = this.batchesUpTo(t), k = this.rec.races[r]!.k;
@@ -142,6 +164,51 @@ export class Playback {
     }
     return out;
   }
+
+  /**
+   * One race in detail up to t (Analyst Mode): its batches (latest first, at most `limit`), votes by voting
+   * mode, and the desk's status changes with the share of the expected vote counted at each.
+   */
+  raceDetail(r: number, t: number, limit = 300): RaceDetail {
+    const race = this.rec.races[r]!, k = race.k, rr = this.rec.raceRows, B = this.rec.batches;
+    const end = this.batchesUpTo(t);
+    const byMode = Array.from({ length: 4 }, () => new Array<number>(k).fill(0));
+    const batches: RaceDetail['batches'] = [];
+    const evIdx = this.eventsByRace[r]!, ev = this.rec.events;
+    const events: RaceDetail['events'] = [];
+    let ei = 0, cum = 0;
+    const totals = new Array<number>(k).fill(0), hist: RaceDetail['history'] = [];
+    const flushEvents = (upTo: number) => {
+      while (ei < evIdx.length && ev.time[evIdx[ei]!]! <= upTo && ev.time[evIdx[ei]!]! <= t) {
+        const id = evIdx[ei]!, wi = this.lastAtOrBefore(this.wireByRace[r]!, this.rec.wire.time, ev.time[id]!);
+        events.push({ time: ev.time[id]!, status: ev.status[id]!, option: ev.option[id]!, prob: ev.prob[id]! / 10000, ballots: cum, expected: wi >= 0 ? this.rec.wire.expected[this.wireByRace[r]![wi]!]! : 0 });
+        ei++;
+      }
+    };
+    for (let b = 0; b < end; b++) {
+      flushEvents(B.time[b]! - 1);
+      let row: { time: number; rj: number; mode: number; votes: number[] } | null = null;
+      for (let i = B.rowStart[b]!; i < B.rowStart[b + 1]!; i++) {
+        if (rr.race[i] !== r) continue;
+        if (!row) row = { time: B.time[b]!, rj: B.rj[b]!, mode: B.mode[b]!, votes: new Array<number>(k).fill(0) };
+        for (let j = 0; j < k; j++) { const v = rr.votes[rr.off[i]! + j]!; row.votes[j]! += v; byMode[B.mode[b]!]![j]! += v; cum += v; }
+      }
+      if (row) {
+        batches.push(row); if (batches.length > limit * 2) batches.splice(0, batches.length - limit);
+        for (let j = 0; j < k; j++) totals[j]! += row.votes[j]!;
+        const last = hist[hist.length - 1];
+        if (last && last.time === row.time) { last.ballots = cum; last.votes = totals.slice(); } else hist.push({ time: row.time, ballots: cum, votes: totals.slice() });
+      }
+    }
+    flushEvents(t);
+    // The count's history, thinned to at most 400 points (keeping the latest).
+    const step = Math.max(1, Math.ceil(hist.length / 400));
+    const history = hist.filter((_, i) => i % step === 0 || i === hist.length - 1);
+    return { batches: batches.slice(-limit).reverse(), byMode, events, history };
+  }
+
+  /** Final counted votes of a race (the end of the feed): the certified count — simulation truth until then. */
+  finalVotes(r: number): number[] { return Array.from(this.at(this.rec.feedEnd).races[r]!.votes); }
 
   /** Times of notable moments for the timeline: poll closings and projections. */
   markers(): { time: number; kind: 'close' | 'call' | 'control'; race: number }[] {

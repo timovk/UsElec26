@@ -1,5 +1,5 @@
 /** Main-thread client for the Broadcast Worker (election-night playback). */
-import type { BroadcastRequest, NightFrameDto, NightMarker } from '../../engine/protocol';
+import type { BroadcastRequest, NightFrameDto, NightMarker, RaceDetailDto } from '../../engine/protocol';
 
 export class BroadcastClient {
   private worker: Worker;
@@ -23,5 +23,6 @@ export class BroadcastClient {
   load(payload: Uint8Array): Promise<{ races: number }> { return this.request({ type: 'load', payload }, [payload.buffer]); }
   frame(t: number, focus: number | null, full = false): Promise<NightFrameDto> { return this.request({ type: 'frame', t, focus, full }); }
   markers(): Promise<NightMarker[]> { return this.request({ type: 'markers' }); }
+  raceDetail(race: number, t: number, truth: boolean): Promise<RaceDetailDto> { return this.request({ type: 'raceDetail', race, t, truth }); }
   terminate(): void { this.worker.terminate(); }
 }

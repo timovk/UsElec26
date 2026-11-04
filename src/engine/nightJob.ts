@@ -5,14 +5,47 @@
  */
 import { Rng } from '../core/rng';
 import { runShard, type ShardInput, type ShardOutput } from '../electorate/kernel';
-import { publishedBaseline, voterSurvey, wirePriors } from '../electorate/measure';
+import { publishedBaseline, voterSurveyCrosstabs, wirePriors } from '../electorate/measure';
 import { planSchedule, partitionVotes } from '../counting/countPlan';
 import { buildParts, buildPrecincts } from '../counting/precincts';
 import { MODE_EARLY, MODE_PROV, type NightInput, type StateNight } from '../counting/types';
 import { observe, type ObsRace } from '../projections/observer';
+import { prepareContest, prepareRejected, prepareTurnout } from '../archive/results';
+import { aggregate, shardGeo } from './electionModel';
 
-export type JobInput = ShardInput & { night?: NightInput; stateIdx?: number };
-export type JobOutput = ShardOutput & { night?: StateNight };
+export type JobInput = ShardInput & { night?: NightInput; stateIdx?: number; seal?: { contests: { id: number; candidacyIds: number[] }[] } };
+export interface SealedContest { id: number; totals: number[]; blobs: { grain: string; payload: Uint8Array }[]; sha256: string }
+export type JobOutput = ShardOutput & { night?: StateNight; sealed?: { contests: SealedContest[]; turnout: Uint8Array; rejected: { contestId: number; payload: Uint8Array }[] } };
+
+/**
+ * A job with its results sealed: the cast ballots of each counted contest are encoded and hashed here,
+ * exactly as the engine would (same ContestResult for a one-state shard, same encoder), so the engine
+ * thread only writes them.
+ */
+export async function runJobSealed(inp: JobInput): Promise<JobOutput> {
+  const out = runJob(inp);
+  if (!inp.seal) return out;
+  const meta = new Map(inp.seal.contests.map((c) => [c.id, { candidacyIds: c.candidacyIds, grain: 'bu' as const }]));
+  const res = aggregate(shardGeo(inp), [{ input: inp, output: out }], meta);
+  const contests: SealedContest[] = [];
+  for (const c of inp.seal.contests) {
+    const r = res.get(c.id); if (!r) continue;
+    const p = await prepareContest(r);
+    contests.push({ id: c.id, totals: p.totals, blobs: p.blobs, sha256: p.sha256 });
+  }
+  const turnout = await prepareTurnout(inp.bus.start, out.eligible, out.ballots, out.ballotsByMode);
+  const rejected: { contestId: number; payload: Uint8Array }[] = [];
+  if (out.night) {
+    const ids = inp.seal.contests.map((c) => c.id);
+    for (let ri = 0; ri < out.night.races.length; ri++) {
+      const race = inp.night!.races[ri]!; if (race.cd >= 0) continue;
+      const ru = out.night.rejectedUnits[ri]!, contestId = ids[race.contest]!;
+      rejected.push({ contestId, payload: await prepareRejected(ru.units, ru.modes, ru.votes, inp.contests[race.contest]!.options.length + 1) });
+    }
+  }
+  out.sealed = { contests, turnout, rejected };
+  return out;
+}
 
 export function runJob(inp: JobInput): JobOutput {
   const out: JobOutput = runShard(inp);
@@ -31,10 +64,15 @@ export function jobTransferables(o: JobOutput): ArrayBuffer[] {
   for (const c of o.contests) for (const a of [c.units, c.votes, c.rjMode, c.expected]) t.add(a.buffer as ArrayBuffer);
   const n = o.night;
   if (n) {
-    for (const g of [n.parts, n.batches, n.partRows, n.raceRows, n.wire, n.events]) for (const v of Object.values(g)) t.add((v as { buffer: ArrayBuffer }).buffer);
+    for (const g of [n.parts, n.batches, n.partRows, n.raceRows, n.wire, n.partWire, n.events]) for (const v of Object.values(g)) t.add((v as { buffer: ArrayBuffer }).buffer);
     for (const r of n.races) t.add(r.parts.buffer as ArrayBuffer);
     for (const r of n.rejected) t.add(r.buffer as ArrayBuffer);
     for (const r of n.rejectedUnits) { t.add(r.units.buffer as ArrayBuffer); t.add(r.modes.buffer as ArrayBuffer); t.add(r.votes.buffer as ArrayBuffer); }
+  }
+  if (o.sealed) {
+    for (const c of o.sealed.contests) for (const b of c.blobs) t.add(b.payload.buffer as ArrayBuffer);
+    t.add(o.sealed.turnout.buffer as ArrayBuffer);
+    for (const r of o.sealed.rejected) t.add(r.payload.buffer as ArrayBuffer);
   }
   return [...t];
 }
@@ -97,15 +135,15 @@ export function runStateNight(inp: ShardInput, out: ShardOutput, night: NightInp
   const obsRaces: ObsRace[] = specs.map((sp, ri) => {
     const c = out.contests[sp.contest]!; const K = sp.k, def = night.races[ri]!;
     const base = publishedBaseline(c.expPartMode!, raceParts[ri]!, K, def.axis, { state: night.priorError.state, mode: night.priorError.mode, race: night.priorError.race[ri] ?? 0 }, mr);
-    let svy: { shares: number[]; nEff: number } | null = null;
+    let svy: ReturnType<typeof voterSurveyCrosstabs> = null;
     if (def.surveyed && K - 1 >= 2) {
       const cast = new Array<number>(K - 1).fill(0);
       for (let u = 0; u < c.units.length; u++) {
         const i = c.units[u]! - inp.bus.start; if (sp.cd >= 0 && inp.bus.cd[i] !== sp.cd) continue;
         for (let m = 0; m < N_MODES; m++) { if (m === MODE_PROV) continue; for (let k = 0; k < K - 1; k++) cast[k]! += c.votesByMode![(u * N_MODES + m) * K + k]!; }
       }
-      svy = voterSurvey(cast, def.axis, night.surveyBias, night.surveyN, mr);
-      if (svy) survey.push({ race: ri, shares: svy.shares, n: night.surveyN });
+      svy = voterSurveyCrosstabs(inp, sp.contest, sp.cd, cast, def.axis, night.surveyBias, night.surveyN, mr);
+      if (svy) survey.push({ race: ri, shares: svy.shares, n: night.surveyN, crosstabs: svy.crosstabs });
     }
     return { def, k: K, parts: raceParts[ri]!, close: Math.max(...raceParts[ri]!.map((p) => partClose[p]!)), baseline: base.shares, has: base.has, survey: svy?.shares ?? null, surveyN: svy?.nEff ?? 0 };
   });
@@ -129,6 +167,7 @@ export function runStateNight(inp: ShardInput, out: ShardOutput, night: NightInp
     rejected: part.rejected,
     rejectedUnits: part.rejectedUnits.map((x) => ({ units: Int32Array.from(x.units), modes: Uint8Array.from(x.modes), votes: Int32Array.from(x.votes) })),
     wire: { time: Int32Array.from(obs.wire.time), race: Int32Array.from(obs.wire.race), expected: Float64Array.from(obs.wire.expected) },
+    partWire: { time: Int32Array.from(obs.partWire.time), part: Int32Array.from(obs.partWire.part), expected: Int32Array.from(obs.partWire.expected) },
     events: { time: Int32Array.from(obs.events.time), race: Int32Array.from(obs.events.race), status: Uint8Array.from(obs.events.status), option: Int16Array.from(obs.events.option), prob: Int16Array.from(obs.events.prob), flags: Uint8Array.from(obs.events.flags), option2: Int16Array.from(obs.events.option2) },
     survey,
     closeFirst: Number.isFinite(firstClose) ? firstClose : 0, closeLast: Number.isFinite(lastClose) ? lastClose : 0,

@@ -6,7 +6,7 @@
 import { Rng } from '../core/rng';
 import { MINUTES_PER_DAY, ageOn, civilToDays, daysToCivil, easternDay, formatDay, formatTime, generalElectionDay, nthWeekday, weekday, zonedToUtc, type DayNumber, type SimTime } from '../core/time';
 import type { Db } from '../persistence/db';
-import { NONE16 } from '../geo/pack';
+import { NONE16, cdCode } from '../geo/pack';
 import { PARTY_D, PARTY_G, PARTY_L, PARTY_R, SIMULATED, fullName, type Office, type OfficeKind, type Person, type Term } from '../institutions/model';
 import { SENATE_CLASS_NEXT_ELECTION, STATES_2016 } from '../rules/states2016';
 import { DISTRICT_EV_STATES, ELECTION_RULES_2016, ELECTORS_MEET, electoralVotes, ruleDay } from '../rules/elections2016';
@@ -16,13 +16,14 @@ import { TURNOUT_OFFSET, calibrateTurnout, drawEnvironment, type Environment } f
 import { certifiedFromCast, prepareContest, prepareDerived, prepareRejected, prepareRollup, prepareTurnout, readRollup, writeContest, writeTotalsRevision, K, totalsOf, type ContestResult } from '../archive/results';
 import { crc32 } from '../core/codec';
 import type { ShardRunner } from './computePool';
-import type { JobInput } from './nightJob';
+import type { JobInput, SealedContest } from './nightJob';
 import { buildNightInput, nationalPriorError, nightRaces } from './nightSetup';
+import { nightStory } from './nightStory';
 import { buildParts } from '../counting/precincts';
 import { decodeNightRecord, encodeNightRecord, mergeNights, type ChamberBase, type ControlEvent, type NightRecord, type RaceMeta } from '../counting/record';
 import { MODE_PROV, ST_CALLED, ST_WITHDRAWN, type StateNight } from '../counting/types';
 import { COUNTING_RULES_2016 } from '../rules/counting2016';
-import { aggregate, candidateQuality, heldKinds, kernelContest, type CandidacyRow, type ContestRow } from './electionModel';
+import { aggregate, candidateQuality, heldKinds, kernelContest, packGeo, type CandidacyRow, type ContestRow } from './electionModel';
 import type { World } from './world';
 import { leanMargin } from './world';
 
@@ -495,6 +496,8 @@ export class ElectionEngine {
         let vep = 0; for (let i = 0; i < inp.bus.count; i++) vep += inp.bus.vep[i]!;
         inp.night = buildNightInput({ seed: this.w.seed, key, pack: this.w.pack, rg: this.ranges[g.stateIdx]!, stateIdx: g.stateIdx, day: night.day, year, coverageStart: at(night.day, 17), races, national: nationalPriorError(this.w.seed, key), expectedBallots: vep * 0.55 });
         inp.stateIdx = g.stateIdx;
+        // The worker also seals this state's results (encoding and hashing off the engine thread).
+        inp.seal = { contests: g.contests.map((c) => ({ id: c.row.contest_id, candidacyIds: c.cands.map((x) => x.cand.candidacy_id) })) };
       }
       return inp;
     });
@@ -504,12 +507,23 @@ export class ElectionEngine {
     const meta = new Map<number, { candidacyIds: number[]; grain: 'bu' | 'cpart' }>();
     for (const g of groups) for (const c of g.contests) meta.set(c.row.contest_id, { candidacyIds: c.cands.map((x) => x.cand.candidacy_id), grain: g.kind === 'general' ? 'bu' : 'cpart' });
     this.h.progress('Tallying results', 1);
-    const res = aggregate(this.w.pack, inputs.map((input, i) => ({ input, output: outputs[i]! })), meta);
+    const res = aggregate(packGeo(this.w.pack), inputs.map((input, i) => ({ input, output: outputs[i]! })), meta);
+    // Blobs sealed in the compute workers (general shards): the engine only writes them.
+    this.lastSealed = new Map(); this.lastSealedTurnout = new Map(); this.lastSealedRejected = new Map();
+    outputs.forEach((o, i) => {
+      if (!o.sealed) return;
+      for (const c of o.sealed.contests) this.lastSealed.set(c.id, c);
+      this.lastSealedTurnout.set(inputs[i]!.stateIdx ?? -1, o.sealed.turnout);
+      for (const r of o.sealed.rejected) this.lastSealedRejected.set(r.contestId, r.payload);
+    });
     // Per-unit turnout for general shards (needed by the archive audit).
     this.lastTurnout = inputs.map((inp, i) => ({ stateIdx: groups.filter((g) => g.contests.length)[i]!.stateIdx, kind: groups.filter((g) => g.contests.length)[i]!.kind, start: inp.bus.start, out: outputs[i]! }));
     return res;
   }
   private lastTurnout: { stateIdx: number; kind: string; start: number; out: import('../electorate/kernel').ShardOutput }[] = [];
+  private lastSealed = new Map<number, SealedContest>();
+  private lastSealedTurnout = new Map<number, Uint8Array>();
+  private lastSealedRejected = new Map<number, Uint8Array>();
   private lastNights = new Map<number, StateNight>();
 
   private officeKindOf(c: ContestRow): string { return c.office_id !== null ? this.w.officeById.get(c.office_id)!.kind : 'president'; }
@@ -584,7 +598,7 @@ export class ElectionEngine {
    * Test harness (no database writes): realize a general election day again under a different random key and
    * return its merged night record. Used to measure decision-desk accuracy over many simulated nights.
    */
-  async simulateNight(year: number, day: DayNumber, variant: string): Promise<{ rec: Omit<NightRecord, 'control' | 'chambers'>; finals: number[][] }> {
+  async simulateNight(year: number, day: DayNumber, variant: string): Promise<{ rec: Omit<NightRecord, 'control' | 'chambers' | 'story'>; finals: number[][] }> {
     const elections = this.db.all<{ election_id: number; state_idx: number }>("SELECT election_id, state_idx FROM election WHERE kind IN ('general','special') AND day = ? ORDER BY state_idx, election_id", [day]);
     const states = [...new Set(elections.map((e) => e.state_idx))];
     const groups = states.map((s) => {
@@ -608,12 +622,12 @@ export class ElectionEngine {
     const row = this.db.get<ContestRow>('SELECT * FROM contest WHERE contest_id = ?', [contestId])!;
     const cands = this.cands(contestId);
     const ev = row.kind === 'pres_state' ? (cd >= 0 ? 1 : row.method === 'district_ev' ? 2 : row.ev ?? 0) : 0;
-    const label = cd >= 0 ? `${row.label} — ${this.w.pack.cds[cd]?.code ?? `CD ${cd}`}` : row.label;
+    const label = cd >= 0 ? `${row.label} — ${cdCode(this.w.pack, cd)}` : row.label;
     return { candidacyIds: cands.map((x) => x.cand.candidacy_id), parties: cands.map((x) => x.cand.party_id), office: this.officeKindOf(row), ev, label };
   }
 
   /** Seats of each chamber not up in this election, by the current holder's party (0 = vacant). */
-  private chamberBase(rec: Omit<NightRecord, 'control' | 'chambers'>): { senate: ChamberBase; house: ChamberBase } {
+  private chamberBase(rec: Omit<NightRecord, 'control' | 'chambers' | 'story'>): { senate: ChamberBase; house: ChamberBase } {
     const up = new Set(rec.races.filter((r) => r.cd < 0).map((r) => this.db.value<number>('SELECT office_id FROM contest WHERE contest_id = ?', [r.contestId])).filter((x): x is number => x !== undefined && x !== null));
     const base = (kind: string, seats: number, majority: number): ChamberBase => {
       const holdovers: Record<number, number> = {};
@@ -628,7 +642,7 @@ export class ElectionEngine {
   }
 
   /** Presidency and chamber-control projections, from the desk's calls in time order. */
-  private controlProjections(rec: Omit<NightRecord, 'control' | 'chambers'>, ch: { senate: ChamberBase; house: ChamberBase }): ControlEvent[] {
+  private controlProjections(rec: Omit<NightRecord, 'control' | 'chambers' | 'story'>, ch: { senate: ChamberBase; house: ChamberBase }): ControlEvent[] {
     const out: ControlEvent[] = [];
     const called = new Map<number, number>(); // race → option
     const personOf = (cid: number) => this.db.value<number>('SELECT person_id FROM candidacy WHERE candidacy_id = ?', [cid]) ?? null;
@@ -676,6 +690,8 @@ export class ElectionEngine {
     const row = this.db.get<{ payload: Uint8Array }>('SELECT payload FROM night WHERE night_id = ?', [nightId]);
     if (!row) return null;
     const rec = await decodeNightRecord(row.payload);
+    // Records sealed before Phase 4 carry no story: it is written from the record now (deterministically).
+    if (!rec.story) rec.story = nightStory(this.db, this.w, rec);
     if (this.recCache.size > 2) this.recCache.clear();
     this.recCache.set(nightId, rec);
     return rec;
@@ -691,14 +707,17 @@ export class ElectionEngine {
     const preps: { el: { election_id: number; state_idx: number }; eRows: ContestRow[]; prepared: Awaited<ReturnType<typeof prepareContest>>[]; rollup: Uint8Array | null; turnoutBlob: Uint8Array | null; ballots: number; eligible: number; rejected: { contestId: number; payload: Uint8Array }[] }[] = [];
     const prepOne = async (el: { election_id: number; state_idx: number }) => {
       const eRows = rows.filter((c) => c.election_id === el.election_id && results.has(c.contest_id));
-      const prepared = await Promise.all(eRows.map((c) => prepareContest(results.get(c.contest_id)!)));
+      const prepared = await Promise.all(eRows.map((c) => {
+        const r = results.get(c.contest_id)!, sealed = this.lastSealed.get(c.contest_id);
+        return sealed ? { result: r, totals: sealed.totals, blobs: sealed.blobs, sha256: sealed.sha256 } : prepareContest(r);
+      }));
       const stateResults = eRows.map((c) => results.get(c.contest_id)!).filter((x) => x.grain === 'bu');
       const rollup = stateResults.length ? await prepareRollup(stateResults) : null;
       const turnout = this.lastTurnout.find((t) => t.stateIdx === el.state_idx && t.kind === 'general');
-      const turnoutBlob = turnout ? await prepareTurnout(turnout.start, turnout.out.eligible, turnout.out.ballots, turnout.out.ballotsByMode) : null;
+      const turnoutBlob = turnout ? this.lastSealedTurnout.get(el.state_idx) ?? await prepareTurnout(turnout.start, turnout.out.eligible, turnout.out.ballots, turnout.out.ballotsByMode) : null;
       const night = this.lastNights.get(el.state_idx);
       const rejected = night ? await Promise.all(night.races.map((r, ri) => ({ r, ri })).filter(({ r }) => r.cd < 0 && eRows.some((c) => c.contest_id === r.contestId))
-        .map(async ({ r, ri }) => { const ru = night.rejectedUnits[ri]!; return { contestId: r.contestId, payload: await prepareRejected(ru.units, ru.modes, ru.votes, r.k) }; })) : [];
+        .map(async ({ r, ri }) => { const ru = night.rejectedUnits[ri]!; return { contestId: r.contestId, payload: this.lastSealedRejected.get(r.contestId) ?? await prepareRejected(ru.units, ru.modes, ru.votes, r.k) }; })) : [];
       return { el, eRows, prepared, rollup, turnoutBlob, rejected,
         ballots: turnout ? turnout.out.ballots.reduce((a, x) => a + x, 0) : 0, eligible: turnout ? turnout.out.eligible.reduce((a, x) => a + x, 0) : 0 };
     };
@@ -712,7 +731,9 @@ export class ElectionEngine {
     const cc = states.map((s) => { const R = COUNTING_RULES_2016[w.pack.states[s]!.usps]!; return { canvass: at(day + R.canvassDays, 17), certify: at(day + R.certifyDays, 17) }; });
     const merged = mergeNights(nights, meta, states.map((s) => elections.find((e) => e.state_idx === s)!.election_id), { day, lockTime: now, coverageStart: at(day, 17), nightEnd: at(day + 1, 6) }, cc);
     const chambers = this.chamberBase(merged);
-    const rec: NightRecord = { ...merged, chambers, control: this.controlProjections(merged, chambers) };
+    const base = { ...merged, chambers, control: this.controlProjections(merged, chambers) };
+    // Alerts and commentary are written once, at the lock, from the record and the archive as it stands.
+    const rec: NightRecord = { ...base, story: nightStory(this.db, w, base, new Map(preps.map((p) => [p.el.election_id, p.eligible]))) };
     const { payload, sha256 } = await encodeNightRecord(rec);
     const env = this.state.env[String(rows[0]?.year ?? 0)];
     let nightId = 0;

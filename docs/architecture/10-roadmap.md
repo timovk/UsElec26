@@ -84,6 +84,7 @@ Deliverables: these documents and spikes. Exit: your approval and the decisions 
 - **Risks:** call realism (too fast or too slow); expected-vote modelling.
 
 ### Phase 4: Broadcast interface
+**Status:** implemented — see [../phase-4-report.md](../phase-4-report.md). Deviations: 2–8 commentary templates per story type (not 10–30); over-performance and bellwether stories deferred; swing and turnout-change maps need a previous comparable election (from 2018 on); visual regression uses one stored Chromium baseline.
 Deliverables: broadcast layout and identity, national/state/county maps (Canvas2D), EC counter, Senate/House
 bars, Key Race Alerts, projection animations, audio and reduced motion, commentary v1 (story types in §8.6),
 playback controls and markers, Results Explorer v1, Analyst dashboard v1, map modes (winner, margin, swing,

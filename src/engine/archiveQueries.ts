@@ -7,6 +7,7 @@ import { auditElection, decodeContestBlob, readRollup, type StateRollup } from '
 import { liveContest, liveGeo, liveTallies, type LiveContest } from './nightQueries';
 import { decodeIntColumns } from '../core/codec';
 import type { Universe } from './universe';
+import { baselineContest, turnoutByBu } from './baselines';
 import type { ArchiveQuery, CandidateDto, ContestDetail, CountyHistoryDto, ElectionListItem, ResultsMapDto, YearSummary } from './protocol';
 
 interface CRow { contest_id: number; election_id: number; office_id: number | null; kind: string; party_id: number | null; state_idx: number | null; district_idx: number | null; method: string; label: string; status: string; winner_candidacy: number | null; parent_contest: number | null; next_contest: number | null; ev: number | null; year: number }
@@ -53,7 +54,7 @@ const officeKindOf = (u: Universe, c: { office_id: number | null }) => (c.office
 
 async function elections(u: Universe, year?: number): Promise<ElectionListItem[]> {
   const y = year ?? Number(u.db.value('SELECT MAX(year) FROM election') ?? 0);
-  const els = u.db.all<{ election_id: number; day: number; kind: string; label: string; status: string; state_idx: number | null; year: number }>('SELECT * FROM election WHERE year = ? ORDER BY day, state_idx, election_id', [y]);
+  const els = u.db.all<{ election_id: number; day: number; kind: string; label: string; status: string; state_idx: number | null; year: number; held_time: number | null }>('SELECT * FROM election WHERE year = ? ORDER BY day, state_idx, election_id', [y]);
   const contests = u.db.all<CRow>('SELECT * FROM contest WHERE year = ? ORDER BY contest_id', [y]);
   const tops = new Map<number, { cid: number; votes: number; share: number }[]>();
   for (const t of u.db.all<{ contest_id: number; candidacy_id: number; votes: number; share: number; rank: number }>(`SELECT t.contest_id, t.candidacy_id, t.votes, t.share, t.rank FROM contest_total t JOIN contest c ON c.contest_id = t.contest_id
@@ -68,6 +69,8 @@ async function elections(u: Universe, year?: number): Promise<ElectionListItem[]
     tops.set(c.contest_id, [...lv.votes].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([cid, v]) => ({ cid, votes: v, share: valid ? v / valid : 0 })));
     projected.set(c.contest_id, lv.called);
   }
+  const incumbents = new Map<number, Set<number>>();
+  for (const r of u.db.all<{ contest_id: number; candidacy_id: number }>('SELECT k.contest_id, k.candidacy_id FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id WHERE c.year = ? AND k.incumbent = 1', [y])) { const x = incumbents.get(r.contest_id) ?? new Set(); x.add(r.candidacy_id); incumbents.set(r.contest_id, x); }
   const nightOf = new Map(u.db.all<{ election_id: number; night_id: number }>('SELECT ne.election_id, ne.night_id FROM night_election ne JOIN election e ON e.election_id = ne.election_id WHERE e.year = ?', [y]).map((r) => [r.election_id, r.night_id]));
   return els.map((e) => ({
     id: e.election_id, day: e.day, date: isoDay(e.day), kind: e.kind, label: e.label, status: e.status, stateUsps: e.state_idx !== null ? u.world.pack.states[e.state_idx]!.usps : null, year: e.year,
@@ -77,7 +80,13 @@ async function elections(u: Universe, year?: number): Promise<ElectionListItem[]
       const winId = c.status === 'counting' ? projected.get(c.contest_id) ?? null : c.winner_candidacy;
       const win = winId !== null ? candidates(u, c.contest_id).find((x) => x.candidacyId === winId) ?? null : null;
       const status = c.status === 'counting' ? (winId !== null ? 'projected' : 'counting') : c.status;
-      return { id: c.contest_id, label: c.label, kind: c.kind, office: officeKindOf(u, c), status, winner: win, margin: t && t.length > 1 ? 100 * (t[0]!.share - t[1]!.share) : t ? 100 : null };
+      // Facets: did the seat change party, and did an incumbent running lose?
+      const held = c.office_id !== null && e.held_time !== null ? u.db.value<number>('SELECT party_id FROM office_term WHERE office_id = ? AND start_time <= ? AND (end_time IS NULL OR end_time > ?) ORDER BY start_time DESC LIMIT 1', [c.office_id, e.held_time, e.held_time]) ?? null : null;
+      const inc = incumbents.get(c.contest_id);
+      return { id: c.contest_id, label: c.label, kind: c.kind, office: officeKindOf(u, c), status, winner: win, margin: t && t.length > 1 ? 100 * (t[0]!.share - t[1]!.share) : t ? 100 : null,
+        state: c.state_idx !== null ? u.world.pack.states[c.state_idx]!.usps : null,
+        flip: win && held !== null && held !== 0 && ['general', 'special'].includes(c.kind) ? win.party !== held : null,
+        incumbentLost: inc !== undefined && win !== null && !inc.has(win.candidacyId) };
     }),
   }));
 }
@@ -189,7 +198,10 @@ async function resultsMap(u: Universe, year: number, office: ResultsMapDto['offi
   const rows = u.db.all<CRow>(`SELECT c.* FROM contest c LEFT JOIN office o ON o.office_id = c.office_id WHERE c.year = ? AND ${kindFilter} AND c.status IN ('decided','certified','counting') ORDER BY c.contest_id`, [year]);
   let counting = false;
   const n = layer === 'state' ? w.pack.states.length : layer === 'county' ? w.pack.counties.length : w.pack.cds.length;
-  const D = new Float64Array(n), R = new Float64Array(n), has = new Uint8Array(n);
+  const D = new Float64Array(n), R = new Float64Array(n), V = new Float64Array(n), Bc = new Float64Array(n), has = new Uint8Array(n);
+  const lead = new Map<number, Map<number, number>>(); // area → party → votes (for the leading party)
+  const bD = new Float64Array(n), bR = new Float64Array(n), bV = new Float64Array(n), bHas = new Uint8Array(n);
+  const baseYears = new Set<number>();
   const rolls = await rollupsFor(u, [...new Set(rows.map((x) => `${x.election_id}:${x.state_idx}`))].map((s) => { const [a, b] = s.split(':'); return { election_id: Number(a), state_idx: Number(b) }; }));
   const national = new Map<number, number>();
   for (const c of rows) {
@@ -202,19 +214,61 @@ async function resultsMap(u: Universe, year: number, office: ResultsMapDto['offi
       entry = { id: c.contest_id, k: order.length + 1, counties: [...g.counties], cds: [...g.cds] }; counting = true;
     }
     if (!entry) continue;
-    const addTo = (i: number, v: number[]) => { if (i < 0 || i >= n || i === NONE16) return; has[i] = 1; if (di >= 0) D[i]! += v[di]!; if (ri >= 0) R[i]! += v[ri]!; };
-    if (layer === 'state') { const t = entry.counties.reduce((a, [, v]) => a.map((x, j) => x + v[j]!), new Array<number>(order.length + 1).fill(0)); addTo(c.state_idx!, t); }
-    else if (layer === 'county') for (const [cc, v] of entry.counties) addTo(cc, v);
-    else for (const [cd, v] of entry.cds) addTo(cd, v);
+    const addTo = (i: number, v: number[]) => {
+      if (i < 0 || i >= n || i === NONE16) return; has[i] = 1; if (di >= 0) D[i]! += v[di]!; if (ri >= 0) R[i]! += v[ri]!;
+      let m = lead.get(i); if (!m) { m = new Map(); lead.set(i, m); }
+      order.forEach((p, j) => { V[i]! += v[j]!; m!.set(p, (m!.get(p) ?? 0) + v[j]!); });
+      Bc[i]! += v.reduce((a, x) => a + x, 0);
+    };
+    const spread = (e: { counties: [number, number[]][]; cds: [number, number[]][] }, k: number, f: (i: number, v: number[]) => void) => {
+      if (layer === 'state') { const t = e.counties.reduce((a, [, v]) => a.map((x, j) => x + v[j]!), new Array<number>(k).fill(0)); f(c.state_idx!, t); }
+      else if (layer === 'county') for (const [cc, v] of e.counties) f(cc, v);
+      else for (const [cd, v] of e.cds) f(cd, v);
+    };
+    spread(entry, order.length + 1, addTo);
+    // The previous comparable result (same office, else the state's last presidential race), for swing maps.
+    const b = baselineContest(u, c.contest_id);
+    if (b) {
+      const be = (await readRollup(u.db, b.election_id, b.state_idx))?.contests.find((x) => x.id === b.contest_id);
+      if (be) {
+        const bo = u.db.all<{ party_id: number }>('SELECT party_id FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [b.contest_id]).map((r) => r.party_id);
+        const bdi = bo.indexOf(PARTY_D), bri = bo.indexOf(PARTY_R);
+        baseYears.add(b.year);
+        spread(be, bo.length + 1, (i, v) => { if (i < 0 || i >= n || i === NONE16) return; bHas[i] = 1; if (bdi >= 0) bD[i]! += v[bdi]!; if (bri >= 0) bR[i]! += v[bri]!; for (let j = 0; j < bo.length; j++) bV[i]! += v[j]!; });
+      }
+    }
     if (office === 'president') for (const [, v] of entry.counties) order.forEach((p, j) => national.set(p, (national.get(p) ?? 0) + v[j]!));
   }
   const values = Array.from({ length: n }, (_, i) => (has[i] && D[i]! + R[i]! > 0 ? Math.round(1000 * (D[i]! - R[i]!) / (D[i]! + R[i]!)) / 10 : has[i] ? 0 : null));
+  // Turnout: eligible voters and ballots by area, for this election and the baseline one.
+  const area = (bu: number) => (layer === 'state' ? w.pack.counties[w.pack.bu.county[bu]!]!.stateIdx : layer === 'county' ? w.pack.bu.county[bu]! : w.pack.bu.cd[bu]!);
+  const turnout = async (pairs: { election_id: number; state_idx: number }[]) => {
+    const el = new Float64Array(n), ba = new Float64Array(n); let any = false;
+    for (const e of pairs) {
+      const t = await turnoutByBu(u, e.election_id, e.state_idx); if (!t) continue; any = true;
+      for (let i = 0; i < t.eligible.length; i++) { const a = area(t.start + i); if (a === NONE16 || a >= n) continue; el[a]! += t.eligible[i]!; ba[a]! += t.ballots[i]!; }
+    }
+    return any ? { el, ba } : null;
+  };
+  const uniq = (xs: { election_id: number; state_idx: number | null }[]) => [...new Map(xs.filter((x) => x.state_idx !== null).map((x) => [`${x.election_id}:${x.state_idx}`, { election_id: x.election_id, state_idx: x.state_idx! }])).values()];
+  // While counting, ballots are the count so far (the sealed turnout record would reveal the cast ballots).
+  const cur = await turnout(uniq(rows));
+  if (cur && counting) for (let i = 0; i < n; i++) cur.ba[i] = Bc[i]!;
+  const baseEls = rows.map((c) => baselineContest(u, c.contest_id)).filter((x): x is NonNullable<typeof x> => !!x);
+  const prev = await turnout(uniq(baseEls));
+  const round = (a: Float64Array) => Array.from(a, (x) => Math.round(x));
+  const cells: NonNullable<ResultsMapDto['cells']> = {
+    d: round(D), r: round(R), valid: round(V), has: Array.from(has),
+    lead: Array.from({ length: n }, (_, i) => { const m = lead.get(i); if (!m) return 0; let bp = 0, bv = -1; for (const [p, v] of m) if (v > bv) { bv = v; bp = p; } return bp; }),
+    ballots: cur ? round(cur.ba) : null, eligible: cur ? round(cur.el) : null,
+    base: bHas.some((x) => x) ? { label: [...baseYears].sort().join('/'), d: round(bD), r: round(bR), valid: round(bV), has: Array.from(bHas), ballots: prev ? round(prev.ba) : null, eligible: prev ? round(prev.el) : null } : null,
+  };
   let ev: ResultsMapDto['ev'] = null;
   if (office === 'president') {
     ev = u.db.all<{ party_id: number; ev: number; person_id: number }>('SELECT v.party_id, v.ev, v.person_id FROM electoral_vote v JOIN election e ON e.election_id = v.election_id WHERE e.year = ? ORDER BY v.ev DESC', [year])
       .map((r) => ({ party: r.party_id, ev: r.ev, name: fullName(w.persons.get(r.person_id)!) }));
   }
-  return { year, office, layer, values, legend: counting ? 'Two-party margin (D+ / R+ points) of the votes counted so far (unofficial)' : 'Two-party margin (D+ / R+ points), archived results', national: office === 'president' ? [...national].map(([party, votes]) => ({ party, votes })).sort((a, b) => b.votes - a.votes) : null, ev };
+  return { year, office, layer, values, cells, legend: counting ? 'Two-party margin (D+ / R+ points) of the votes counted so far (unofficial)' : 'Two-party margin (D+ / R+ points), archived results', national: office === 'president' ? [...national].map(([party, votes]) => ({ party, votes })).sort((a, b) => b.votes - a.votes) : null, ev };
 }
 
 async function yearSummary(u: Universe, year: number): Promise<YearSummary> {
@@ -251,7 +305,10 @@ async function yearSummary(u: Universe, year: number): Promise<YearSummary> {
     }
     if (winners.some((x) => offices.some((o) => o.id === x.office_id))) chambers.push({ label, before: [...before].map(([party, seats]) => ({ party, seats })).sort((a, b) => a.party - b.party), after: [...after].map(([party, seats]) => ({ party, seats })).sort((a, b) => a.party - b.party) });
   }
-  const t = u.db.get<{ b: number; e: number }>("SELECT SUM(t.ballots) b, SUM(t.eligible) e FROM election_turnout t JOIN election x ON x.election_id = t.election_id WHERE x.year = ? AND x.kind = 'general'", [year]);
+  // Turnout from the sealed turnout record only once no general election of the year is still being counted
+  // (until then it would reveal the cast ballots).
+  const stillCounting = Number(u.db.value("SELECT COUNT(*) FROM election WHERE year = ? AND kind = 'general' AND status = 'counting'", [year]) ?? 0) > 0;
+  const t = stillCounting ? undefined : u.db.get<{ b: number; e: number }>("SELECT SUM(t.ballots) b, SUM(t.eligible) e FROM election_turnout t JOIN election x ON x.election_id = t.election_id WHERE x.year = ? AND x.kind = 'general'", [year]);
   return { year, hasPresident: president.length > 0, president, chambers, flips, turnout: t && t.b ? { ballots: t.b, eligible: t.e } : null, projected };
 }
 

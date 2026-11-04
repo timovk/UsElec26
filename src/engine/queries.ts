@@ -15,7 +15,7 @@ import type {
 export function runQuery(u: Universe, q: Query): unknown {
   switch (q.kind) {
     case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
-    case 'nights': case 'nightMeta': case 'nightPayload': return runNightQuery(u, q);
+    case 'nights': case 'nightMeta': case 'nightPayload': case 'nightContext': case 'nightBaseline': case 'nightSurvey': case 'nightCalls': return runNightQuery(u, q);
     case 'desk': return desk(u);
     case 'geoMeta': return geoMeta(u);
     case 'mapLayer': return mapLayer(u, q.layer, q.metric);

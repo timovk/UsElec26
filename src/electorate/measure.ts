@@ -4,6 +4,10 @@
  * (wire, survey, decision desks) never see the cast results or the model's expectations directly.
  */
 import type { Rng } from '../core/rng';
+import { dexp, dlogistic, dtanh } from '../core/math';
+import { gaussHermite } from './model';
+import type { ShardInput } from './kernel';
+import { AGE_BANDS, EDUS, N_COHORTS, RACES, SEXES, cohortAge, cohortEdu, cohortRace, cohortSex } from '../population/cohorts';
 
 const N_MODES = 4;
 
@@ -57,4 +61,75 @@ export function wirePriors(expBallots: Float64Array, parts: number, provReject: 
     prov[p] = expBallots[p * N_MODES + 3]! * (1 - provReject) * Math.exp(rng.normal(0, 0.3));
   }
   return { ed, prov };
+}
+
+// ---- Voter survey with crosstabs ------------------------------------------------------------------------
+
+export interface SurveyCrosstab { dim: 'age' | 'sex' | 'race' | 'edu'; groups: { label: string; pct: number; n: number; shares: number[] }[] }
+export interface SurveyResult { shares: number[]; nEff: number; crosstabs: SurveyCrosstab[] }
+
+const GH8 = gaussHermite(8);
+const DIM_LABELS = { age: AGE_BANDS, sex: SEXES, race: RACES, edu: EDUS } as const;
+const DIM_OF = { age: cohortAge, sex: cohortSex, race: cohortRace, edu: cohortEdu } as const;
+
+/**
+ * The voter survey with crosstabs: the electorate's expected composition by cohort and choice (analytic,
+ * from each county's cohort partisanship, turnout and the candidates' appeal), matched to the realized vote
+ * shares, biased by nonresponse along the race axis, then sampled. Toplines and crosstabs are the sample's
+ * estimates; the true composition stays simulation truth.
+ */
+export function voterSurveyCrosstabs(inp: ShardInput, contestIdx: number, cd: number, castValid: readonly number[], axis: readonly number[], bias: number, n: number, rng: Rng): SurveyResult | null {
+  const c = inp.contests[contestIdx]!; const J = c.options.length;
+  const tot = castValid.reduce((x, y) => x + y, 0);
+  if (tot <= 0 || J < 2) return null;
+  // County electorates (eligible voters in units that vote in the race).
+  const nC = inp.counties.turnout.length;
+  const vep = new Float64Array(nC);
+  for (let i = 0; i < inp.bus.count; i++) { if (cd >= 0 && inp.bus.cd[i] !== cd) continue; if (c.cd >= 0 && inp.bus.cd[i] !== c.cd) continue; vep[inp.bus.county[i]! - inp.counties.first]! += inp.bus.vep[i]!; }
+  const joint = new Float64Array(N_COHORTS * J), u = new Float64Array(J + 1);
+  for (let ci = 0; ci < nC; ci++) {
+    if (vep[ci]! <= 0) continue;
+    const county = inp.counties.first + ci;
+    for (let k = 0; k < N_COHORTS; k++) {
+      const share = inp.counties.joint[ci * N_COHORTS + k]!; if (share <= 0) continue;
+      const mu = inp.counties.mu[ci * N_COHORTS + k]!, sg = inp.sigma[k]!, h = inp.classOf[k]!, tk = inp.tau[k]! + inp.counties.turnout[ci]!;
+      for (let q = 0; q < GH8.x.length; q++) {
+        const z = mu + sg * GH8.x[q]!;
+        const pt = dlogistic(tk + inp.betaInt * Math.abs(z) + inp.enth * dtanh(z / 2));
+        let mx = c.abstain; u[J] = c.abstain;
+        for (let j = 0; j < J; j++) {
+          const o = c.options[j]!;
+          u[j] = c.weight * o.partySign * z + o.base + o.classFit[h]! - o.minorAppeal * Math.abs(z) + (o.homeState ? inp.homeStateBonus : 0) + (o.homeCounty === county ? inp.homeCountyBonus : 0);
+          if (u[j]! > mx) mx = u[j]!;
+        }
+        let s = 0; for (let j = 0; j <= J; j++) { u[j] = dexp(u[j]! - mx); s += u[j]!; }
+        const wgt = vep[ci]! * share * GH8.w[q]! * pt / s;
+        for (let j = 0; j < J; j++) joint[k * J + j]! += wgt * u[j]!;
+      }
+    }
+  }
+  // Match the realized toplines, then apply nonresponse bias along the race axis.
+  const target = castValid.map((v) => v / tot);
+  const a = axis.indexOf(1), b = axis.indexOf(-1);
+  if (a >= 0 && b >= 0) { const pair = target[a]! + target[b]!; target[a] = Math.min(pair, Math.max(0, target[a]! + 0.5 * bias * pair)); target[b] = pair - target[a]!; }
+  for (let j = 0; j < J; j++) {
+    let col = 0; for (let k = 0; k < N_COHORTS; k++) col += joint[k * J + j]!;
+    const f = col > 0 ? target[j]! / col : 0;
+    for (let k = 0; k < N_COHORTS; k++) joint[k * J + j]! *= f;
+  }
+  const nEff = Math.max(1, Math.round(n / 1.6)); // design effect of a clustered sample
+  const draw = rng.multinomial(nEff, joint, new Int32Array(joint.length));
+  const shares = new Array<number>(J).fill(0);
+  for (let k = 0; k < N_COHORTS; k++) for (let j = 0; j < J; j++) shares[j]! += draw[k * J + j]! / nEff;
+  const crosstabs: SurveyCrosstab[] = (['age', 'sex', 'race', 'edu'] as const).map((dim) => {
+    const labels = DIM_LABELS[dim], of = DIM_OF[dim];
+    return {
+      dim, groups: labels.map((label, gi) => {
+        const v = new Array<number>(J).fill(0); let m = 0;
+        for (let k = 0; k < N_COHORTS; k++) if (of(k) === gi) for (let j = 0; j < J; j++) { v[j]! += draw[k * J + j]!; m += draw[k * J + j]!; }
+        return { label, pct: m / nEff, n: Math.round((m * n) / nEff), shares: v.map((x) => (m > 0 ? x / m : 0)) };
+      }),
+    };
+  });
+  return { shares, nEff, crosstabs };
 }

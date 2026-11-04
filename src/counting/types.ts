@@ -69,9 +69,16 @@ export interface StateNight {
   wire: { time: Int32Array; race: Int32Array; expected: Float64Array };
   /** Desk events: (time, race, status, option index or −1, P×10⁴, flags). */
   events: { time: Int32Array; race: Int32Array; status: Uint8Array; option: Int16Array; option2: Int16Array; prob: Int16Array; flags: Uint8Array };
-  /** Voter-survey toplines per surveyed race (shares of the options, K−1). */
-  survey: { race: number; shares: number[]; n: number }[];
+  /** Expected ballots per part (wire) whenever an estimate moves: (time, part, expected). */
+  partWire: { time: Int32Array; part: Int32Array; expected: Int32Array };
+  /** Voter-survey toplines per surveyed race (shares of the options, K−1), with crosstabs. */
+  survey: SurveyTopline[];
   closeFirst: number; closeLast: number;
 }
 
 export const EVENT_POLLCLOSE_CALL = 1;  // flags bit: projection made at poll closing
+
+export interface SurveyTopline {
+  race: number; shares: number[]; n: number;
+  crosstabs?: { dim: 'age' | 'sex' | 'race' | 'edu'; groups: { label: string; pct: number; n: number; shares: number[] }[] }[];
+}

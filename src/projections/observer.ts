@@ -42,13 +42,14 @@ export interface ObsInput {
 
 export interface ObsOutput {
   wire: { time: number[]; race: number[]; expected: number[] };
+  partWire: { time: number[]; part: number[]; expected: number[] };
   events: { time: number[]; race: number[]; status: number[]; option: number[]; option2: number[]; prob: number[]; flags: number[] };
 }
 
 export function observe(inp: ObsInput): ObsOutput {
   const P = inp.parts.count;
   const rng = Rng.stream(inp.key, 'observers');
-  const out: ObsOutput = { wire: { time: [], race: [], expected: [] }, events: { time: [], race: [], status: [], option: [], option2: [], prob: [], flags: [] } };
+  const out: ObsOutput = { wire: { time: [], race: [], expected: [] }, partWire: { time: [], part: [], expected: [] }, events: { time: [], race: [], status: [], option: [], option2: [], prob: [], flags: [] } };
 
   // ---- Wire: priors per part and mode -----------------------------------------------------------------
   const priorEd = inp.wirePrior.ed, priorProv = inp.wirePrior.prov, priorMailExtra = new Float64Array(P), priorLate = new Float64Array(P);
@@ -59,6 +60,7 @@ export function observe(inp: ObsInput): ObsOutput {
     priorLate[p] = base * (lateShare / Math.max(0.05, 1 - edShare - lateShare)) * Math.exp(rng.normal(0, 0.4));
   }
   const counted = new Float64Array(P * N_MODES), precDone = new Int32Array(P);
+  const lastPart = new Float64Array(P).fill(-1);
   const provSeen = new Uint8Array(P);
   let mailKnown = false; // after the first full day the wire learns each office's count of ballots still on hand
   let final = false;     // canvass complete: every count is final
@@ -273,9 +275,19 @@ export function observe(inp: ObsInput): ObsOutput {
         affected.add(ri);
       }
     }
+    // The wire's estimate per part, recorded when it moves by more than 2% (or the part is first reported).
+    const touched = new Set<number>();
+    for (let q = b; q < e; q++) for (const pr of inp.batch.partRows[q]!) touched.add(inp.partRows.part[pr]!);
+    const wasKnown = mailKnown, wasFinal = final;
     if (!mailKnown && t >= inp.lastClose + 18 * 60) mailKnown = true;
     if (!final && t >= inp.lastClose + inp.rules.canvassDays * 1440) final = true;
     updateStRatio();
+    const parts = mailKnown !== wasKnown || final !== wasFinal ? Array.from({ length: P }, (_, p) => p) : [...touched].sort((x, y) => x - y);
+    for (const p of parts) {
+      let est = 0; for (let m = 0; m < N_MODES; m++) est += wireEst(p, m)[0];
+      const prev = lastPart[p]!;
+      if (prev < 0 || Math.abs(est - prev) > 0.02 * Math.max(1, prev)) { lastPart[p] = est; out.partWire.time.push(t); out.partWire.part.push(p); out.partWire.expected.push(Math.round(est)); }
+    }
     while (ci < closes.length && closes[ci]!.t === t) { const { ri } = closes[ci++]!; pollClose(races[ri]!, ri, t); affected.delete(ri); }
     // Desks re-evaluate a race at most every 2 minutes (15 once projected), and always when a projection is due.
     for (const ri of [...affected].sort((x, y) => x - y)) {

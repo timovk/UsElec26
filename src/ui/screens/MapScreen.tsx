@@ -3,6 +3,7 @@ import type { EntityDetail, GeoMeta, MapLayer, MapLayerDto, MapMetric, ResultsMa
 import { LEGEND_MARGIN, MARGIN_STOPS, MapRenderer, loadBasemap, marginColor, partyShareColor, type Basemap } from '../map/renderer';
 import { useQuery } from './Desk';
 import { OfficeHolder, PARTY_COLORS, PARTY_NAME, Truth, fmtInt, fmtLean } from '../components/common';
+import { MODES, MODE_CAPTION, areaColor, areaValue, legendOf, type Area, type MapMode } from '../night/mapModes';
 
 let basemapPromise: Promise<Basemap> | null = null;
 const getBasemap = () => (basemapPromise ??= loadBasemap(import.meta.env.BASE_URL));
@@ -25,6 +26,8 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
   const years = useQuery<number[]>({ kind: 'electionYears' });
   const [year, setYear] = useState<number | null>(initial?.year ?? null);
   const [office, setOffice] = useState<ResultsOffice>('president');
+  const [mode, setMode] = useState<MapMode>('margin');
+  const [shareParty, setShareParty] = useState(1);
   const resYear = year ?? years?.find((y) => y % 2 === 0) ?? null;
   const results = useQuery<ResultsMapDto | null>(view === 'results' && resYear ? { kind: 'resultsMap', year: resYear, office, layer } : { kind: 'electionYears' }, [view, resYear, office, layer]);
   const res = results && !Array.isArray(results) && 'values' in results ? results : null;
@@ -69,7 +72,7 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
     if (view === 'results') {
       if (!res || res.layer !== layer) return;
       r.layer = geom;
-      r.fills = geom.ids.map((id) => { const i = map.get(id); return i === undefined ? null : marginColor(res.values[i] ?? null); });
+      r.fills = geom.ids.map((id) => { const i = map.get(id); if (i === undefined) return null; const a = resultArea(res, i); return a ? areaColor(mode, a, shareParty) : res.cells ? null : marginColor(res.values[i] ?? null); });
       r.drawCountyMesh = layer === 'county';
       r.highlight = selected && selected.layer === layer ? geom.ids.findIndex((id) => map.get(id) === selected.idx) : -1;
       r.draw(); return;
@@ -81,7 +84,7 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
     r.highlight = selected && selected.layer === layer ? geom.ids.findIndex((id) => map.get(id) === selected.idx) : -1;
     r.draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, layer, metric, idToIdx, basemap, selected, view, res]);
+  }, [data, layer, metric, idToIdx, basemap, selected, view, res, mode, shareParty]);
 
   // interactions
   useEffect(() => {
@@ -104,8 +107,8 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
       const idx = map.get(geom.ids[i]!);
       if (idx === undefined) { setTip(null); return; }
       const name = layer === 'state' ? meta.states[idx]!.name : layer === 'county' ? `${meta.counties[idx]!.name}, ${meta.states[meta.counties[idx]!.stateIdx]!.usps}` : meta.cds[idx]!.label;
-      const rv = view === 'results' ? res?.values[idx] ?? null : null;
-      setTip({ x: e.offsetX + 14, y: e.offsetY + 12, text: view === 'results' ? `${name} — ${rv === null ? 'No contest' : fmtLean(rv)}` : `${name} — ${valueLabel(data.values[idx] ?? null)}` });
+      const ra = view === 'results' && res ? resultArea(res, idx) : null;
+      setTip({ x: e.offsetX + 14, y: e.offsetY + 12, text: view === 'results' ? `${name} — ${ra ? modeLabel(mode, ra, shareParty) : 'No contest'}` : `${name} — ${valueLabel(data.values[idx] ?? null)}` });
     };
     const onUp = (e: PointerEvent) => {
       canvas.classList.remove('dragging');
@@ -120,7 +123,7 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
     canvas.addEventListener('pointermove', onMove); canvas.addEventListener('pointerup', onUp); canvas.addEventListener('pointerleave', onLeave);
     return () => { canvas.removeEventListener('wheel', onWheel); canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointermove', onMove); canvas.removeEventListener('pointerup', onUp); canvas.removeEventListener('pointerleave', onLeave); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basemap, idToIdx, layer, meta, data, metric, view, res]);
+  }, [basemap, idToIdx, layer, meta, data, metric, view, res, mode, shareParty]);
 
   const zoom = (f: number) => { const r = rendererRef.current, c = canvasRef.current; if (!r || !c) return; r.zoomAt(c.width / 2, c.height / 2, f); r.draw(); };
   const zoomToSelected = () => {
@@ -141,7 +144,9 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
           <div className="seg" role="group" aria-label="View"><button className={view === 'current' ? 'on' : ''} onClick={() => setView('current')}>Today</button><button className={view === 'results' ? 'on' : ''} onClick={() => setView('results')} disabled={!years?.length}>Election results</button></div>
           {view === 'current' ? <div className="seg" role="group" aria-label="Metric">{METRICS.map((m) => <button key={m.id} className={metric === m.id ? 'on' : ''} onClick={() => setMetric(m.id)}>{m.label}</button>)}</div> : <>
             <select value={resYear ?? ''} onChange={(e) => setYear(Number(e.target.value))} aria-label="Election year">{years?.map((y) => <option key={y} value={y}>{y}</option>)}</select>
-            <div className="seg" role="group" aria-label="Office">{RESULT_OFFICES.map((o) => <button key={o.id} className={office === o.id ? 'on' : ''} onClick={() => setOffice(o.id)}>{o.label}</button>)}</div></>}
+            <div className="seg" role="group" aria-label="Office">{RESULT_OFFICES.map((o) => <button key={o.id} className={office === o.id ? 'on' : ''} onClick={() => setOffice(o.id)}>{o.label}</button>)}</div>
+            <select aria-label="Map mode" value={mode} onChange={(e) => setMode(e.target.value as MapMode)}>{MODES.filter((m) => m.needs !== 'expected').map((m) => <option key={m.id} value={m.id} disabled={(m.needs === 'baseline' && !res?.cells?.base) || (m.needs === 'eligible' && !res?.cells?.eligible)}>{m.label}{m.needs === 'baseline' && !res?.cells?.base ? ' (no earlier election)' : ''}</option>)}</select>
+            {mode === 'share' && <select aria-label="Candidate party" value={shareParty} onChange={(e) => setShareParty(Number(e.target.value))}><option value={1}>Democratic share</option><option value={2}>Republican share</option></select>}</>}
         </div>
       </div>
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1fr) 330px', alignItems: 'start' }}>
@@ -156,7 +161,10 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
             </div>
           </div>
           <div className="row between wrap" style={{ marginTop: 8 }}>
-            {view === 'results' || metric === 'lean' ? (
+            {view === 'results' && res?.cells ? (
+              <div className="legend" aria-label="Legend">{legendOf(mode, shareParty).map((l, i) => <span key={i} className="row" style={{ gap: 3 }}><span className="sw" style={{ background: l.color }} />{l.label}</span>)}
+                {(mode === 'swing' || mode === 'turnoutChange') && res.cells.base && <span style={{ marginLeft: 8 }}>vs {res.cells.base.label}</span>}</div>
+            ) : view === 'results' || metric === 'lean' ? (
               <div className="legend" aria-label="Legend">
                 <span>R+30</span>{[...LEGEND_MARGIN.r].reverse().map((c) => <span key={c} className="sw" style={{ background: c }} />)}
                 {LEGEND_MARGIN.d.map((c) => <span key={c} className="sw" style={{ background: c }} />)}<span>D+30</span>
@@ -165,7 +173,7 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
             ) : (
               <div className="legend"><span className="sw" style={{ background: '#1f5fd6' }} /> Democratic <span className="sw" style={{ background: '#8a5fc4', marginLeft: 8 }} /> Split <span className="sw" style={{ background: '#d7263d', marginLeft: 8 }} /> Republican</div>
             )}
-            <div className="row">{view === 'results' ? <span className="badge record">Archived results · {resYear}</span> : data?.provenance === 'simulationTruth' ? <Truth /> : <span className="badge record">Officeholders on this date</span>}<span className="tiny muted">{view === 'results' ? res?.legend : data?.legend}</span></div>
+            <div className="row">{view === 'results' ? <span className="badge record">Archived results · {resYear}</span> : data?.provenance === 'simulationTruth' ? <Truth /> : <span className="badge record">Officeholders on this date</span>}<span className="tiny muted">{view === 'results' ? (mode === 'margin' || !res?.cells ? res?.legend : `${MODE_CAPTION[mode]}${res.legend.includes('so far') ? ' · count in progress (unofficial)' : ''}`) : data?.legend}</span></div>
           </div>
           <p className="tiny muted">Boundaries: U.S. Census Bureau cartographic boundary files (2016 vintage), 115th Congress districts. Scroll or use ＋/－ to zoom, drag to pan, click for details.</p>
         </div>
@@ -192,4 +200,26 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
       </div>
     </>
   );
+}
+
+/** One area of an archived results map as a map-mode area (certified results: the leader is the winner). */
+function resultArea(res: ResultsMapDto, i: number): Area | null {
+  const c = res.cells; if (!c || !c.has[i]) return null;
+  const d = c.d[i]!, r = c.r[i]!, valid = c.valid[i]!, other = Math.max(0, valid - d - r), lead = c.lead[i]!;
+  const parties = [1, 2, lead !== 1 && lead !== 2 && lead ? lead : 5];
+  const b = c.base && c.base.has[i] ? { d: c.base.d[i]!, r: c.base.r[i]!, valid: c.base.valid[i]!, ballots: c.base.ballots?.[i] ?? 0, eligible: c.base.eligible?.[i] ?? 0 } : null;
+  return { votes: [d, r, other, 0], parties, expected: c.ballots?.[i] ?? 0, called: lead === 1 ? 0 : lead === 2 ? 1 : lead ? 2 : -1, closed: true, eligible: c.eligible?.[i] ?? 0, base: b };
+}
+
+function modeLabel(mode: MapMode, a: Area, shareParty: number): string {
+  const v = areaValue(mode === 'winner' ? 'margin' : mode, a, shareParty);
+  if (v === null) return 'no data';
+  switch (mode) {
+    case 'winner': case 'margin': return fmtLean(v);
+    case 'swing': return `${v >= 0 ? 'D' : 'R'} +${Math.abs(v).toFixed(1)} swing`;
+    case 'turnout': return `${v.toFixed(1)}% turnout`;
+    case 'turnoutChange': return `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)} pts turnout`;
+    case 'share': return `${v.toFixed(1)}% ${shareParty === 1 ? 'Democratic' : 'Republican'}`;
+    default: return '';
+  }
 }

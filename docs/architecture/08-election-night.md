@@ -9,6 +9,13 @@
 > dashboard in Phase 4; (5) alerts and commentary (§8.6) are Phase 4; the functional night view lists desk events instead;
 > (6) glitches are published short and corrected upward, so running totals never exceed the final count.
 
+> **Phase 4 status:** alerts and commentary implemented — see [../phase-4-report.md](../phase-4-report.md). As built: the
+> pipeline of §8.6 runs once at the ballot lock (`src/broadcast/story.ts`) with facts from the record and the archive
+> (`src/engine/nightStory.ts`) and is stored in night record v2, so replays are word-for-word identical; records sealed before
+> Phase 4 get their story on first load. v1 has 2–8 templates per story type rather than 10–30. Over-performance and bellwether
+> stories, and an explicit paths-to-270 analysis, are not yet implemented (electoral milestones stand in). The voter survey now
+> carries crosstabs (age, sex, race, education), and the wire publishes expected vote per part (`partWire`).
+
 ## 8.1 Pipeline
 
 ```mermaid

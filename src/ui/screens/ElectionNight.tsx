@@ -1,43 +1,35 @@
 /**
- * Election Night (functional view; the full broadcast presentation arrives in Phase 4). Plays the sealed
- * night record in the Broadcast Worker. Live viewing follows the universe clock: playing at the live edge
- * advances the universe; going back is a replay of the original record; skipping ahead asks first.
+ * Election Night: the sealed night record played in the Broadcast Worker, in three views — Broadcast (the
+ * network presentation), Desk (the functional results desk) and Analyst (the data behind the calls).
+ * Live viewing follows the universe clock; going back is a replay of the original record.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { engine } from '../state/engineClient';
-import { BroadcastClient } from '../state/broadcastClient';
-import { useApp } from '../state/store';
+import { surname } from '../../core/names';
+import { useMemo, useRef, useState } from 'react';
 import type { GeoMeta, NightFrameDto, NightListItem, NightMarker, NightMetaDto, NightRaceFrame, NightTally } from '../../engine/protocol';
-import { formatDate, formatTime } from '../../core/time';
-import { MapRenderer, loadBasemap, type Basemap } from '../map/renderer';
+import { formatDate } from '../../core/time';
+import { MapRenderer, type Basemap } from '../map/renderer';
 import { PARTY_COLORS, PARTY_NAME, PartyBadge, fmtInt } from '../components/common';
 import { useQuery } from './Desk';
 import { go } from '../app/router';
+import { useEffect } from 'react';
+import { ET, SPEEDS, ST, clock, leaderOf, useNight, type NightState } from '../night/useNight';
+import { getBasemap } from '../night/NightMap';
+import { Broadcast } from '../night/Broadcast';
+import { Analyst } from '../night/Analyst';
 
-const ET = 'America/New_York';
-const SPEEDS = [1, 10, 30, 60, 120, 300, 600];
-const ST = { NONE: 0, EARLY: 1, CLOSE: 2, CALLED: 3, WITHDRAWN: 4, RUNOFF: 5 };
 const STATUS_LABEL = ['Polls open', 'Too early to call', 'Too close to call', 'Projected', 'Projection withdrawn', 'Runoff projected'];
 const SHORT_STATUS = ['Polls open', 'Too early', 'Too close', 'Projected', 'Withdrawn', 'Runoff'];
 const OFFICES: { id: string; label: string }[] = [{ id: 'president', label: 'President' }, { id: 'us_senator', label: 'Senate' }, { id: 'governor', label: 'Governor' }, { id: 'us_representative', label: 'House' }, { id: 'other', label: 'Other statewide' }];
 const PALE: Record<number, string> = { 1: '#7ea3ea', 2: '#ec8a96', 3: '#e9c867', 4: '#7cc59a', 5: '#b3b7c2' };
-
-let basemapPromise: Promise<Basemap> | null = null;
-const getBasemap = () => (basemapPromise ??= loadBasemap(import.meta.env.BASE_URL));
-
-const clock = (t: number) => formatTime(Math.floor(t), ET);
-const leaderOf = (r: NightRaceFrame | undefined, k: number) => {
-  if (!r) return -1;
-  let best = -1, bv = 0; for (let j = 0; j < k - 1; j++) if ((r.v[j] ?? 0) > bv) { bv = r.v[j]!; best = j; }
-  return best;
-};
+const VIEWS = [{ id: 'broadcast', label: 'Broadcast' }, { id: 'desk', label: 'Desk' }, { id: 'analyst', label: 'Analyst' }] as const;
+type View = typeof VIEWS[number]['id'];
 
 const ofOffice = (o: string) => (o === 'other' ? (x: NightMetaDto['races'][number]) => !['president', 'us_senator', 'governor', 'us_representative'].includes(x.office) : (x: NightMetaDto['races'][number]) => x.office === o);
 
 const NO_NIGHT_NOTE = 'General elections, special elections and general runoffs are counted on election night. Primaries are still decided when their polls close (their nights arrive with Phase 5).';
 
-/** Picks the night to show — the one in the address (#/night/<id>), otherwise the latest — and remounts the view per night. */
-export function ElectionNight({ id }: { id?: number }) {
+/** Picks the night to show — the one in the address (#/night/<id>/<view>), otherwise the latest — and remounts per night. */
+export function ElectionNight({ id, view }: { id?: number; view?: string }) {
   const nights = useQuery<NightListItem[]>({ kind: 'nights' });
   if (!nights) return <p className="muted">Loading…</p>;
   if (!nights.length) return (
@@ -46,105 +38,36 @@ export function ElectionNight({ id }: { id?: number }) {
       <p className="tiny muted">{NO_NIGHT_NOTE}</p></>
   );
   const nightId = id !== undefined && nights.some((n) => n.id === id) ? id : nights[0]!.id;
-  return <NightView key={nightId} nightId={nightId} nights={nights} />;
+  const v: View = VIEWS.some((x) => x.id === view) ? view as View : 'broadcast';
+  return <NightShell key={nightId} nightId={nightId} nights={nights} view={v} />;
 }
 
-function NightView({ nightId, nights }: { nightId: number; nights: NightListItem[] }) {
-  const { time: edge, toast } = useApp();
-  const [meta, setMeta] = useState<NightMetaDto | null>(null);
-  const [geo, setGeo] = useState<GeoMeta | null>(null);
-  const bc = useRef<BroadcastClient | null>(null);
-  const [ready, setReady] = useState(false);
-  const [markers, setMarkers] = useState<NightMarker[]>([]);
-  const [userT, setT] = useState<number | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(60);
+function NightShell({ nightId, nights, view }: { nightId: number; nights: NightListItem[]; view: View }) {
+  const n = useNight(nightId);
+  const picker = (
+    <select aria-label="Choose an election night" value={nightId} onChange={(e) => go(`night/${e.target.value}/${view}`)}>
+      {nights.map((x) => <option key={x.id} value={x.id}>{x.date} · {x.label}</option>)}
+    </select>
+  );
+  const tabs = <div className="seg" role="tablist" aria-label="Election night view">{VIEWS.map((x) => <button key={x.id} role="tab" aria-selected={view === x.id} className={view === x.id ? 'on' : ''} onClick={() => go(`night/${nightId}/${x.id}`)}>{x.label}</button>)}</div>;
+  return (
+    <div className={`night${view === 'broadcast' ? ' fill' : ''}`}>
+      {view !== 'broadcast' && <div className="night-tabs">{tabs}{picker}</div>}
+      {!n ? <p className="muted">Loading the night record…</p>
+        : view === 'broadcast' ? <Broadcast n={n} picker={picker} tabs={tabs} />
+        : view === 'analyst' ? <Analyst n={n} />
+        : <DeskView n={n} />}
+    </div>
+  );
+}
+
+function DeskView({ n }: { n: NightState }) {
+  const { meta, geo, markers, races, tally, t, edge, live, beforeCoverage, focus, setFocus, focusData } = n;
   const [days, setDays] = useState(false);
-  const [races, setRaces] = useState<NightRaceFrame[]>([]);
-  const [tally, setTally] = useState<{ president: NightTally; senate: NightTally; house: NightTally; control: NightFrameDto['control'] } | null>(null);
-  const [focus, setFocus] = useState<number | null>(null);
-  const [byRj, setByRj] = useState<[number, number[]][] | null>(null);
   const [office, setOffice] = useState('president');
   const [filter, setFilter] = useState<'all' | 'open' | 'called'>('all');
   const [search, setSearch] = useState('');
-  const advancing = useRef(false);
-
-  // Load the record into the Broadcast Worker.
-  useEffect(() => {
-    if (!nightId) return;
-    const c = new BroadcastClient(); bc.current = c;
-    let live = true;
-    Promise.all([engine.query<NightMetaDto>({ kind: 'nightMeta', id: nightId }), engine.query<GeoMeta>({ kind: 'geoMeta' }), engine.query<{ bytes: Uint8Array }>({ kind: 'nightPayload', id: nightId })])
-      .then(async ([m, g, p]) => { if (!live) return; setMeta(m); setGeo(g); await c.load(p.bytes); setMarkers(await c.markers()); setReady(true); })
-      .catch((e: Error) => toast(e.message, 'error'));
-    return () => { live = false; c.terminate(); bc.current = null; };
-  }, [nightId, toast]);
-
-  // Start position (until the user moves): the live edge clamped to coverage, or the start of coverage for a replay.
-  const start = meta && edge !== null ? (edge >= meta.feedEnd ? meta.coverageStart : Math.max(meta.coverageStart, Math.min(edge, meta.feedEnd))) : null;
-  const pos = userT ?? start;
-  const startRef = useRef(start);
-  useEffect(() => { startRef.current = start; }, [start]);
-
-  // Frames for the current position.
-  const tMin = pos === null ? null : Math.floor(pos);
-  const inFlight = useRef(false), wanted = useRef<{ t: number; focus: number | null } | null>(null);
-  useEffect(() => {
-    if (!ready || tMin === null || !bc.current) return;
-    wanted.current = { t: Math.min(tMin, edge ?? tMin), focus };
-    const pump = async () => {
-      if (inFlight.current || !wanted.current || !bc.current) return;
-      const w = wanted.current; wanted.current = null; inFlight.current = true;
-      try {
-        const f = await bc.current.frame(w.t, w.focus);
-        setRaces((prev) => { const next = prev.length ? [...prev] : []; for (const r of f.races) next[r.i] = r; return next; });
-        setTally({ president: f.president, senate: f.senate, house: f.house, control: f.control });
-        setByRj(f.focus?.byRj ?? null);
-      } catch { /* the worker was replaced */ } finally { inFlight.current = false; if (wanted.current) void pump(); }
-    };
-    void pump();
-  }, [ready, tMin, focus, edge]);
-
-  // Live playback: playing at the live edge advances the universe clock.
-  useEffect(() => {
-    if (!playing || !meta) return;
-    const iv = setInterval(() => {
-      setT((prev) => {
-        const cur = prev ?? startRef.current;
-        if (cur === null) return prev;
-        const next = Math.min(cur + (speed * 0.1) / 60, meta.feedEnd);
-        if (next >= meta.feedEnd) setPlaying(false);
-        if (edge !== null && next > edge) {
-          if (!advancing.current) {
-            advancing.current = true;
-            const target = Math.min(meta.feedEnd + 1, Math.ceil(next + (speed * 2) / 60));
-            engine.request({ type: 'advance', target: { kind: 'until', time: target } }).catch((e: Error) => toast(e.message, 'error')).finally(() => { advancing.current = false; });
-          }
-          return Math.max(cur, Math.min(next, edge));
-        }
-        return next;
-      });
-    }, 100);
-    return () => clearInterval(iv);
-  }, [playing, speed, meta, edge, toast]);
-
-  const seek = async (x: number) => {
-    if (!meta) return;
-    const target = Math.max(meta.coverageStart - 60, Math.min(meta.feedEnd, x));
-    if (edge !== null && target > edge + 1) {
-      if (!confirm(`Skip ahead to ${formatDate(target, ET)} ${clock(target)}? This advances the universe and reveals the count up to then.`)) return;
-      setPlaying(false);
-      try { await engine.request({ type: 'advance', target: { kind: 'until', time: Math.ceil(target) } }); } catch (e) { toast((e as Error).message, 'error'); return; }
-    }
-    setT(target);
-  };
-
-  if (!meta || pos === null || edge === null) return <p className="muted">Loading the night record…</p>;
-  const t = pos;
-
-  // Live while following the universe clock (playback may trail the clock by the advance lookahead).
-  const live = edge < meta.feedEnd && t >= edge - Math.max(2, (speed * 3) / 60);
-  const beforeCoverage = edge < meta.coverageStart;
+  const seek = (x: number) => void n.seek(x);
   const rangeEnd = days ? meta.feedEnd : meta.nightEnd;
   const r = (i: number) => races[i];
   // Offices on this night's ballots; the list and the map fall back to what the night actually has (a special may be House only).
@@ -164,38 +87,33 @@ function NightView({ nightId, nights }: { nightId: number; nights: NightListItem
   const past = markers.filter((m) => m.time <= t && (m.kind !== 'call' || ['president', 'us_senator', 'governor'].includes(meta.races[m.race]?.office ?? ''))
     && (m.kind !== 'control' || atStake(tally?.control[m.race]?.kind))).slice(-40).reverse();
   const focused = focus !== null ? meta.races[focus] : undefined;
+  const byRj = focusData && focus !== null && focusData.race === focus ? [...focusData.byRj] : null;
 
   return (
-    <div className="night">
+    <div>
       <div className="night-head">
         <div>
-          <div className="row" style={{ gap: 8 }}>
-            <span className="kicker">{meta.network} Election Night</span>
-            <select aria-label="Choose an election night" value={nightId} onChange={(e) => go(`night/${e.target.value}`)} style={{ maxWidth: 320 }}>
-              {nights.map((n) => <option key={n.id} value={n.id}>{n.date} · {n.label}</option>)}
-            </select>
-          </div>
+          <span className="kicker">{meta.network} Election Night · Desk</span>
           <div className="night-clock">{clock(t)} <span className="tiny muted">{formatDate(Math.floor(t), ET)}</span></div>
         </div>
         <span className={`badge ${live ? 'live' : 'replay'}`}>{live ? '● LIVE' : 'REPLAY'}</span>
         <div className="row wrap" style={{ marginLeft: 'auto', gap: 6 }}>
-          <button className="btn small" onClick={() => void seek(meta.coverageStart)} title="Back to 5:00 pm ET">⏮</button>
-          <button className="btn primary small" aria-label={playing ? "Pause the night" : "Play the night"} onClick={() => setPlaying(!playing)} disabled={beforeCoverage}>{playing ? "❚❚ Pause" : "▶ Play"}</button>
-          <select aria-label="Night playback speed" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>{SPEEDS.map((s) => <option key={s} value={s}>{s}×</option>)}</select>
-          <button className="btn small" disabled={!next('close')} onClick={() => { const m = next('close'); if (m) void seek(m.time); }}>Next poll closing ⇥</button>
-          <button className="btn small" disabled={!next('call')} onClick={() => { const m = next('call'); if (m) void seek(m.time); }}>Next projection ⇥</button>
-          <button className="btn small" onClick={() => void seek(meta.nightEnd)}>6 am ⇥</button>
+          <button className="btn small" onClick={() => seek(meta.coverageStart)} title="Back to 5:00 pm ET">⏮</button>
+          <button className="btn primary small" aria-label={n.playing ? 'Pause the night' : 'Play the night'} onClick={() => n.setPlaying(!n.playing)} disabled={beforeCoverage}>{n.playing ? '❚❚ Pause' : '▶ Play'}</button>
+          <select aria-label="Night playback speed" value={n.speed} onChange={(e) => n.setSpeed(Number(e.target.value))}>{SPEEDS.map((s) => <option key={s} value={s}>{s}×</option>)}</select>
+          <button className="btn small" disabled={!next('close')} onClick={() => { const m = next('close'); if (m) seek(m.time); }}>Next poll closing ⇥</button>
+          <button className="btn small" disabled={!next('call')} onClick={() => { const m = next('call'); if (m) seek(m.time); }}>Next projection ⇥</button>
+          <button className="btn small" onClick={() => seek(meta.nightEnd)}>6 am ⇥</button>
           <label className="small muted"><input type="checkbox" checked={days} onChange={(e) => setDays(e.target.checked)} /> days after</label>
         </div>
       </div>
-      <Timeline start={meta.coverageStart} end={rangeEnd} t={t} edge={edge} markers={markers} onSeek={(x) => void seek(x)} />
+      <Timeline start={meta.coverageStart} end={rangeEnd} t={t} edge={edge} markers={markers} onSeek={seek} />
       {beforeCoverage && (
         <div className="card" style={{ margin: '10px 0' }}>
           <strong>Polls are open.</strong> <span className="muted">Coverage begins at 5:00 pm ET; the first polls close at {clock(Math.min(...meta.states.map((s) => s.closeFirst)))}.</span>{' '}
-          <button className="btn primary small" onClick={() => { void engine.request({ type: 'advance', target: { kind: 'until', time: meta.coverageStart } }).then(() => setT(meta.coverageStart)); }}>Start coverage at 5:00 pm ET</button>
+          <button className="btn primary small" onClick={n.startCoverage}>Start coverage at 5:00 pm ET</button>
         </div>
       )}
-
       <div className="night-grid">
         <section className="card night-map">
           <NightMap geo={geo} meta={meta} races={races} presByState={presByState} onPick={(s) => { const i = presByState.get(s); if (i !== undefined) setFocus(i); }} />
@@ -242,7 +160,7 @@ function NightView({ nightId, nights }: { nightId: number; nights: NightListItem
           ))}
         </section>
       </div>
-      <p className="tiny muted">{NO_NIGHT_NOTE} Functional election-night view (Phase 3). Calls are made by the fictional MNN decision desk from the count, the voter survey and pre-election information; the full broadcast presentation, commentary and Key Race Alerts arrive in Phase 4.</p>
+      <p className="tiny muted">{NO_NIGHT_NOTE} Calls are made by the fictional MNN decision desk from the count, the voter survey and pre-election information.</p>
     </div>
   );
 }
@@ -283,7 +201,7 @@ function RaceBoard({ m, f, byRj, rjs, onClose }: { m: NightMetaDto['races'][numb
       <div className="small muted" style={{ marginTop: 4 }}>
         {valid ? <>Lead {fmtInt(lead)} · </> : null}≈ {f && f.e ? Math.min(100, Math.floor(100 * ballots / f.e)) : 0}% of expected vote counted · {fmtInt(f?.pr ?? 0)} of {fmtInt(m.precincts)} precincts reporting
       </div>
-      {rows.length > 0 && <div className="night-rj"><table className="data"><thead><tr><th>Reporting</th>{order.slice(0, 2).map((o) => <th key={o.j}>{o.c.name.split(' ').slice(-1)[0]}</th>)}<th>Votes</th></tr></thead><tbody>
+      {rows.length > 0 && <div className="night-rj"><table className="data"><thead><tr><th>Reporting</th>{order.slice(0, 2).map((o) => <th key={o.j}>{surname(o.c.name)}</th>)}<th>Votes</th></tr></thead><tbody>
         {rows.slice(0, 60).map((x) => { const tv = x.v.slice(0, m.k - 1).reduce((a, b) => a + b, 0); return <tr key={x.rj}><td className="small">{rjs[x.rj] ?? x.rj}</td>{order.slice(0, 2).map((o) => <td key={o.j} className="num small">{tv ? (100 * (x.v[o.j] ?? 0) / tv).toFixed(1) : '–'}%</td>)}<td className="num small muted">{fmtInt(x.tot)}</td></tr>; })}
       </tbody></table></div>}
     </div>

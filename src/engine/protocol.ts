@@ -3,6 +3,8 @@
  * Types only — imported by both sides.
  */
 import type { SimTime } from '../core/time';
+import type { Story } from '../counting/record';
+export type { Story, StoryAlert, StoryLine } from '../counting/record';
 
 export type AdvanceTargetMsg = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number } | { kind: 'nextElection' };
 
@@ -44,13 +46,34 @@ export type Query =
 export type NightQuery =
   | { kind: 'nights' }
   | { kind: 'nightMeta'; id: number }
-  | { kind: 'nightPayload'; id: number };
+  | { kind: 'nightPayload'; id: number }
+  | { kind: 'nightContext'; id: number }
+  | { kind: 'nightBaseline'; id: number; race: number }
+  | { kind: 'nightSurvey'; id: number; race: number }
+  | { kind: 'nightCalls'; id: number };
+
+/** The voter survey of a race (toplines and crosstabs in ballot order), as published on the night. */
+export interface SurveyDto { n: number; shares: number[]; crosstabs: { dim: string; groups: { label: string; pct: number; n: number; shares: number[] }[] }[] }
+/** Every desk call of a night, for the calls timeline. */
+export interface NightCallDto { time: SimTime; race: number; contestId: number; label: string; short: string; office: string; status: number; party: number; name: string; pct: number; pollClose: boolean }
+
+/** A previous comparable result (for swing and turnout change): D and R votes, valid votes, ballots, eligible. */
+export interface BaselineDto { contestId: number; label: string; year: number; d: number; r: number; valid: number; ballots: number; eligible: number }
+/** Map context for a night: eligible voters by county and state, and each race's previous comparable result. */
+export interface NightContextDto {
+  eligibleCounty: Record<number, number>; eligibleState: Record<number, number>;
+  baselines: Record<number, BaselineDto>;
+}
+/** A baseline result by county: [D, R, valid, ballots, eligible]. */
+export type BaselineCountiesDto = Record<number, [number, number, number, number, number]> | null;
 
 export interface NightListItem { id: number; label: string; kind: string; day: number; date: string; lockTime: SimTime; coverageStart: SimTime; nightEnd: SimTime; feedEnd: SimTime }
 export interface NightCandidate { candidacyId: number; personId: number; name: string; party: number; incumbent: boolean }
 export interface NightRaceMeta {
   i: number; contestId: number; label: string; short: string; office: string; state: string; stateIdx: number; cd: number; ev: number; k: number;
   candidates: NightCandidate[]; precincts: number; close: SimTime;
+  /** Congressional district index of a House race (null otherwise). */
+  district: number | null;
 }
 export interface NightChamberBase { holdovers: Record<number, number>; seats: number; majority: number }
 export interface NightMetaDto {
@@ -61,13 +84,26 @@ export interface NightMetaDto {
   network: string;
   /** Names of the reporting jurisdictions in the record (county, town or Alaska district). */
   rjs: Record<number, string>;
+  /** County of each reporting jurisdiction (towns map to their county; Alaska's districts have none). */
+  rjCounty: Record<number, number>;
+  /** Alerts and commentary for the night (docs/architecture/08 §8.6). */
+  story: Story;
 }
 
 /** Messages to the Broadcast Worker (playback of a sealed night record). */
 export type BroadcastRequest =
   | { type: 'load'; payload: Uint8Array }
   | { type: 'frame'; t: number; focus: number | null; full?: boolean }
-  | { type: 'markers' };
+  | { type: 'markers' }
+  | { type: 'raceDetail'; race: number; t: number; truth: boolean };
+/** One race in detail (Analyst Mode); `final` is the end of the count (simulation truth until then), only on request. */
+export interface RaceDetailDto {
+  batches: { time: number; rj: number; mode: number; votes: number[] }[];
+  byMode: number[][];
+  events: { time: number; status: number; option: number; prob: number; ballots: number; expected: number }[];
+  history: { time: number; ballots: number; votes: number[] }[];
+  final: number[] | null;
+}
 export interface NightRaceFrame { i: number; s: number; o: number; o2: number; p: number; b: number; e: number; pr: number; v: number[]; ca: number; pc: boolean }
 export interface NightTally { called: Record<number, number>; leading: Record<number, number> }
 export interface NightFrameDto {
@@ -75,7 +111,8 @@ export interface NightFrameDto {
   races: NightRaceFrame[];
   president: NightTally; senate: NightTally; house: NightTally;
   control: { kind: string; party: number; person: number | null; time: SimTime; detail: string; status: number }[];
-  focus: { race: number; byRj: [number, number[]][] } | null;
+  /** The focused race by reporting jurisdiction: counted votes (ballot order + undervotes) and the wire's expected ballots. */
+  focus: { race: number; byRj: [number, number[]][]; expected: [number, number][] } | null;
 }
 export interface NightMarker { time: SimTime; kind: 'close' | 'call' | 'control'; race: number }
 
@@ -162,7 +199,15 @@ export interface ElectionListItem {
   id: number; day: number; date: string; kind: string; label: string; status: string; stateUsps: string | null; year: number;
   /** The election night that counted this election (null for primaries and elections held before Phase 3). */
   nightId: number | null;
-  contests: { id: number; label: string; kind: string; office: string; status: string; winner: CandidateDto | null; margin: number | null }[];
+  contests: {
+    id: number; label: string; kind: string; office: string; status: string; winner: CandidateDto | null; margin: number | null;
+    /** State of the contest (null for national contests). */
+    state: string | null;
+    /** The winner's party differs from the seat holder's at the election (null when not applicable). */
+    flip: boolean | null;
+    /** An incumbent ran and did not win. */
+    incumbentLost: boolean;
+  }[];
 }
 export interface CandidateDto { candidacyId: number; personId: number; name: string; party: number; incumbent: boolean; status: string; runningMate: string | null; votes: number | null; share: number | null }
 export interface ContestDetail {
@@ -182,7 +227,14 @@ export interface CountyHistoryDto {
   county: number; name: string; state: string; stateIdx: number;
   rows: { contestId: number; year: number; date: string; office: string; officeKind: string; label: string; candidates: { name: string; party: number; votes: number; share: number; winner: boolean }[]; total: number; undervotes: number; dMargin: number | null }[];
 }
-export interface ResultsMapDto { year: number; office: ResultsOffice; layer: MapLayer; values: (number | null)[]; legend: string; national: { party: number; votes: number }[] | null; ev: { party: number; ev: number; name: string }[] | null }
+export interface ResultsMapDto {
+  year: number; office: ResultsOffice; layer: MapLayer; values: (number | null)[]; legend: string; national: { party: number; votes: number }[] | null; ev: { party: number; ev: number; name: string }[] | null;
+  /** Per area: D and R votes, valid votes, leading party, ballots and eligible voters; and the previous comparable result. */
+  cells?: {
+    d: number[]; r: number[]; valid: number[]; has: number[]; lead: number[]; ballots: number[] | null; eligible: number[] | null;
+    base: { label: string; d: number[]; r: number[]; valid: number[]; has: number[]; ballots: number[] | null; eligible: number[] | null } | null;
+  };
+}
 export interface YearSummary {
   year: number; hasPresident: boolean;
   president: { name: string; party: number; ev: number; votes: number; share: number }[];

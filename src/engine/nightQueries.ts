@@ -2,13 +2,21 @@
 import { fullName } from '../institutions/model';
 import { isoDay } from '../core/time';
 import { Playback } from '../broadcast/playback';
-import type { NightListItem, NightMetaDto, NightQuery } from './protocol';
+import { raceShort } from './nightStory';
+import type { BaselineCountiesDto, BaselineDto, NightCallDto, NightContextDto, NightListItem, NightMetaDto, NightQuery, SurveyDto } from './protocol';
+import { ST_CALLED, ST_RUNOFF, ST_WITHDRAWN } from '../counting/types';
+import { readRollup } from '../archive/results';
+import { baselineContest, eligibleOf } from './baselines';
 import type { Universe } from './universe';
 
 export async function runNightQuery(u: Universe, q: NightQuery): Promise<unknown> {
   switch (q.kind) {
     case 'nights': return nights(u);
     case 'nightMeta': return nightMeta(u, q.id);
+    case 'nightContext': return nightContext(u, q.id);
+    case 'nightBaseline': return nightBaseline(u, q.id, q.race);
+    case 'nightSurvey': return nightSurvey(u, q.id, q.race);
+    case 'nightCalls': return nightCalls(u, q.id);
     case 'nightPayload': {
       const row = u.db.get<{ payload: Uint8Array }>('SELECT payload FROM night WHERE night_id = ?', [q.id]);
       return row ? { bytes: row.payload.slice() } : null;
@@ -31,20 +39,20 @@ async function nightMeta(u: Universe, id: number): Promise<NightMetaDto | null> 
     const p = k ? u.world.persons.get(k.person_id) : undefined;
     return { candidacyId: cid, personId: k?.person_id ?? -1, name: p ? fullName(p) : `#${cid}`, party, incumbent: !!k?.incumbent };
   };
-  const OFF: Record<string, string> = { president: 'President', us_senator: 'Senate', us_representative: 'House', governor: 'Governor', lt_governor: 'Lt. Governor', attorney_general: 'Attorney General', secretary_of_state: 'Secretary of State' };
   return {
     id, label: row.label, lockTime: rec.lockTime, coverageStart: rec.coverageStart, nightEnd: rec.nightEnd, feedEnd: rec.feedEnd, network: 'MNN',
     races: rec.races.map((r, i) => {
       const st = pack.states[r.stateIdx]!;
-      const cd = r.cd >= 0 ? pack.cds[r.cd] : undefined;
-      const houseCd = r.office === 'us_representative' ? pack.cds[u.db.value<number>('SELECT district_idx FROM contest WHERE contest_id = ?', [r.contestId]) ?? -1] : undefined;
-      const short = r.office === 'us_representative' ? `${houseCd?.code ?? st.usps}` : `${st.usps} ${OFF[r.office] ?? r.office}${cd ? ` · ${cd.code ?? `CD ${r.cd}`}` : ''}`;
+      const short = raceShort(u.db, u.world, r);
       return { i, contestId: r.contestId, label: r.label.replace(/^\d{4} /, ''), short, office: r.office, state: st.usps, stateIdx: r.stateIdx, cd: r.cd, ev: r.ev, k: r.k,
-        candidates: r.candidacyIds.map((c, j) => cand(c, r.parties[j]!)), precincts: r.precincts, close: r.close };
+        candidates: r.candidacyIds.map((c, j) => cand(c, r.parties[j]!)), precincts: r.precincts, close: r.close,
+        district: r.office === 'us_representative' ? u.db.value<number>('SELECT district_idx FROM contest WHERE contest_id = ?', [r.contestId]) ?? null : null };
     }),
     states: rec.states.map((s) => ({ idx: s.stateIdx, usps: pack.states[s.stateIdx]!.usps, name: pack.states[s.stateIdx]!.name, closeFirst: s.closeFirst, closeLast: s.closeLast, certify: s.certify })),
     chambers: rec.chambers,
     rjs: Object.fromEntries([...new Set(rec.parts.rj)].map((rj) => [rj, pack.rj[rj]?.name ?? `#${rj}`])),
+    rjCounty: Object.fromEntries([...new Set(rec.parts.rj)].flatMap((rj) => { const c = pack.rj[rj]?.countyIdx; return c === null || c === undefined ? [] : [[rj, c]]; })),
+    story: rec.story ?? { version: 1, alerts: [], lines: [], speakers: [] },
   };
 }
 
@@ -123,4 +131,82 @@ export async function liveGeo(u: Universe, contestId: number): Promise<{ countie
     add(cds, pb.rec.parts.cd[part]!, v);
   }
   return { counties, cds };
+}
+
+// ---- Map context: eligible voters and previous comparable results ---------------------------------------
+
+function partyIdx(u: Universe, contestId: number): { d: number; r: number; k: number } {
+  const order = u.db.all<{ party_id: number }>('SELECT party_id FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [contestId]).map((x) => x.party_id);
+  return { d: order.indexOf(1), r: order.indexOf(2), k: order.length };
+}
+
+const ctxCache = new Map<number, NightContextDto>();
+async function nightContext(u: Universe, id: number): Promise<NightContextDto | null> {
+  const hit = ctxCache.get(id); if (hit) return hit;
+  const rec = await u.elections.nightRecord(id); if (!rec) return null;
+  const eligibleCounty: Record<number, number> = {}, eligibleState: Record<number, number> = {};
+  for (const s of rec.states) eligibleState[s.stateIdx] = await eligibleOf(u, s.electionId, s.stateIdx, { county: eligibleCounty });
+  const baselines: Record<number, BaselineDto> = {};
+  const memo = new Map<number, BaselineDto | null>();
+  for (let i = 0; i < rec.races.length; i++) {
+    const r = rec.races[i]!; if (r.cd >= 0) continue;
+    const b = baselineContest(u, r.contestId); if (!b) continue;
+    let dto = memo.get(b.contest_id);
+    if (dto === undefined) {
+      const rev = u.db.value<number>('SELECT MAX(rev) FROM result_revision WHERE contest_id = ?', [b.contest_id]) ?? 0;
+      const tot = u.db.all<{ party_id: number; votes: number }>('SELECT k.party_id, t.votes FROM contest_total t JOIN candidacy k ON k.candidacy_id = t.candidacy_id WHERE t.contest_id = ? AND t.rev = ?', [b.contest_id, rev]);
+      const to = u.db.get<{ ballots: number; votes: number; eligible: number }>('SELECT ballots, votes, eligible FROM contest_turnout WHERE contest_id = ? AND rev = ?', [b.contest_id, rev]);
+      const valid = tot.reduce((a, x) => a + x.votes, 0);
+      dto = valid > 0 ? { contestId: b.contest_id, label: b.label, year: b.year, d: tot.filter((x) => x.party_id === 1).reduce((a, x) => a + x.votes, 0), r: tot.filter((x) => x.party_id === 2).reduce((a, x) => a + x.votes, 0), valid, ballots: to?.ballots ?? valid, eligible: to?.eligible ?? 0 } : null;
+      memo.set(b.contest_id, dto);
+    }
+    if (dto) baselines[i] = dto;
+  }
+  const out = { eligibleCounty, eligibleState, baselines };
+  if (ctxCache.size > 3) ctxCache.clear();
+  ctxCache.set(id, out);
+  return out;
+}
+
+/** A race's previous comparable result by county (statewide races; null when there is none). */
+async function nightBaseline(u: Universe, id: number, race: number): Promise<BaselineCountiesDto> {
+  const rec = await u.elections.nightRecord(id); const r = rec?.races[race]; if (!r || r.cd >= 0) return null;
+  const b = baselineContest(u, r.contestId); if (!b) return null;
+  const roll = await readRollup(u.db, b.election_id, b.state_idx); const entry = roll?.contests.find((x) => x.id === b.contest_id); if (!entry) return null;
+  const { d, r: ri, k } = partyIdx(u, b.contest_id);
+  const el: { county: Record<number, number>; ballots: Record<number, number> } = { county: {}, ballots: {} };
+  await eligibleOf(u, b.election_id, b.state_idx, el);
+  const out: Record<number, [number, number, number, number, number]> = {};
+  for (const [c, v] of entry.counties) {
+    const valid = v.slice(0, k).reduce((a, x) => a + x, 0);
+    out[c] = [d >= 0 ? v[d]! : 0, ri >= 0 ? v[ri]! : 0, valid, el.ballots[c] ?? valid, el.county[c] ?? 0];
+  }
+  return out;
+}
+
+/** The voter survey of one race, if it was surveyed. */
+async function nightSurvey(u: Universe, id: number, race: number): Promise<SurveyDto | null> {
+  const rec = await u.elections.nightRecord(id); if (!rec) return null;
+  const s = rec.survey.find((x) => x.race === race); if (!s) return null;
+  return { n: s.n, shares: s.shares, crosstabs: s.crosstabs ?? [] };
+}
+
+/** Every projection, withdrawal and runoff call of the night, with the share of the expected vote counted. */
+async function nightCalls(u: Universe, id: number): Promise<NightCallDto[]> {
+  const rec = await u.elections.nightRecord(id); if (!rec) return [];
+  const ev = rec.events, B = rec.batches, rr = rec.raceRows;
+  const ballots = new Float64Array(rec.races.length), expected = new Float64Array(rec.races.length);
+  let b = 0, w = 0;
+  const out: NightCallDto[] = [];
+  const name = (race: number, opt: number) => { const cid = rec.races[race]!.candidacyIds[opt]; const pid = cid !== undefined ? u.db.value<number>('SELECT person_id FROM candidacy WHERE candidacy_id = ?', [cid]) : undefined; const p = pid !== undefined ? u.world.persons.get(pid) : undefined; return p ? fullName(p) : ''; };
+  for (let i = 0; i < ev.time.length; i++) {
+    const t = ev.time[i]!, st = ev.status[i]!;
+    while (b < B.time.length && B.time[b]! <= t) { for (let j = B.rowStart[b]!; j < B.rowStart[b + 1]!; j++) { const r = rr.race[j]!; for (let q = 0; q < rec.races[r]!.k; q++) ballots[r]! += rr.votes[rr.off[j]! + q]!; } b++; }
+    while (w < rec.wire.time.length && rec.wire.time[w]! <= t) { expected[rec.wire.race[w]!] = rec.wire.expected[w]!; w++; }
+    if (st !== ST_CALLED && st !== ST_WITHDRAWN && st !== ST_RUNOFF) continue;
+    const r = ev.race[i]!, race = rec.races[r]!, opt = ev.option[i]!;
+    out.push({ time: t, race: r, contestId: race.contestId, label: race.label.replace(/^\d{4} /, ''), short: raceShort(u.db, u.world, race), office: race.office, status: st,
+      party: opt >= 0 ? race.parties[opt] ?? 5 : 0, name: opt >= 0 ? name(r, opt) : '', pct: expected[r]! > 0 ? Math.min(1, ballots[r]! / expected[r]!) : 0, pollClose: (ev.flags[i]! & 1) === 1 });
+  }
+  return out;
 }

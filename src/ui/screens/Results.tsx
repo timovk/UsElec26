@@ -1,33 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { ElectionListItem, YearSummary } from '../../engine/protocol';
 import { useQuery } from './Desk';
 import { PARTY_COLORS, PARTY_NAME, PartyBadge, SeatBar, fmtInt } from '../components/common';
 import { go } from '../app/router';
+import { ResultsExplorer } from './ResultsExplorer';
 import { engine } from '../state/engineClient';
 
 type AuditRow = { election: string; ok: boolean; findings: { check: string; ok: boolean; detail: string }[] };
 
-const OFFICE_LABEL: Record<string, string> = { president: 'President', us_senator: 'U.S. Senate', us_representative: 'U.S. House', governor: 'Governor', lt_governor: 'Lt. Governor', attorney_general: 'Attorney General', secretary_of_state: 'Secretary of State' };
-const KIND_LABEL: Record<string, string> = { general: 'General', special: 'Special', primary: 'Primary', top_two: 'Top-two primary', pres_state: 'Presidential', pres_nomination: 'Presidential nomination' };
 
 export function Results({ year: yearParam }: { year?: number }) {
   const years = useQuery<number[]>({ kind: 'electionYears' });
   const year = yearParam ?? years?.[0];
   const summary = useQuery<YearSummary>(year ? { kind: 'yearSummary', year } : { kind: 'electionYears' }, [year]);
   const list = useQuery<ElectionListItem[]>(year ? { kind: 'elections', year } : { kind: 'electionYears' }, [year]);
-  const [office, setOffice] = useState('');
-  const [state, setState] = useState('');
-  const [stage, setStage] = useState<'general' | 'primary' | 'all'>('general');
-  const contests = useMemo(() => {
-    if (!Array.isArray(list) || !list.length || typeof list[0] !== 'object') return [];
-    return list.flatMap((e) => e.contests.map((c) => ({ ...c, election: e })))
-      .filter((c) => (stage === 'all' ? true : stage === 'general' ? ['general', 'special', 'pres_state'].includes(c.kind) : ['primary', 'top_two', 'pres_nomination'].includes(c.kind)))
-      .filter((c) => !office || c.office === office).filter((c) => !state || c.election.stateUsps === state);
-  }, [list, office, state, stage]);
   if (!years) return <p className="muted">Loading…</p>;
   if (!years.length) return <><h1 className="screen-title">Results</h1><p className="muted">No elections have been held yet. The calendar of upcoming elections is on the Desk.</p></>;
   const s = summary && 'chambers' in (summary as object) ? summary : null;
-  const states = Array.isArray(list) ? [...new Set(list.map((e) => e.stateUsps).filter(Boolean))].sort() as string[] : [];
   return (
     <>
       <div className="row between wrap">
@@ -44,7 +33,7 @@ export function Results({ year: yearParam }: { year?: number }) {
               {s.president.map((p) => (
                 <div key={p.name} className="row between" style={{ padding: '6px 0', borderBottom: '1px solid var(--line-soft)' }}>
                   <span className="row"><PartyBadge party={p.party} /> <strong>{p.name}</strong></span>
-                  <span className="num"><span className="bignum" style={{ fontSize: 22, color: PARTY_COLORS[p.party] }}>{p.ev}</span> EV · {(100 * p.share).toFixed(1)}%</span>
+                  <span className="num"><span className="bignum" style={{ fontSize: 22, color: PARTY_COLORS[p.party] }}>{p.ev}</span> EV{!s.projected && ` · ${(100 * p.share).toFixed(1)}%`}</span>
                 </div>
               ))}
               <p className="tiny muted">{s.projected ? 'Electoral votes as projected by the MNN decision desk; the count continues until each state certifies and the electors meet.' : "Electoral votes as cast by the electors; popular vote summed from every state's archived result."}</p>
@@ -73,28 +62,7 @@ export function Results({ year: yearParam }: { year?: number }) {
           </section>
         </div>
       )}
-      <section className="card" style={{ marginTop: 16 }}>
-        <div className="row wrap" style={{ marginBottom: 10 }}>
-          <div className="seg">{(['general', 'primary', 'all'] as const).map((k) => <button key={k} className={stage === k ? 'on' : ''} onClick={() => setStage(k)}>{k === 'general' ? 'General & special' : k === 'primary' ? 'Primaries' : 'All'}</button>)}</div>
-          <select value={office} onChange={(e) => setOffice(e.target.value)} aria-label="Office"><option value="">All offices</option>{Object.entries(OFFICE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-          <select value={state} onChange={(e) => setState(e.target.value)} aria-label="State"><option value="">All states</option>{states.map((x) => <option key={x}>{x}</option>)}</select>
-          <span className="small muted">{contests.length.toLocaleString()} contests</span>
-        </div>
-        <table className="data">
-          <thead><tr><th>Date</th><th>Contest</th><th>Type</th><th>Winner</th><th>Margin</th><th>Status</th></tr></thead>
-          <tbody>{contests.slice(0, 600).map((c) => (
-            <tr key={c.id} className="click" onClick={() => go(`contest/${c.id}`)}>
-              <td className="num muted">{c.election.date}</td>
-              <td><a href={`#/contest/${c.id}`} style={{ color: 'inherit' }}>{c.label.replace(/^\d{4} /, '')}</a></td>
-              <td className="muted">{KIND_LABEL[c.kind] ?? c.kind}</td>
-              <td>{c.winner ? <span className="row"><PartyBadge party={c.winner.party} />{c.winner.name}</span> : <span className="muted">{c.status === 'runoff' ? 'Runoff' : '—'}</span>}</td>
-              <td className="num">{c.margin !== null && c.winner ? `${c.margin.toFixed(1)} pts` : ''}</td>
-              <td className="muted small">{c.status}{c.election.nightId !== null && <> · <a href={`#/night/${c.election.nightId}`} onClick={(e) => e.stopPropagation()} title="Watch this election night">★ night</a></>}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-        {contests.length > 600 && <p className="tiny muted">Showing the first 600; filter by state or office to narrow.</p>}
-      </section>
+      {Array.isArray(list) && list.length > 0 && typeof list[0] === 'object' && <ResultsExplorer list={list} key={year} />}
       {year !== undefined && <AuditPanel year={year} />}
     </>
   );

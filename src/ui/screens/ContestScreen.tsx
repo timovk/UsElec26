@@ -1,6 +1,8 @@
 import type { ContestDetail } from '../../engine/protocol';
+import { surname } from '../../core/names';
 import { useQuery } from './Desk';
 import { PARTY_COLORS, PartyBadge, fmtInt } from '../components/common';
+import { MiniMap } from '../components/MiniMap';
 
 const COUNT_STATUS = ['Polls open', 'Too early to call', 'Too close to call', 'Projected', 'Projection withdrawn', 'Runoff projected'];
 
@@ -53,15 +55,16 @@ export function ContestScreen({ id }: { id: number }) {
         <section className="card">
           <h2>By method of voting</h2>
           {c.modes.length === 0 ? <p className="muted small">Not recorded for this contest.</p> : (
-            <table className="data"><thead><tr><th>Method</th>{c.candidates.map((x) => <th key={x.candidacyId}>{x.name.split(' ').slice(-1)[0]}</th>)}</tr></thead>
+            <table className="data"><thead><tr><th>Method</th>{c.candidates.map((x) => <th key={x.candidacyId}>{surname(x.name)}</th>)}</tr></thead>
               <tbody>{c.modes.map((m) => { const t = m.votes.reduce((a, b) => a + b, 0); return <tr key={m.mode}><td>{m.mode}</td>{m.votes.map((v, i) => <td key={i} className="num">{fmtInt(v)} <span className="muted tiny">{t ? `${(100 * v / t).toFixed(0)}%` : ''}</span></td>)}</tr>; })}</tbody></table>
           )}
           <p className="tiny muted">How these ballots were cast{c.counting ? ' (counted so far)' : ''}. On election night some states release early and mail ballots first, others count them last.</p>
         </section>
       </div>
       <section className="card" style={{ marginTop: 16 }}>
-        <h2>By county <span className="muted small">{c.counties.length}</span></h2>
-        <div style={{ maxHeight: 520, overflow: 'auto' }}>
+        <h2>By county <span className="muted small">{c.counties.length}</span>{c.nightId !== null && <a className="small" href={`#/night/${c.nightId}/analyst`}>Analyze the night ›</a>}</h2>
+        {c.counties.length > 1 && <MiniMap counties={c.counties} parties={c.candidates.map((x) => x.party)} label={c.label} />}
+        <div style={{ maxHeight: 520, overflow: 'auto', marginTop: 10 }}>
           <table className="data">
             <thead><tr><th>County</th>{c.candidates.map((x) => <th key={x.candidacyId}>{x.name}</th>)}<th>Total</th></tr></thead>
             <tbody>{c.counties.map((k) => (

@@ -3,7 +3,7 @@
  * (tests, tools) they run inline. Results are returned in input order, and the kernel is a pure function
  * of its input, so results are identical for any number of workers.
  */
-import { runJob, jobTransferables, type JobInput, type JobOutput } from './nightJob';
+import { runJobSealed, jobTransferables, type JobInput, type JobOutput } from './nightJob';
 
 export interface ShardRunner { readonly workers: number; run(inputs: JobInput[], onProgress?: (done: number, total: number) => void): Promise<JobOutput[]> }
 
@@ -11,7 +11,7 @@ export class InlineRunner implements ShardRunner {
   readonly workers = 0;
   async run(inputs: JobInput[], onProgress?: (done: number, total: number) => void): Promise<JobOutput[]> {
     const out: JobOutput[] = [];
-    for (const inp of inputs) { out.push(runJob(inp)); onProgress?.(out.length, inputs.length); await Promise.resolve(); }
+    for (const inp of inputs) { out.push(await runJobSealed(inp)); onProgress?.(out.length, inputs.length); }
     return out;
   }
 }

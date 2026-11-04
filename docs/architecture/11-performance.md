@@ -56,6 +56,17 @@ Against the Chromebook budget (§11.1: ≤ 40 s for a year with a general electi
 server measurement of 38 s suggests roughly 55–115 s on a Chromebook. Known levers: seal and encode results in the
 compute workers (≈2 s of the 3.2 s seal step), cheaper primaries, and fewer evaluations by the desk on quiet races.
 
+### Measured in Phase 4 (see [../phase-4-report.md](../phase-4-report.md) §5)
+
+| Operation | Chromium, 1366×768 (4-core server, headless) |
+|---|---|
+| Broadcast playback at 600×, live (banners, counters, ticker, universe advancing) | frame interval median and p95 16.7 ms (60 fps) |
+| Magic-wall camera flight (vector redraw per frame) | median 16.7 ms (60 fps) |
+| Map recolour, state and county views | p95 ≤ 1.2 ms (budget 50 ms) |
+| Alerts and commentary for a real night (at the ballot lock) | 0.41 s (Node) |
+| Jan 1 → the 2016 general's ballot lock | 28.6–31.3 s (Phase 3: 30–34 s) |
+| The Election Day step (ballot lock) | 13.1–13.7 s (Phase 3: 13.7 s). The engine's seal step fell from 3.2 s to 0.07 s (sealing now happens in the compute workers, +1.4 s there); the night-record step grew by about 1.5 s (it now writes the commentary) |
+
 ## 11.3 Likely bottlenecks and mitigations
 
 | Bottleneck | Mitigation |

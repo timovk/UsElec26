@@ -42,6 +42,12 @@
 
 ## 9.3 Broadcast Mode (the centrepiece)
 
+> **Phase 4 status:** implemented — see [../phase-4-report.md](../phase-4-report.md). As built at 1366×768, the race card sits
+> in a right column rather than a drawer. The brand bar carries the view tabs (Broadcast | Desk | Analyst), the clock and the EV counter;
+> Senate, House and governors counters sit above the map. Map modes: winner, margin, swing, turnout, turnout change, reporting,
+> outstanding, candidate share. State views shade counties by margin and outline counties with vote outstanding; in the House view a
+> state opens to its districts. Sound cues are synthesized with Web Audio. Reduced motion follows the system setting or a toggle.
+
 Layout at 1920×1080. It reflows to 1366×768, the most common Chromebook panel, by collapsing the right
 column into a drawer.
 

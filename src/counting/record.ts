@@ -4,7 +4,7 @@
  * computed once at the ballot lock, sealed, and only ever played back: a replay is the original record.
  */
 import { ColumnTransform, decodeBundle, decodeIntColumns, encodeBundle, encodeIntColumns, sha256Hex } from '../core/codec';
-import type { StateNight } from './types';
+import type { StateNight, SurveyTopline } from './types';
 
 export interface RecordRace {
   contestId: number; cd: number; stateIdx: number; k: number;
@@ -20,7 +20,8 @@ export interface ControlEvent { time: number; kind: 'president' | 'senate' | 'ho
 export interface ChamberBase { holdovers: Record<number, number>; seats: number; majority: number }
 
 export interface NightRecord {
-  version: 1;
+  /** 1 = Phase 3; 2 = Phase 4 (adds part-level expected vote, survey crosstabs, alerts and commentary). */
+  version: 1 | 2;
   day: number; lockTime: number; coverageStart: number; nightEnd: number; feedEnd: number;
   states: { stateIdx: number; electionId: number; closeFirst: number; closeLast: number; canvass: number; certify: number }[];
   races: RecordRace[];
@@ -32,13 +33,21 @@ export interface NightRecord {
   events: { time: Int32Array; race: Int32Array; status: Uint8Array; option: Int16Array; option2: Int16Array; prob: Int16Array; flags: Uint8Array };
   control: ControlEvent[];
   chambers: { senate: ChamberBase; house: ChamberBase };
-  survey: { race: number; shares: number[]; n: number }[];
+  survey: SurveyTopline[];
+  /** Wire's expected ballots per part over time (version 2). */
+  partWire: { time: Int32Array; part: Int32Array; expected: Int32Array };
+  /** Alerts and commentary lines, built at the lock (version 2); v1 records derive them on load. */
+  story: Story | null;
 }
+
+export interface StoryAlert { time: number; kind: string; race: number; importance: number; headline: string; detail: string; party: number; flip: boolean }
+export interface StoryLine { time: number; speaker: number; type: string; race: number; text: string; template: string }
+export interface Story { version: 1; alerts: StoryAlert[]; lines: StoryLine[]; speakers: { name: string; role: string }[] }
 
 export interface RaceMeta { candidacyIds: number[]; parties: number[]; office: string; ev: number; label: string }
 
 /** Merge per-state nights (in state order) into one record. `meta[s][r]` describes race r of state night s. */
-export function mergeNights(nights: StateNight[], meta: RaceMeta[][], electionIds: number[], times: { day: number; lockTime: number; coverageStart: number; nightEnd: number }, canvassCertify: { canvass: number; certify: number }[]): Omit<NightRecord, 'control' | 'chambers'> {
+export function mergeNights(nights: StateNight[], meta: RaceMeta[][], electionIds: number[], times: { day: number; lockTime: number; coverageStart: number; nightEnd: number }, canvassCertify: { canvass: number; certify: number }[]): Omit<NightRecord, 'control' | 'chambers' | 'story'> {
   const partOff: number[] = [], raceOff: number[] = [];
   let np = 0, nr = 0;
   for (const n of nights) { partOff.push(np); raceOff.push(nr); np += n.parts.rj.length; nr += n.races.length; }
@@ -87,13 +96,21 @@ export function mergeNights(nights: StateNight[], meta: RaceMeta[][], electionId
   evRows.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const feedEnd = nb ? batches.time[nb - 1]! : times.lockTime;
   return {
-    version: 1, ...times, feedEnd,
+    version: 2, ...times, feedEnd,
     states: nights.map((n, s) => ({ stateIdx: n.stateIdx, electionId: electionIds[s]!, closeFirst: n.closeFirst, closeLast: n.closeLast, ...canvassCertify[s]! })),
     races, parts, batches, partRows, raceRows,
     wire: { time: Int32Array.from(wireRows, (x) => x[0]), race: Int32Array.from(wireRows, (x) => x[1]), expected: Int32Array.from(wireRows, (x) => Math.min(2147483647, x[2])) },
     events: { time: Int32Array.from(evRows, (x) => x[0]), race: Int32Array.from(evRows, (x) => x[1]), status: Uint8Array.from(evRows, (x) => x[2]), option: Int16Array.from(evRows, (x) => x[3]), option2: Int16Array.from(evRows, (x) => x[4]), prob: Int16Array.from(evRows, (x) => x[5]), flags: Uint8Array.from(evRows, (x) => x[6]) },
     survey: nights.flatMap((n, s) => n.survey.map((x) => ({ ...x, race: x.race + raceOff[s]! }))),
+    partWire: mergePartWire(nights, partOff),
   };
+}
+
+function mergePartWire(nights: StateNight[], partOff: number[]): NightRecord['partWire'] {
+  const rows: [number, number, number][] = [];
+  nights.forEach((n, s) => { const w = n.partWire; if (!w) return; for (let i = 0; i < w.time.length; i++) rows.push([w.time[i]!, w.part[i]! + partOff[s]!, w.expected[i]!]); });
+  rows.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  return { time: Int32Array.from(rows, (x) => x[0]), part: Int32Array.from(rows, (x) => x[1]), expected: Int32Array.from(rows, (x) => x[2]) };
 }
 
 function fillStarts(starts: Int32Array, rowBatch: Int32Array, nb: number): void {
@@ -115,11 +132,12 @@ export async function encodeNightRecord(rec: NightRecord): Promise<{ payload: Ui
     'enc.votes': await enc([[rec.raceRows.votes, Rw]]),
     'enc.wire': await enc([[rec.wire.time, D], [rec.wire.race, D], [rec.wire.expected, D]]),
     'enc.parts': await enc([[rec.parts.rj, D], [rec.parts.cd, D], [rec.parts.precincts, Rw], [rec.parts.close, D], [rec.parts.state, D]]),
+    'enc.partWire': await enc([[rec.partWire.time, D], [rec.partWire.part, Rw], [rec.partWire.expected, Rw]]),
   };
   for (const [k, v] of Object.entries(rec.events)) arrays[`events.${k}`] = v;
   const raceParts: number[] = []; const racesMeta = rec.races.map((r) => { const start = raceParts.length; raceParts.push(...r.parts); return { ...r, parts: [start, r.parts.length] }; });
   arrays['races.parts'] = Int32Array.from(raceParts);
-  const meta = { version: rec.version, day: rec.day, lockTime: rec.lockTime, coverageStart: rec.coverageStart, nightEnd: rec.nightEnd, feedEnd: rec.feedEnd, states: rec.states, races: racesMeta, control: rec.control, chambers: rec.chambers, survey: rec.survey };
+  const meta = { version: rec.version, day: rec.day, lockTime: rec.lockTime, coverageStart: rec.coverageStart, nightEnd: rec.nightEnd, feedEnd: rec.feedEnd, states: rec.states, races: racesMeta, control: rec.control, chambers: rec.chambers, survey: rec.survey, story: rec.story };
   const payload = await encodeBundle(arrays, meta);
   return { payload, sha256: await sha256Hex(payload) };
 }
@@ -134,6 +152,7 @@ export async function decodeNightRecord(payload: Uint8Array): Promise<NightRecor
   const races: RecordRace[] = m.races.map((r) => ({ ...r, parts: rp.slice(r.parts[0], r.parts[0] + r.parts[1]) }));
   const [bt, brj, bm, bf] = await dec('enc.batches'), [prb, prp, prbal, prprec] = await dec('enc.partRows'), [rrb, rrr, rrp] = await dec('enc.raceRows'), [votes] = await dec('enc.votes');
   const [wt, wr, we] = await dec('enc.wire'), [prj, pcd, pprec, pclose, pst] = await dec('enc.parts');
+  const pw = arrays['enc.partWire'] ? await dec('enc.partWire') : [new Float64Array(0), new Float64Array(0), new Float64Array(0)];
   const nb = bt!.length;
   const batches = { time: i32(bt!), rj: i32(brj!), mode: u8(bm!), flag: u8(bf!), rowStart: new Int32Array(nb + 1), partStart: new Int32Array(nb + 1) };
   const partRows = { batch: i32(prb!), part: i32(prp!), ballots: i32(prbal!), precincts: i32(prprec!) };
@@ -142,7 +161,8 @@ export async function decodeNightRecord(payload: Uint8Array): Promise<NightRecor
   for (let i = 0; i < off.length; i++) { off[i] = t; t += races[rr.race[i]!]!.k; }
   fillStarts(batches.rowStart, rr.batch, nb); fillStarts(batches.partStart, partRows.batch, nb);
   return {
-    version: 1, day: m.day, lockTime: m.lockTime, coverageStart: m.coverageStart, nightEnd: m.nightEnd, feedEnd: m.feedEnd, states: m.states, races, control: m.control, chambers: m.chambers, survey: m.survey,
+    version: m.version === 2 ? 2 : 1, day: m.day, lockTime: m.lockTime, coverageStart: m.coverageStart, nightEnd: m.nightEnd, feedEnd: m.feedEnd, states: m.states, races, control: m.control, chambers: m.chambers, survey: m.survey,
+    partWire: { time: i32(pw[0]!), part: i32(pw[1]!), expected: i32(pw[2]!) }, story: m.story ?? null,
     parts: { rj: i32(prj!), cd: i32(pcd!), precincts: i32(pprec!), close: i32(pclose!), state: i16(pst!) },
     batches, partRows, raceRows: { ...rr, off },
     wire: { time: i32(wt!), race: i32(wr!), expected: i32(we!) },

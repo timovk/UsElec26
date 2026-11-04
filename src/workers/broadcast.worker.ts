@@ -23,7 +23,7 @@ function frame(t: number, focus: number | null, full: boolean): NightFrameDto {
   });
   return {
     t, full, races, president: snap.president, senate: snap.senate, house: snap.house, control: snap.control,
-    focus: focus !== null && focus >= 0 && focus < pb!.raceCount ? { race: focus, byRj: [...pb!.raceByRj(focus, t)].map(([rj, v]) => [rj, Array.from(v)]) } : null,
+    focus: focus !== null && focus >= 0 && focus < pb!.raceCount ? { race: focus, byRj: [...pb!.raceByRj(focus, t)].map(([rj, v]) => [rj, Array.from(v)]), expected: [...pb!.rjExpected(focus, t)] } : null,
   };
 }
 
@@ -35,6 +35,7 @@ self.onmessage = async (ev: MessageEvent<{ id: number; req: BroadcastRequest }>)
     else if (!pb) throw new Error('No night record loaded');
     else if (req.type === 'frame') result = frame(req.t, req.focus, !!req.full);
     else if (req.type === 'markers') result = pb.markers();
+    else if (req.type === 'raceDetail') result = { ...pb.raceDetail(req.race, req.t), final: req.truth ? pb.finalVotes(req.race) : null };
     self.postMessage({ id, ok: true, result });
   } catch (e) {
     self.postMessage({ id, ok: false, error: e instanceof Error ? e.message : String(e) });
