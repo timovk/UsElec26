@@ -1,0 +1,3044 @@
+{
+  "sources": {
+    "acs5-2016-0002-AK": {
+      "bytes": 125811,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Alaska",
+      "retrieved": "2026-11-04",
+      "sha256": "5fe6db384f5b8505930838a83f4f719947f8646721d4c6e954c08e9183a9b9ec",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Alaska/Tracts_Block_Groups_Only/20165ak0002000.zip"
+    },
+    "acs5-2016-0002-AL": {
+      "bytes": 788385,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Alabama",
+      "retrieved": "2026-11-04",
+      "sha256": "a0764c1b25783b945580bcde5003882316d30632d7c383a975a5b3c110ef25c9",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Alabama/Tracts_Block_Groups_Only/20165al0002000.zip"
+    },
+    "acs5-2016-0002-AR": {
+      "bytes": 479413,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Arkansas",
+      "retrieved": "2026-11-04",
+      "sha256": "33d752a0ee801d0dc5e162d85059554fde0aca432d5b6ec0a6828c2518fcf678",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Arkansas/Tracts_Block_Groups_Only/20165ar0002000.zip"
+    },
+    "acs5-2016-0002-CA": {
+      "bytes": 5966074,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, California",
+      "retrieved": "2026-11-04",
+      "sha256": "a036942b29b55511f8f783b1c9ac54d15d371e4fad0ada3107f270974a459d24",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/California/Tracts_Block_Groups_Only/20165ca0002000.zip"
+    },
+    "acs5-2016-0002-CO": {
+      "bytes": 841224,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Colorado",
+      "retrieved": "2026-11-04",
+      "sha256": "a0112aa2aafbef1e4424dc183d8b86c7512c5490712e5ff687e297e483891ed8",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Colorado/Tracts_Block_Groups_Only/20165co0002000.zip"
+    },
+    "acs5-2016-0002-CT": {
+      "bytes": 593487,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Connecticut",
+      "retrieved": "2026-11-04",
+      "sha256": "5277076ab50e1a4d6264a843bbf917d9ae37fac3dd7c9210d7f3d7594d2d41e3",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Connecticut/Tracts_Block_Groups_Only/20165ct0002000.zip"
+    },
+    "acs5-2016-0002-DC": {
+      "bytes": 113873,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, District of Columbia",
+      "retrieved": "2026-11-04",
+      "sha256": "46357eb7f4f5738bb30883f12de645a050097551e292308b8e9d796c3dfeba1b",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/DistrictOfColumbia/Tracts_Block_Groups_Only/20165dc0002000.zip"
+    },
+    "acs5-2016-0002-DE": {
+      "bytes": 147327,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Delaware",
+      "retrieved": "2026-11-04",
+      "sha256": "0e04af300d28126bd3e992447e96b2247afe36add9d4e0409c3a13af351447ca",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Delaware/Tracts_Block_Groups_Only/20165de0002000.zip"
+    },
+    "acs5-2016-0002-FL": {
+      "bytes": 2804453,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Florida",
+      "retrieved": "2026-11-04",
+      "sha256": "54898e63da1e14759562473cdf8d98f0c6e58be01546129b315201b43053319a",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Florida/Tracts_Block_Groups_Only/20165fl0002000.zip"
+    },
+    "acs5-2016-0002-GA": {
+      "bytes": 1376731,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Georgia",
+      "retrieved": "2026-11-04",
+      "sha256": "ac07134b57a3678755fdea3627548b4292de5603cad00b3a181e3d53e87d1edc",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Georgia/Tracts_Block_Groups_Only/20165ga0002000.zip"
+    },
+    "acs5-2016-0002-HI": {
+      "bytes": 224599,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Hawaii",
+      "retrieved": "2026-11-04",
+      "sha256": "f898246de70b32d1d106a12fa831296df238fd91f94cdebbdfab620ead417931",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Hawaii/Tracts_Block_Groups_Only/20165hi0002000.zip"
+    },
+    "acs5-2016-0002-IA": {
+      "bytes": 541852,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Iowa",
+      "retrieved": "2026-11-04",
+      "sha256": "f3aefcf06bdfa593de6c2c52b2939f39a0fd1aeb4ceb3945acbafd03916abddc",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Iowa/Tracts_Block_Groups_Only/20165ia0002000.zip"
+    },
+    "acs5-2016-0002-ID": {
+      "bytes": 216509,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Idaho",
+      "retrieved": "2026-11-04",
+      "sha256": "4ec9feddd28682fab55579221ae89e300f173749c7b03e7a1e73c4caa6658abc",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Idaho/Tracts_Block_Groups_Only/20165id0002000.zip"
+    },
+    "acs5-2016-0002-IL": {
+      "bytes": 2159813,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Illinois",
+      "retrieved": "2026-11-04",
+      "sha256": "010ccb829fa86f857cb34928de73913a293bd7eb912c3a6cb3bb93710de2aebe",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Illinois/Tracts_Block_Groups_Only/20165il0002000.zip"
+    },
+    "acs5-2016-0002-IN": {
+      "bytes": 1038043,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Indiana",
+      "retrieved": "2026-11-04",
+      "sha256": "9a4bac4d76efbda912f6ad1548c41fbece40e0fea7a045871cfb43fddd7bc3e4",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Indiana/Tracts_Block_Groups_Only/20165in0002000.zip"
+    },
+    "acs5-2016-0002-KS": {
+      "bytes": 517611,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Kansas",
+      "retrieved": "2026-11-04",
+      "sha256": "e9b071c9c253b372da3bebac9a63269f7f3dcb3b7001aad83e4bc64fd814c901",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Kansas/Tracts_Block_Groups_Only/20165ks0002000.zip"
+    },
+    "acs5-2016-0002-KY": {
+      "bytes": 714933,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Kentucky",
+      "retrieved": "2026-11-04",
+      "sha256": "05b9171cbf0c6d211d858159559cf9d297c1b2dc3bedb87746a1168c443147e8",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Kentucky/Tracts_Block_Groups_Only/20165ky0002000.zip"
+    },
+    "acs5-2016-0002-LA": {
+      "bytes": 775584,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Louisiana",
+      "retrieved": "2026-11-04",
+      "sha256": "9f4db7323698371153cc1f2899ba11ef52a29bd4f5e3a841d925e5b7cc531842",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Louisiana/Tracts_Block_Groups_Only/20165la0002000.zip"
+    },
+    "acs5-2016-0002-MA": {
+      "bytes": 1084733,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Massachusetts",
+      "retrieved": "2026-11-04",
+      "sha256": "77f516dc0c5d086d382f54d397a35f489ee327a65f82dd3adfd16e882e8c4ca3",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Massachusetts/Tracts_Block_Groups_Only/20165ma0002000.zip"
+    },
+    "acs5-2016-0002-MD": {
+      "bytes": 952619,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Maryland",
+      "retrieved": "2026-11-04",
+      "sha256": "db200a6762529ee29ef44a6a7be70c98f36fa3e229eb811689f739654e5b94e7",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Maryland/Tracts_Block_Groups_Only/20165md0002000.zip"
+    },
+    "acs5-2016-0002-ME": {
+      "bytes": 224782,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Maine",
+      "retrieved": "2026-11-04",
+      "sha256": "0d83dc488bcf52ddb49fb91155cfd04def1de4a453a04fb3e6b4f4dbb8cb0de2",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Maine/Tracts_Block_Groups_Only/20165me0002000.zip"
+    },
+    "acs5-2016-0002-MI": {
+      "bytes": 1778219,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Michigan",
+      "retrieved": "2026-11-04",
+      "sha256": "8a5a958404b39f91bd61bc6a1efed1fde97664e9cff27089716fbd3eddd35c47",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Michigan/Tracts_Block_Groups_Only/20165mi0002000.zip"
+    },
+    "acs5-2016-0002-MN": {
+      "bytes": 908685,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Minnesota",
+      "retrieved": "2026-11-04",
+      "sha256": "0264617c1cfeb0b6ece7b8e4d6c96d5d464018599c2e8d8644bcbcb08ea71202",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Minnesota/Tracts_Block_Groups_Only/20165mn0002000.zip"
+    },
+    "acs5-2016-0002-MO": {
+      "bytes": 968194,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Missouri",
+      "retrieved": "2026-11-04",
+      "sha256": "c88577fdd410a822a27582a93f3b03e3e9999cfbad03a3167ab421882d8dbab2",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Missouri/Tracts_Block_Groups_Only/20165mo0002000.zip"
+    },
+    "acs5-2016-0002-MS": {
+      "bytes": 472365,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Mississippi",
+      "retrieved": "2026-11-04",
+      "sha256": "cd8e48cc694c4e493a2cf0c36330b2026998f7a4d64f50b5548c9952df1af5cf",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Mississippi/Tracts_Block_Groups_Only/20165ms0002000.zip"
+    },
+    "acs5-2016-0002-MT": {
+      "bytes": 178830,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Montana",
+      "retrieved": "2026-11-04",
+      "sha256": "68641bbd194075b8b0addd875a19bfd1d07e69318f4b847fd2a9068bfa364f2a",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Montana/Tracts_Block_Groups_Only/20165mt0002000.zip"
+    },
+    "acs5-2016-0002-NC": {
+      "bytes": 1508167,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, North Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "8317cd97482f5cf294be5bb0ff922aa5a8ba7741c4834fe0e2db872e1d2ef6a3",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NorthCarolina/Tracts_Block_Groups_Only/20165nc0002000.zip"
+    },
+    "acs5-2016-0002-ND": {
+      "bytes": 128331,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, North Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "6dee3ec33e0f2b4c999cbd9552a8698631bbdc8c0c7b1bfb18e8462887956dcf",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NorthDakota/Tracts_Block_Groups_Only/20165nd0002000.zip"
+    },
+    "acs5-2016-0002-NE": {
+      "bytes": 348554,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Nebraska",
+      "retrieved": "2026-11-04",
+      "sha256": "1adb08658191c99356bae61e829e866cb009e5199b92a5b27ed90ab938133d36",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Nebraska/Tracts_Block_Groups_Only/20165ne0002000.zip"
+    },
+    "acs5-2016-0002-NH": {
+      "bytes": 197671,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, New Hampshire",
+      "retrieved": "2026-11-04",
+      "sha256": "dbf25ed783807c949ba145db1eaf44743d36bc0b34deeed4b7d5afd438fdad18",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewHampshire/Tracts_Block_Groups_Only/20165nh0002000.zip"
+    },
+    "acs5-2016-0002-NJ": {
+      "bytes": 1458647,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, New Jersey",
+      "retrieved": "2026-11-04",
+      "sha256": "ae32667a6625ed3c57fab2ffb3213464507a8f68a45c8b0e7eabb7429601c982",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewJersey/Tracts_Block_Groups_Only/20165nj0002000.zip"
+    },
+    "acs5-2016-0002-NM": {
+      "bytes": 351502,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, New Mexico",
+      "retrieved": "2026-11-04",
+      "sha256": "e6fd0d6bc4654e6559e5c36b65029bc0ecb887bbcda13659a76f7900c0c954b6",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewMexico/Tracts_Block_Groups_Only/20165nm0002000.zip"
+    },
+    "acs5-2016-0002-NV": {
+      "bytes": 483182,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Nevada",
+      "retrieved": "2026-11-04",
+      "sha256": "eb9151164680356d61d9e6b3924f1e79601c71e391074ff8878a3a4613b58e0b",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Nevada/Tracts_Block_Groups_Only/20165nv0002000.zip"
+    },
+    "acs5-2016-0002-NY": {
+      "bytes": 3459629,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, New York",
+      "retrieved": "2026-11-04",
+      "sha256": "2b66cd09aa53bb13239e88c8dd8101bd51aef1598c9c9e602f4ea06edaddcf60",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewYork/Tracts_Block_Groups_Only/20165ny0002000.zip"
+    },
+    "acs5-2016-0002-OH": {
+      "bytes": 1957689,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Ohio",
+      "retrieved": "2026-11-04",
+      "sha256": "cf9fabd5f4e44266517ad1b2dc064e345c98d91544c7dd2026f655b9afeca0be",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Ohio/Tracts_Block_Groups_Only/20165oh0002000.zip"
+    },
+    "acs5-2016-0002-OK": {
+      "bytes": 709910,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Oklahoma",
+      "retrieved": "2026-11-04",
+      "sha256": "41cf669df83130e0e4832e55efe6d6c7fe9e593c1f9fc66f219963ebde40547b",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Oklahoma/Tracts_Block_Groups_Only/20165ok0002000.zip"
+    },
+    "acs5-2016-0002-OR": {
+      "bytes": 603846,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Oregon",
+      "retrieved": "2026-11-04",
+      "sha256": "36ed4b987d480928e79fbaf0719f2f4267a1e0c7a674e63a6c83f2b1e2738f39",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Oregon/Tracts_Block_Groups_Only/20165or0002000.zip"
+    },
+    "acs5-2016-0002-PA": {
+      "bytes": 2128145,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Pennsylvania",
+      "retrieved": "2026-11-04",
+      "sha256": "cbd49be4fe77cdfb3b955dc39b1107027b8f7307a1273a7cdac358d0a28c7046",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Pennsylvania/Tracts_Block_Groups_Only/20165pa0002000.zip"
+    },
+    "acs5-2016-0002-RI": {
+      "bytes": 178148,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Rhode Island",
+      "retrieved": "2026-11-04",
+      "sha256": "847ebe57d6fb0b43d3222ffd18584300f92306b888137e20c233eb5f9a1ed7b8",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/RhodeIsland/Tracts_Block_Groups_Only/20165ri0002000.zip"
+    },
+    "acs5-2016-0002-SC": {
+      "bytes": 737909,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, South Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "12af73471b1a552d2ff7f3f9d2da36c0733719e599b431f10fd611f32e60155e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/SouthCarolina/Tracts_Block_Groups_Only/20165sc0002000.zip"
+    },
+    "acs5-2016-0002-SD": {
+      "bytes": 146193,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, South Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "cac9baec64f3ed4830acd807415b7e00f0cb16a611921201fee5dfd363b31da8",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/SouthDakota/Tracts_Block_Groups_Only/20165sd0002000.zip"
+    },
+    "acs5-2016-0002-TN": {
+      "bytes": 967877,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Tennessee",
+      "retrieved": "2026-11-04",
+      "sha256": "f9d089780b05a315460fee82c551164684b698d9b2adfa9ccc0cbcbdf9d09715",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Tennessee/Tracts_Block_Groups_Only/20165tn0002000.zip"
+    },
+    "acs5-2016-0002-TX": {
+      "bytes": 3817873,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Texas",
+      "retrieved": "2026-11-04",
+      "sha256": "c5b3292dcf58f5ac9321f52cb6ec5c41fc32c119d9f57a84c014a43ee7968c3d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Texas/Tracts_Block_Groups_Only/20165tx0002000.zip"
+    },
+    "acs5-2016-0002-UT": {
+      "bytes": 409331,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Utah",
+      "retrieved": "2026-11-04",
+      "sha256": "8f083099830241c0856067ad81848a69dca7ee69ba42739b5f2585ffcd3ca9dd",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Utah/Tracts_Block_Groups_Only/20165ut0002000.zip"
+    },
+    "acs5-2016-0002-VA": {
+      "bytes": 1291193,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "827b1ecddf7f66d72fccc5bb1215d59511f3c8446046147dfd24ee91f7784c28",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Virginia/Tracts_Block_Groups_Only/20165va0002000.zip"
+    },
+    "acs5-2016-0002-VT": {
+      "bytes": 112200,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Vermont",
+      "retrieved": "2026-11-04",
+      "sha256": "ee34d9c9ebfeb2660fc761875547eab16985346376513b77c8983b517015bd2d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Vermont/Tracts_Block_Groups_Only/20165vt0002000.zip"
+    },
+    "acs5-2016-0002-WA": {
+      "bytes": 1103302,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Washington",
+      "retrieved": "2026-11-04",
+      "sha256": "fbd844502732409951b4db75fe458e10192fde7d28584459abb8541d12e733f7",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Washington/Tracts_Block_Groups_Only/20165wa0002000.zip"
+    },
+    "acs5-2016-0002-WI": {
+      "bytes": 954936,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Wisconsin",
+      "retrieved": "2026-11-04",
+      "sha256": "e24ed3d3cea83dd7d67c0bf4f3253261b28394fd76ce4e86e52f823e273d0188",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Wisconsin/Tracts_Block_Groups_Only/20165wi0002000.zip"
+    },
+    "acs5-2016-0002-WV": {
+      "bytes": 316447,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, West Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "77321a1860986c55c72390048fcc919b78e96dcd0dceb3491ea1401426fcaec1",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/WestVirginia/Tracts_Block_Groups_Only/20165wv0002000.zip"
+    },
+    "acs5-2016-0002-WY": {
+      "bytes": 92200,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0002 (B01001), tracts and block groups, Wyoming",
+      "retrieved": "2026-11-04",
+      "sha256": "741629d468f47c7e93fc853d6981e4a72594e35c1fc98cdf68cb4e4e2ba0b67c",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Wyoming/Tracts_Block_Groups_Only/20165wy0002000.zip"
+    },
+    "acs5-2016-0043-AK": {
+      "bytes": 150769,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Alaska",
+      "retrieved": "2026-11-04",
+      "sha256": "9580e8c7656939b1d720a329bee5fc3e66b58ec6a9793b910283006ad2512fe9",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Alaska/Tracts_Block_Groups_Only/20165ak0043000.zip"
+    },
+    "acs5-2016-0043-AL": {
+      "bytes": 991383,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Alabama",
+      "retrieved": "2026-11-04",
+      "sha256": "66519031c7886ec49fef5528b646d1cdaa6b2a57ec89acddc897bfa48d8599d0",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Alabama/Tracts_Block_Groups_Only/20165al0043000.zip"
+    },
+    "acs5-2016-0043-AR": {
+      "bytes": 605905,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Arkansas",
+      "retrieved": "2026-11-04",
+      "sha256": "8ba85b71b556bc6064017df6ab320a2e4011b6267da8b6bbdb02fb023d9b645e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Arkansas/Tracts_Block_Groups_Only/20165ar0043000.zip"
+    },
+    "acs5-2016-0043-AZ": {
+      "bytes": 1318734,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Arizona",
+      "retrieved": "2026-11-04",
+      "sha256": "46cedd5278b674b7f9b05cf98ba4eb03a0f898cb92ab86c433a10336225b9591",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Arizona/Tracts_Block_Groups_Only/20165az0043000.zip"
+    },
+    "acs5-2016-0043-CA": {
+      "bytes": 7380800,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, California",
+      "retrieved": "2026-11-04",
+      "sha256": "876011dc4ef79dca39f3cac84fc19a8b0f93d21a1949049301cd3332661e5adc",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/California/Tracts_Block_Groups_Only/20165ca0043000.zip"
+    },
+    "acs5-2016-0043-CO": {
+      "bytes": 1057438,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Colorado",
+      "retrieved": "2026-11-04",
+      "sha256": "1cd60a3930fe0136f5bf45b7adfec4688420f1bd0d32d2dd58c80f760efd671f",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Colorado/Tracts_Block_Groups_Only/20165co0043000.zip"
+    },
+    "acs5-2016-0043-CT": {
+      "bytes": 738665,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Connecticut",
+      "retrieved": "2026-11-04",
+      "sha256": "f8504302c3f6afe582034b1b18790ff7a7f0b54d948467de241676962360379f",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Connecticut/Tracts_Block_Groups_Only/20165ct0043000.zip"
+    },
+    "acs5-2016-0043-DC": {
+      "bytes": 142096,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, District of Columbia",
+      "retrieved": "2026-11-04",
+      "sha256": "960293f765d339c0d81b1753f4e716a68fd98eab0ebec9a0d99ddc3ebd85ad39",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/DistrictOfColumbia/Tracts_Block_Groups_Only/20165dc0043000.zip"
+    },
+    "acs5-2016-0043-DE": {
+      "bytes": 182932,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Delaware",
+      "retrieved": "2026-11-04",
+      "sha256": "9628661684ea02459b08d54b235208a3d0c9867e182e5a172f6b613137e96e33",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Delaware/Tracts_Block_Groups_Only/20165de0043000.zip"
+    },
+    "acs5-2016-0043-FL": {
+      "bytes": 3628950,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Florida",
+      "retrieved": "2026-11-04",
+      "sha256": "6478a4bcd555d2014c35d3e73a3de88178e1d6a8fc6f1df10ec210e2f6eb7435",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Florida/Tracts_Block_Groups_Only/20165fl0043000.zip"
+    },
+    "acs5-2016-0043-GA": {
+      "bytes": 1719760,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Georgia",
+      "retrieved": "2026-11-04",
+      "sha256": "918e7c808adb67c53d4d8c88c39e0653d14955b9c424c5ea8def57cf7a26d14c",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Georgia/Tracts_Block_Groups_Only/20165ga0043000.zip"
+    },
+    "acs5-2016-0043-HI": {
+      "bytes": 276949,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Hawaii",
+      "retrieved": "2026-11-04",
+      "sha256": "0dce592806dd880eba24f3d8b72af4a09e568664108c020138c614dda129c53b",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Hawaii/Tracts_Block_Groups_Only/20165hi0043000.zip"
+    },
+    "acs5-2016-0043-IA": {
+      "bytes": 680027,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Iowa",
+      "retrieved": "2026-11-04",
+      "sha256": "f217257fb3777cbfc1a6a50e47025388c2ce13c5c8820e4768bab8fe516f32ba",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Iowa/Tracts_Block_Groups_Only/20165ia0043000.zip"
+    },
+    "acs5-2016-0043-ID": {
+      "bytes": 274580,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Idaho",
+      "retrieved": "2026-11-04",
+      "sha256": "ae98a9daf1ebf4f68206626719db811be3b7e8a4df74c269b7dd362fab0752fe",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Idaho/Tracts_Block_Groups_Only/20165id0043000.zip"
+    },
+    "acs5-2016-0043-IL": {
+      "bytes": 2697353,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Illinois",
+      "retrieved": "2026-11-04",
+      "sha256": "c1ff0efe44666b5198e5f3d55fc052e04439b11614eaad44a0a75bfcffa31d28",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Illinois/Tracts_Block_Groups_Only/20165il0043000.zip"
+    },
+    "acs5-2016-0043-IN": {
+      "bytes": 1304106,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Indiana",
+      "retrieved": "2026-11-04",
+      "sha256": "901c1d781c143310854c31725a9adbcac938a42a0d22948cf0f5739787996a01",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Indiana/Tracts_Block_Groups_Only/20165in0043000.zip"
+    },
+    "acs5-2016-0043-KS": {
+      "bytes": 646520,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Kansas",
+      "retrieved": "2026-11-04",
+      "sha256": "08979a3fe0dc0f0b12874b93fac083b532c3135de24841f3e6ce9185f0a31446",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Kansas/Tracts_Block_Groups_Only/20165ks0043000.zip"
+    },
+    "acs5-2016-0043-KY": {
+      "bytes": 925491,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Kentucky",
+      "retrieved": "2026-11-04",
+      "sha256": "e1d877536939b1285b21bbd233e8516de032511c11800f38981db4fadd2f08b2",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Kentucky/Tracts_Block_Groups_Only/20165ky0043000.zip"
+    },
+    "acs5-2016-0043-LA": {
+      "bytes": 972579,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Louisiana",
+      "retrieved": "2026-11-04",
+      "sha256": "ce82bea66a6e3e1576e16a3ce6a2fd236efbc75127981e43178a048cc3d22a3d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Louisiana/Tracts_Block_Groups_Only/20165la0043000.zip"
+    },
+    "acs5-2016-0043-MA": {
+      "bytes": 1342084,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Massachusetts",
+      "retrieved": "2026-11-04",
+      "sha256": "ce261d749263b270b79cd181cb22af2cfb873226cf0ed9f5e30bf7210b8e8901",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Massachusetts/Tracts_Block_Groups_Only/20165ma0043000.zip"
+    },
+    "acs5-2016-0043-MD": {
+      "bytes": 1181002,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Maryland",
+      "retrieved": "2026-11-04",
+      "sha256": "0fb1d5ef4371b0107c3e3e002262d75a4fac7ef12a4babbd46b8f31a8ec93585",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Maryland/Tracts_Block_Groups_Only/20165md0043000.zip"
+    },
+    "acs5-2016-0043-ME": {
+      "bytes": 290852,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Maine",
+      "retrieved": "2026-11-04",
+      "sha256": "aad3c8e547cec5d5625684634144e3367ab20107bedfbb04f231d6129c67639e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Maine/Tracts_Block_Groups_Only/20165me0043000.zip"
+    },
+    "acs5-2016-0043-MI": {
+      "bytes": 2243119,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Michigan",
+      "retrieved": "2026-11-04",
+      "sha256": "3826c0be3efd15777c4b75bd84409e00635345774a976a0a3beafa99363970d8",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Michigan/Tracts_Block_Groups_Only/20165mi0043000.zip"
+    },
+    "acs5-2016-0043-MN": {
+      "bytes": 1121461,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Minnesota",
+      "retrieved": "2026-11-04",
+      "sha256": "e0d062188b309fe62c29dbd184ddeab0a4410116625f5b8c18270220c8ddadc2",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Minnesota/Tracts_Block_Groups_Only/20165mn0043000.zip"
+    },
+    "acs5-2016-0043-MO": {
+      "bytes": 1216346,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Missouri",
+      "retrieved": "2026-11-04",
+      "sha256": "1ad979f5be7f813496f4fbb5c7e1b4d4a6d2b41ada7eecefa3287051f7e84c28",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Missouri/Tracts_Block_Groups_Only/20165mo0043000.zip"
+    },
+    "acs5-2016-0043-MS": {
+      "bytes": 589439,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Mississippi",
+      "retrieved": "2026-11-04",
+      "sha256": "1cc8508e5682037d7a4261119255d129841a13084fc2fc13571c8dcfee4efab3",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Mississippi/Tracts_Block_Groups_Only/20165ms0043000.zip"
+    },
+    "acs5-2016-0043-MT": {
+      "bytes": 225312,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Montana",
+      "retrieved": "2026-11-04",
+      "sha256": "3696310677a35e211a5de95dc55c223b28838e30213d04c0b88ce62a1808ffcc",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Montana/Tracts_Block_Groups_Only/20165mt0043000.zip"
+    },
+    "acs5-2016-0043-NC": {
+      "bytes": 1888090,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, North Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "b8a1a3d3e5930efdcf32a04c7f76fb89a0d57b3b98fb659a262184408b65fb7b",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NorthCarolina/Tracts_Block_Groups_Only/20165nc0043000.zip"
+    },
+    "acs5-2016-0043-ND": {
+      "bytes": 161348,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, North Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "b9c92534013fd689d1a048382913474a838c60721a941a9e8a0c32b8912bc2ea",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NorthDakota/Tracts_Block_Groups_Only/20165nd0043000.zip"
+    },
+    "acs5-2016-0043-NE": {
+      "bytes": 435702,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Nebraska",
+      "retrieved": "2026-11-04",
+      "sha256": "fdf61ce34bad9d1b48941dcb00fe4056e52073132cb0db063ab22a658af39225",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Nebraska/Tracts_Block_Groups_Only/20165ne0043000.zip"
+    },
+    "acs5-2016-0043-NH": {
+      "bytes": 252277,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, New Hampshire",
+      "retrieved": "2026-11-04",
+      "sha256": "5caa9f4fe15666294bdf871e1981fad576bb1662a5711b62683e0f698f4493f4",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewHampshire/Tracts_Block_Groups_Only/20165nh0043000.zip"
+    },
+    "acs5-2016-0043-NJ": {
+      "bytes": 1802071,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, New Jersey",
+      "retrieved": "2026-11-04",
+      "sha256": "12e6ed2996e3e157b55ad7803acd1ac6138bc58fb792ff8263d6ac60803cf226",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewJersey/Tracts_Block_Groups_Only/20165nj0043000.zip"
+    },
+    "acs5-2016-0043-NM": {
+      "bytes": 445846,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, New Mexico",
+      "retrieved": "2026-11-04",
+      "sha256": "a121d56e479e48880bb2f2a507fca56ec8c99bdec024b7adb506a8ea357c094a",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewMexico/Tracts_Block_Groups_Only/20165nm0043000.zip"
+    },
+    "acs5-2016-0043-NV": {
+      "bytes": 596386,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Nevada",
+      "retrieved": "2026-11-04",
+      "sha256": "8da3d4c4de1d2534af04a72586d7d52c2b68e67f8cb5ecd4d27ca54b85769c89",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Nevada/Tracts_Block_Groups_Only/20165nv0043000.zip"
+    },
+    "acs5-2016-0043-NY": {
+      "bytes": 4333216,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, New York",
+      "retrieved": "2026-11-04",
+      "sha256": "eefc2aa8295dab123a9d63f4a98a1b24a278f38c530f41b5af6c7dcb0e9c937a",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewYork/Tracts_Block_Groups_Only/20165ny0043000.zip"
+    },
+    "acs5-2016-0043-OH": {
+      "bytes": 2443462,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Ohio",
+      "retrieved": "2026-11-04",
+      "sha256": "668d2c6b9705bf6e0e27af3babb83719e7b83c2aa5ddf09c842a145efa7a3e3e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Ohio/Tracts_Block_Groups_Only/20165oh0043000.zip"
+    },
+    "acs5-2016-0043-OK": {
+      "bytes": 880547,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Oklahoma",
+      "retrieved": "2026-11-04",
+      "sha256": "26688a549d8e93632852a282dfbd2a061c5124e856613c924d1526bddbacf19f",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Oklahoma/Tracts_Block_Groups_Only/20165ok0043000.zip"
+    },
+    "acs5-2016-0043-OR": {
+      "bytes": 761317,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Oregon",
+      "retrieved": "2026-11-04",
+      "sha256": "2279dc8d5df6174c81e5ab105537e1c3e5639e379bf6f5d0b562c56c0a7fa630",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Oregon/Tracts_Block_Groups_Only/20165or0043000.zip"
+    },
+    "acs5-2016-0043-PA": {
+      "bytes": 2677730,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Pennsylvania",
+      "retrieved": "2026-11-04",
+      "sha256": "4b82e5dbdf9f221fad727a9a7de06da2861ee8702dc2a3d02d33c1a3d7ee57b4",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Pennsylvania/Tracts_Block_Groups_Only/20165pa0043000.zip"
+    },
+    "acs5-2016-0043-RI": {
+      "bytes": 224297,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Rhode Island",
+      "retrieved": "2026-11-04",
+      "sha256": "8251d7bb8b2fde107f063181ed70d14dec55ff4699b3a8893d7239dc27d70fff",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/RhodeIsland/Tracts_Block_Groups_Only/20165ri0043000.zip"
+    },
+    "acs5-2016-0043-SC": {
+      "bytes": 927598,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, South Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "20b249d8844e9dd5db885dc8d45465b12049ae41918d02a9a238846698f323a5",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/SouthCarolina/Tracts_Block_Groups_Only/20165sc0043000.zip"
+    },
+    "acs5-2016-0043-SD": {
+      "bytes": 181231,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, South Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "7820163d3c69755594805125cea3f2ef42bfc6ef7ecafd8c9511178641412c08",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/SouthDakota/Tracts_Block_Groups_Only/20165sd0043000.zip"
+    },
+    "acs5-2016-0043-TN": {
+      "bytes": 1245092,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Tennessee",
+      "retrieved": "2026-11-04",
+      "sha256": "58b529ca8ed4aade9d0b9be195be3ab3cb48e033b6828479d62a6ee329d50c53",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Tennessee/Tracts_Block_Groups_Only/20165tn0043000.zip"
+    },
+    "acs5-2016-0043-TX": {
+      "bytes": 4797392,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Texas",
+      "retrieved": "2026-11-04",
+      "sha256": "71790b785c043239e9b0b1fdb7c373beba9cc19b493cc82e4ef9af02d1d71a99",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Texas/Tracts_Block_Groups_Only/20165tx0043000.zip"
+    },
+    "acs5-2016-0043-UT": {
+      "bytes": 499903,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Utah",
+      "retrieved": "2026-11-04",
+      "sha256": "e52b8898df5f52c19cd9d700a62445014f672115ae99d309749157f77c547335",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Utah/Tracts_Block_Groups_Only/20165ut0043000.zip"
+    },
+    "acs5-2016-0043-VA": {
+      "bytes": 1611165,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "c14cb3125ffd104411517e705c346ac839f281fd2d918d45ece5d7d3de1a4df4",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Virginia/Tracts_Block_Groups_Only/20165va0043000.zip"
+    },
+    "acs5-2016-0043-VT": {
+      "bytes": 145644,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Vermont",
+      "retrieved": "2026-11-04",
+      "sha256": "134022cc9087b9c0f435a63f1062346ccc6fbb2b287025be9c5969c37ce86d94",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Vermont/Tracts_Block_Groups_Only/20165vt0043000.zip"
+    },
+    "acs5-2016-0043-WA": {
+      "bytes": 1349216,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Washington",
+      "retrieved": "2026-11-04",
+      "sha256": "03637dd9cf6074cbf6a7e1d6064bb3c6ebfe91d0da13744f41e1097f9b675324",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Washington/Tracts_Block_Groups_Only/20165wa0043000.zip"
+    },
+    "acs5-2016-0043-WI": {
+      "bytes": 1192015,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Wisconsin",
+      "retrieved": "2026-11-04",
+      "sha256": "0ecdaa941b6160b137d0093608903ef257c76a2b9836a6f68af4eaa229e5ef8c",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Wisconsin/Tracts_Block_Groups_Only/20165wi0043000.zip"
+    },
+    "acs5-2016-0043-WV": {
+      "bytes": 409502,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, West Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "c69c10daa3d0345cae0ca5ff8ba7ca5348c063ba5f52c550832f3cb3b9cf140a",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/WestVirginia/Tracts_Block_Groups_Only/20165wv0043000.zip"
+    },
+    "acs5-2016-0043-WY": {
+      "bytes": 116194,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0043 (B15003), tracts and block groups, Wyoming",
+      "retrieved": "2026-11-04",
+      "sha256": "b78a9723f3bbc3c8de6b4c5a8e3adb98f310ce05adb06f6fc8adc5d9beb4d326",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Wyoming/Tracts_Block_Groups_Only/20165wy0043000.zip"
+    },
+    "acs5-2016-0059-AK": {
+      "bytes": 116468,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Alaska",
+      "retrieved": "2026-11-04",
+      "sha256": "25793da3c75cc6b0619451708e8d16cf521e79c5c7b99d09c0057dc682017a0e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Alaska/Tracts_Block_Groups_Only/20165ak0059000.zip"
+    },
+    "acs5-2016-0059-AL": {
+      "bytes": 659651,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Alabama",
+      "retrieved": "2026-11-04",
+      "sha256": "b3db9724eb51340e6ab6c36be3f84c45fe60b54ed87d91f383e378f0d8bb81db",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Alabama/Tracts_Block_Groups_Only/20165al0059000.zip"
+    },
+    "acs5-2016-0059-AR": {
+      "bytes": 406002,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Arkansas",
+      "retrieved": "2026-11-04",
+      "sha256": "e152948d974fe73386b6ba15ee6e2388ab6bd7360678aa8f32d90e1d64addc7f",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Arkansas/Tracts_Block_Groups_Only/20165ar0059000.zip"
+    },
+    "acs5-2016-0059-AZ": {
+      "bytes": 980750,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Arizona",
+      "retrieved": "2026-11-04",
+      "sha256": "a13c0fcb1622216578627596cb163c18c48e47aae9dff254536d79f8a3fab76c",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Arizona/Tracts_Block_Groups_Only/20165az0059000.zip"
+    },
+    "acs5-2016-0059-CA": {
+      "bytes": 5705657,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, California",
+      "retrieved": "2026-11-04",
+      "sha256": "68f883b2e0c3a62ca314f3a6c23a6f96042af0cd2a478d812d6fa565103046de",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/California/Tracts_Block_Groups_Only/20165ca0059000.zip"
+    },
+    "acs5-2016-0059-CO": {
+      "bytes": 788171,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Colorado",
+      "retrieved": "2026-11-04",
+      "sha256": "56ff5a5557856710fb08b92433767d3394e42c4743d35f0e87f1f8b7f6be5f3a",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Colorado/Tracts_Block_Groups_Only/20165co0059000.zip"
+    },
+    "acs5-2016-0059-CT": {
+      "bytes": 529154,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Connecticut",
+      "retrieved": "2026-11-04",
+      "sha256": "8200108dd8a85b7411b2cb75a273a76fca37a240591bf434e419c682a66134bf",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Connecticut/Tracts_Block_Groups_Only/20165ct0059000.zip"
+    },
+    "acs5-2016-0059-DC": {
+      "bytes": 106283,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, District of Columbia",
+      "retrieved": "2026-11-04",
+      "sha256": "fe3a6d04affdbdee95f680d7a96247265c8f7ef6def285377433f63760c183b4",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/DistrictOfColumbia/Tracts_Block_Groups_Only/20165dc0059000.zip"
+    },
+    "acs5-2016-0059-DE": {
+      "bytes": 132682,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Delaware",
+      "retrieved": "2026-11-04",
+      "sha256": "c25cf46fca2b821ee071bcf291c649864d968d3fb2ac3020f9fcf25300e83b16",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Delaware/Tracts_Block_Groups_Only/20165de0059000.zip"
+    },
+    "acs5-2016-0059-FL": {
+      "bytes": 2564329,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Florida",
+      "retrieved": "2026-11-04",
+      "sha256": "89de767a1bf67dabbffd5e2d5d23047cc11d768396e0ba3dbe7ab47256db232d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Florida/Tracts_Block_Groups_Only/20165fl0059000.zip"
+    },
+    "acs5-2016-0059-GA": {
+      "bytes": 1201623,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Georgia",
+      "retrieved": "2026-11-04",
+      "sha256": "c9daa7ae7f61ebfea666ac5bb1b619a12e9f30edb5939097bbbbc772bfacc207",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Georgia/Tracts_Block_Groups_Only/20165ga0059000.zip"
+    },
+    "acs5-2016-0059-HI": {
+      "bytes": 216413,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Hawaii",
+      "retrieved": "2026-11-04",
+      "sha256": "4976fb59444eee6abacb5dbe12f8b080717a03fe667ceeb138bb5281e5340b4b",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Hawaii/Tracts_Block_Groups_Only/20165hi0059000.zip"
+    },
+    "acs5-2016-0059-IA": {
+      "bytes": 453576,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Iowa",
+      "retrieved": "2026-11-04",
+      "sha256": "f2a9812b4777cd78c5082ed182cef64c06dc255e16c383974e02475659497c2d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Iowa/Tracts_Block_Groups_Only/20165ia0059000.zip"
+    },
+    "acs5-2016-0059-ID": {
+      "bytes": 187709,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Idaho",
+      "retrieved": "2026-11-04",
+      "sha256": "b113ab3cdd8749fc87ecb829f6dfd3e172560b981653832df3adc0bcf312a0d7",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Idaho/Tracts_Block_Groups_Only/20165id0059000.zip"
+    },
+    "acs5-2016-0059-IL": {
+      "bytes": 1917524,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Illinois",
+      "retrieved": "2026-11-04",
+      "sha256": "e7b276d3aa0aa7e85a2b29322973d1d4c7d064fdc3102559b0baf2b8c30f7d18",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Illinois/Tracts_Block_Groups_Only/20165il0059000.zip"
+    },
+    "acs5-2016-0059-IN": {
+      "bytes": 869134,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Indiana",
+      "retrieved": "2026-11-04",
+      "sha256": "f73dc07572501f4b878b0b70678f97525eaf0a8b216dfb8d75fb3c5ad3b14434",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Indiana/Tracts_Block_Groups_Only/20165in0059000.zip"
+    },
+    "acs5-2016-0059-KS": {
+      "bytes": 463828,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Kansas",
+      "retrieved": "2026-11-04",
+      "sha256": "29594beeb97936547b19093def29ef5e32bf666fecedd5bbd70d11f16599b877",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Kansas/Tracts_Block_Groups_Only/20165ks0059000.zip"
+    },
+    "acs5-2016-0059-KY": {
+      "bytes": 581411,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Kentucky",
+      "retrieved": "2026-11-04",
+      "sha256": "978f93acac87d9f2e27bb79dadaa42e2955700ca5fe840732ace72aecc4ef50f",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Kentucky/Tracts_Block_Groups_Only/20165ky0059000.zip"
+    },
+    "acs5-2016-0059-LA": {
+      "bytes": 665835,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Louisiana",
+      "retrieved": "2026-11-04",
+      "sha256": "27482b64073f070a8b4608de4c8fbb78ccac183dff7720d10538467aa1800200",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Louisiana/Tracts_Block_Groups_Only/20165la0059000.zip"
+    },
+    "acs5-2016-0059-MA": {
+      "bytes": 944857,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Massachusetts",
+      "retrieved": "2026-11-04",
+      "sha256": "5d2f8efe8c3a8b9809b521b01a182bb784a48dae0a1b42c5ec9ad26d2db114ad",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Massachusetts/Tracts_Block_Groups_Only/20165ma0059000.zip"
+    },
+    "acs5-2016-0059-MD": {
+      "bytes": 845103,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Maryland",
+      "retrieved": "2026-11-04",
+      "sha256": "8c866488772db7d2b467e392303131b8c8f7cd8243b4342c6480ce33d0f08f2d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Maryland/Tracts_Block_Groups_Only/20165md0059000.zip"
+    },
+    "acs5-2016-0059-ME": {
+      "bytes": 179429,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Maine",
+      "retrieved": "2026-11-04",
+      "sha256": "19f9085f0a51cbcaa62346994a9d3cfcada20d188d35591d7df1fb66ccd20b1e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Maine/Tracts_Block_Groups_Only/20165me0059000.zip"
+    },
+    "acs5-2016-0059-MI": {
+      "bytes": 1516306,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Michigan",
+      "retrieved": "2026-11-04",
+      "sha256": "4c514f664a27dc640eee7f90b06d78f4bac9cd5b5942da03af146695388b79c9",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Michigan/Tracts_Block_Groups_Only/20165mi0059000.zip"
+    },
+    "acs5-2016-0059-MN": {
+      "bytes": 782536,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Minnesota",
+      "retrieved": "2026-11-04",
+      "sha256": "353706281def16097754653e1e2bbbcd88d982cea23315949ab54e391baf861d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Minnesota/Tracts_Block_Groups_Only/20165mn0059000.zip"
+    },
+    "acs5-2016-0059-MO": {
+      "bytes": 808741,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Missouri",
+      "retrieved": "2026-11-04",
+      "sha256": "d23528190b345f42645a5d0c9180bbce2c804350b7271f963c8dac9bcb139bb7",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Missouri/Tracts_Block_Groups_Only/20165mo0059000.zip"
+    },
+    "acs5-2016-0059-MS": {
+      "bytes": 388288,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Mississippi",
+      "retrieved": "2026-11-04",
+      "sha256": "94df13465688d3041b055eaebda0d4063855a79d3f05f62393f48c846143a6fe",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Mississippi/Tracts_Block_Groups_Only/20165ms0059000.zip"
+    },
+    "acs5-2016-0059-MT": {
+      "bytes": 149869,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Montana",
+      "retrieved": "2026-11-04",
+      "sha256": "826a70ab3adbd0ceb7c3c31a3c6373d57a19b2340c844f8c164f136388494e80",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Montana/Tracts_Block_Groups_Only/20165mt0059000.zip"
+    },
+    "acs5-2016-0059-NC": {
+      "bytes": 1321041,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, North Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "d367e8f07bfbebf82f80850e64a44d5133c35b2ccda340b9bc7dcca9d1ad8cd9",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NorthCarolina/Tracts_Block_Groups_Only/20165nc0059000.zip"
+    },
+    "acs5-2016-0059-ND": {
+      "bytes": 107885,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, North Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "39109c4cbfe4567e79c0079f7c55447044de134be0f4e7a6308d62331a9d0736",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NorthDakota/Tracts_Block_Groups_Only/20165nd0059000.zip"
+    },
+    "acs5-2016-0059-NE": {
+      "bytes": 304562,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Nebraska",
+      "retrieved": "2026-11-04",
+      "sha256": "d904dcf163b5dd059dd63720942e2d23f6cc20c16581e3b22b6f22d44a9bc564",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Nebraska/Tracts_Block_Groups_Only/20165ne0059000.zip"
+    },
+    "acs5-2016-0059-NH": {
+      "bytes": 159719,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, New Hampshire",
+      "retrieved": "2026-11-04",
+      "sha256": "f9c90712a6a64386923684c2e1afc4c833d389a0271a04b10adfa1ba979b26d5",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewHampshire/Tracts_Block_Groups_Only/20165nh0059000.zip"
+    },
+    "acs5-2016-0059-NJ": {
+      "bytes": 1335984,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, New Jersey",
+      "retrieved": "2026-11-04",
+      "sha256": "c13d9ab3852ef89fbf5c7265df459312d82ac112376cba778f5d1a08ef9fafeb",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewJersey/Tracts_Block_Groups_Only/20165nj0059000.zip"
+    },
+    "acs5-2016-0059-NM": {
+      "bytes": 338041,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, New Mexico",
+      "retrieved": "2026-11-04",
+      "sha256": "a54d5dbfb2644be309a102f5d7b869bb23ff70a4273bf5205f4a67ae920694c8",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewMexico/Tracts_Block_Groups_Only/20165nm0059000.zip"
+    },
+    "acs5-2016-0059-NV": {
+      "bytes": 464209,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Nevada",
+      "retrieved": "2026-11-04",
+      "sha256": "01a0015f43ed8038e1f595d7d0fdf2e30841b30517f42e213192d77abac87381",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Nevada/Tracts_Block_Groups_Only/20165nv0059000.zip"
+    },
+    "acs5-2016-0059-NY": {
+      "bytes": 3095177,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, New York",
+      "retrieved": "2026-11-04",
+      "sha256": "1e6ab63d016ae33098679a247ecb9efb4a8015b995da857d708412534d581574",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewYork/Tracts_Block_Groups_Only/20165ny0059000.zip"
+    },
+    "acs5-2016-0059-OH": {
+      "bytes": 1630315,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Ohio",
+      "retrieved": "2026-11-04",
+      "sha256": "9c5341d1d7ad86cc016c1b0f9a505869628518f1b0a318b545cec2bfb4b82556",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Ohio/Tracts_Block_Groups_Only/20165oh0059000.zip"
+    },
+    "acs5-2016-0059-OK": {
+      "bytes": 684307,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Oklahoma",
+      "retrieved": "2026-11-04",
+      "sha256": "ae3759727cea95fb35275c952bef5a6ba0bf5aae412fb556da69315e4c371fe3",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Oklahoma/Tracts_Block_Groups_Only/20165ok0059000.zip"
+    },
+    "acs5-2016-0059-OR": {
+      "bytes": 539637,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Oregon",
+      "retrieved": "2026-11-04",
+      "sha256": "b571ed0cfcf6cee5eada9a668a6a041e83cb0a4256617dbd398d62ee5ec656b8",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Oregon/Tracts_Block_Groups_Only/20165or0059000.zip"
+    },
+    "acs5-2016-0059-PA": {
+      "bytes": 1790148,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Pennsylvania",
+      "retrieved": "2026-11-04",
+      "sha256": "ee0428610d82ea6ef1fc8671b5c57cfcc33487ce6bd0b5965b8bd5e9aa455fcc",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Pennsylvania/Tracts_Block_Groups_Only/20165pa0059000.zip"
+    },
+    "acs5-2016-0059-RI": {
+      "bytes": 154172,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Rhode Island",
+      "retrieved": "2026-11-04",
+      "sha256": "600bbbe43855cc7699696bd151affd47056598d3e9a4adcea144320fd6db6c90",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/RhodeIsland/Tracts_Block_Groups_Only/20165ri0059000.zip"
+    },
+    "acs5-2016-0059-SC": {
+      "bytes": 630503,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, South Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "b262db490254bb514b3772ac7d0873b3ce655b4a7bb71d03be7aa25aec171fc0",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/SouthCarolina/Tracts_Block_Groups_Only/20165sc0059000.zip"
+    },
+    "acs5-2016-0059-SD": {
+      "bytes": 121817,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, South Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "d88555299d04d9592a763dbbd8aa36add605878a74d445970c3c57d91c0abc7e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/SouthDakota/Tracts_Block_Groups_Only/20165sd0059000.zip"
+    },
+    "acs5-2016-0059-TN": {
+      "bytes": 810845,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Tennessee",
+      "retrieved": "2026-11-04",
+      "sha256": "8f3ea32dfdf6637a883611d489ade5bd2eef6d3850418656c88b1f4027c42dcb",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Tennessee/Tracts_Block_Groups_Only/20165tn0059000.zip"
+    },
+    "acs5-2016-0059-TX": {
+      "bytes": 3582457,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Texas",
+      "retrieved": "2026-11-04",
+      "sha256": "befd1967e9d71719b6e2f33f3508df244d530f197438cf2fcd722eba34b6f7d4",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Texas/Tracts_Block_Groups_Only/20165tx0059000.zip"
+    },
+    "acs5-2016-0059-UT": {
+      "bytes": 354868,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Utah",
+      "retrieved": "2026-11-04",
+      "sha256": "9c8ec68082f46225dd16e43d31e105a6136b1244c9e0de422aa4d957dc5e986f",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Utah/Tracts_Block_Groups_Only/20165ut0059000.zip"
+    },
+    "acs5-2016-0059-VA": {
+      "bytes": 1152124,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "e6eb93a529b82a0d430a69be258f59d53d8fec6d46d48146f4c25421f54ca15a",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Virginia/Tracts_Block_Groups_Only/20165va0059000.zip"
+    },
+    "acs5-2016-0059-VT": {
+      "bytes": 92409,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Vermont",
+      "retrieved": "2026-11-04",
+      "sha256": "bef911f322e07bab7e0f2e4397a3bdc66b58fd7a9d5f599f508648521fc73ba6",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Vermont/Tracts_Block_Groups_Only/20165vt0059000.zip"
+    },
+    "acs5-2016-0059-WA": {
+      "bytes": 997737,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Washington",
+      "retrieved": "2026-11-04",
+      "sha256": "a3d979bdd384c7266b91d49999d092ab98cf347d82d4b05a740d8d0d63373aa2",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Washington/Tracts_Block_Groups_Only/20165wa0059000.zip"
+    },
+    "acs5-2016-0059-WI": {
+      "bytes": 814767,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Wisconsin",
+      "retrieved": "2026-11-04",
+      "sha256": "7951fb7484e63482c567193c367688b8c8660b7e8002276c9b672d0d4d56d07d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Wisconsin/Tracts_Block_Groups_Only/20165wi0059000.zip"
+    },
+    "acs5-2016-0059-WV": {
+      "bytes": 250238,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, West Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "be75ceb6f876aa6e69349a668d7f50c092558f0b6e12f9be32c402954b680635",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/WestVirginia/Tracts_Block_Groups_Only/20165wv0059000.zip"
+    },
+    "acs5-2016-0059-WY": {
+      "bytes": 80789,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence 0059 (B19013), tracts and block groups, Wyoming",
+      "retrieved": "2026-11-04",
+      "sha256": "56523b26ea56125a7aa0af741b6c850523ffda328c9195a648e88ad324c8303c",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Wyoming/Tracts_Block_Groups_Only/20165wy0059000.zip"
+    },
+    "acs5-2016-geo-AK": {
+      "bytes": 557989,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Alaska",
+      "retrieved": "2026-11-04",
+      "sha256": "61023c405f974d246c4317ed853990ddc7e5fe8be24a12ad1fa8d49b28e06a1d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Alaska/Tracts_Block_Groups_Only/g20165ak.csv"
+    },
+    "acs5-2016-geo-AL": {
+      "bytes": 1368355,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Alabama",
+      "retrieved": "2026-11-04",
+      "sha256": "9e3943bd9df45cfa568fa5e1fc1408c9b89d2730da81df102d78c0124640a792",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Alabama/Tracts_Block_Groups_Only/g20165al.csv"
+    },
+    "acs5-2016-geo-AR": {
+      "bytes": 1324758,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Arkansas",
+      "retrieved": "2026-11-04",
+      "sha256": "08af3b86976d015b48cc7466502ba816c62d90ff25bfb86bf9cf2c43554196f2",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Arkansas/Tracts_Block_Groups_Only/g20165ar.csv"
+    },
+    "acs5-2016-geo-AZ": {
+      "bytes": 1329768,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Arizona",
+      "retrieved": "2026-11-04",
+      "sha256": "4c2659094eef7f5ff4badd70ec9daf26051c5544152fc9e7a5258db4d7d1e44e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Arizona/Tracts_Block_Groups_Only/g20165az.csv"
+    },
+    "acs5-2016-geo-CA": {
+      "bytes": 6563355,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, California",
+      "retrieved": "2026-11-04",
+      "sha256": "5231475573248efe756261f5cb39b2f9a70c0eb3c2df9db7fd8f940c043b37b4",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/California/Tracts_Block_Groups_Only/g20165ca.csv"
+    },
+    "acs5-2016-geo-CO": {
+      "bytes": 1198972,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Colorado",
+      "retrieved": "2026-11-04",
+      "sha256": "7ead92b0b93f10e5b81973b0c82fa725c2c41311e6f0b82915d1c9e1ac2238a5",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Colorado/Tracts_Block_Groups_Only/g20165co.csv"
+    },
+    "acs5-2016-geo-CT": {
+      "bytes": 885844,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Connecticut",
+      "retrieved": "2026-11-04",
+      "sha256": "4f262ebae82a0571f67263554cc5670cb1867b0f5ad7d437c70a6a44d36162eb",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Connecticut/Tracts_Block_Groups_Only/g20165ct.csv"
+    },
+    "acs5-2016-geo-DC": {
+      "bytes": 119201,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, District of Columbia",
+      "retrieved": "2026-11-04",
+      "sha256": "c8c6b65fbcb95b59e4fe2c6033498325f72f6ae9baad894fdb4f4e2904f84dfa",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/DistrictOfColumbia/Tracts_Block_Groups_Only/g20165dc.csv"
+    },
+    "acs5-2016-geo-DE": {
+      "bytes": 207373,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Delaware",
+      "retrieved": "2026-11-04",
+      "sha256": "803f2745d8733d451d6f5e0645e7f4a3815c5173caba412024990a0a97c882c5",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Delaware/Tracts_Block_Groups_Only/g20165de.csv"
+    },
+    "acs5-2016-geo-FL": {
+      "bytes": 3286199,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Florida",
+      "retrieved": "2026-11-04",
+      "sha256": "b1094ddf3d049026d7cba568eda0810df426ce2937a316d77c767ac8dfda4816",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Florida/Tracts_Block_Groups_Only/g20165fl.csv"
+    },
+    "acs5-2016-geo-GA": {
+      "bytes": 2016665,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Georgia",
+      "retrieved": "2026-11-04",
+      "sha256": "fbfe2993b57e63a107587eb65e184ad40c4c11164fb15554edb8b96680f095fc",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Georgia/Tracts_Block_Groups_Only/g20165ga.csv"
+    },
+    "acs5-2016-geo-HI": {
+      "bytes": 389749,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Hawaii",
+      "retrieved": "2026-11-04",
+      "sha256": "ee1fc4c88aa09405ea2d6129998b1442095a188756a51ad57fb5ca6d25cf16d4",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Hawaii/Tracts_Block_Groups_Only/g20165hi.csv"
+    },
+    "acs5-2016-geo-IA": {
+      "bytes": 1755572,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Iowa",
+      "retrieved": "2026-11-04",
+      "sha256": "c39759be9f4347c0f7207fc86bd5e16deee676edb6253ef7348642b43cf8b4a0",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Iowa/Tracts_Block_Groups_Only/g20165ia.csv"
+    },
+    "acs5-2016-geo-ID": {
+      "bytes": 457108,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Idaho",
+      "retrieved": "2026-11-04",
+      "sha256": "87e4bd65f4fba5227443f94dc27b9575a743e0b2b7e52a970d952b3ca8a726d9",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Idaho/Tracts_Block_Groups_Only/g20165id.csv"
+    },
+    "acs5-2016-geo-IL": {
+      "bytes": 3748276,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Illinois",
+      "retrieved": "2026-11-04",
+      "sha256": "228664c4bed7de58e75e9741fc5a95873c4aed01962d62c86761cb12dfd4cd52",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Illinois/Tracts_Block_Groups_Only/g20165il.csv"
+    },
+    "acs5-2016-geo-IN": {
+      "bytes": 1931903,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Indiana",
+      "retrieved": "2026-11-04",
+      "sha256": "bea66d23eea9dc64d819100ed75d6b7a06d9cb85dd07b207f8cc61850a6c4653",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Indiana/Tracts_Block_Groups_Only/g20165in.csv"
+    },
+    "acs5-2016-geo-KS": {
+      "bytes": 1473634,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Kansas",
+      "retrieved": "2026-11-04",
+      "sha256": "533fd73bbbfcefc2ca68e10a75792d0bae1b380ea4053c773ae40b8bbf04796c",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Kansas/Tracts_Block_Groups_Only/g20165ks.csv"
+    },
+    "acs5-2016-geo-KY": {
+      "bytes": 1344334,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Kentucky",
+      "retrieved": "2026-11-04",
+      "sha256": "edddfa0771ebb93bf8916e5614ae627b2eb4e7072b2d93e3ca10aa7efb9d374f",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Kentucky/Tracts_Block_Groups_Only/g20165ky.csv"
+    },
+    "acs5-2016-geo-LA": {
+      "bytes": 1406006,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Louisiana",
+      "retrieved": "2026-11-04",
+      "sha256": "50f0da4b891bb47eaa7441ac55e780145a0d03a9dca09012d63c4a25a8c18bca",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Louisiana/Tracts_Block_Groups_Only/g20165la.csv"
+    },
+    "acs5-2016-geo-MA": {
+      "bytes": 1713667,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Massachusetts",
+      "retrieved": "2026-11-04",
+      "sha256": "9a54e59ccac11402543ef98f8cf6391bb90a3e942506cfef90ef2ebc46a1e20e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Massachusetts/Tracts_Block_Groups_Only/g20165ma.csv"
+    },
+    "acs5-2016-geo-MD": {
+      "bytes": 1342224,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Maryland",
+      "retrieved": "2026-11-04",
+      "sha256": "9984674adbd49f8ad0f8d91049c8a6809f6f345901544e2814cda2df97fcc578",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Maryland/Tracts_Block_Groups_Only/g20165md.csv"
+    },
+    "acs5-2016-geo-ME": {
+      "bytes": 641685,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Maine",
+      "retrieved": "2026-11-04",
+      "sha256": "7d3bd62686ac67ce764dbc60c4005803d864d42229c9a7735dbe193f439787fb",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Maine/Tracts_Block_Groups_Only/g20165me.csv"
+    },
+    "acs5-2016-geo-MI": {
+      "bytes": 2822709,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Michigan",
+      "retrieved": "2026-11-04",
+      "sha256": "48e1bde19b33e864b7cdcf2f668bf59ea13ed7158fe2757c5ce653f8abe6bd3d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Michigan/Tracts_Block_Groups_Only/g20165mi.csv"
+    },
+    "acs5-2016-geo-MN": {
+      "bytes": 2299112,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Minnesota",
+      "retrieved": "2026-11-04",
+      "sha256": "973b6a5f8941f20cc64c42d8b1e0e663d218489e11fc5918a75d217a7fa6aa12",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Minnesota/Tracts_Block_Groups_Only/g20165mn.csv"
+    },
+    "acs5-2016-geo-MO": {
+      "bytes": 2216249,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Missouri",
+      "retrieved": "2026-11-04",
+      "sha256": "696a0bfe36a9fcace0327e84f8959a7a1d47dafb938b0b448022f7e0f78e8beb",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Missouri/Tracts_Block_Groups_Only/g20165mo.csv"
+    },
+    "acs5-2016-geo-MS": {
+      "bytes": 1011930,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Mississippi",
+      "retrieved": "2026-11-04",
+      "sha256": "0a94ab17d270c5927c1576f6c0cdaeea3f7f059eb959e33a6a64e44a3701d690",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Mississippi/Tracts_Block_Groups_Only/g20165ms.csv"
+    },
+    "acs5-2016-geo-MT": {
+      "bytes": 587515,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Montana",
+      "retrieved": "2026-11-04",
+      "sha256": "d7e1f428c1130438a8e56d50883be0df2c223d2b38f5dae537f32f77f3d18d54",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Montana/Tracts_Block_Groups_Only/g20165mt.csv"
+    },
+    "acs5-2016-geo-NC": {
+      "bytes": 2465348,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, North Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "cd9cca53de86a5b3024d29adca3ad23650a9b1be538c015b48babe23b6618061",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NorthCarolina/Tracts_Block_Groups_Only/g20165nc.csv"
+    },
+    "acs5-2016-geo-ND": {
+      "bytes": 928562,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, North Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "2e0dde23600d63fd1c0811497cc66a5ec28ba32f725032b330112181a252465a",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NorthDakota/Tracts_Block_Groups_Only/g20165nd.csv"
+    },
+    "acs5-2016-geo-NE": {
+      "bytes": 1116589,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Nebraska",
+      "retrieved": "2026-11-04",
+      "sha256": "1bc0c89549ac244a257d8eb26d070e194aaec07624310bdd0eee7bf53564d044",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Nebraska/Tracts_Block_Groups_Only/g20165ne.csv"
+    },
+    "acs5-2016-geo-NH": {
+      "bytes": 536785,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, New Hampshire",
+      "retrieved": "2026-11-04",
+      "sha256": "5bd136cd0c1d4c7c868d1d59dc9219b40b3fe5c7449ea148cacf5e5746520c40",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewHampshire/Tracts_Block_Groups_Only/g20165nh.csv"
+    },
+    "acs5-2016-geo-NJ": {
+      "bytes": 1903550,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, New Jersey",
+      "retrieved": "2026-11-04",
+      "sha256": "7ee4a8db6e9927dbe4c0f21565c21e0795c957250bc2414ede90cbe02bff6384",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewJersey/Tracts_Block_Groups_Only/g20165nj.csv"
+    },
+    "acs5-2016-geo-NM": {
+      "bytes": 748127,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, New Mexico",
+      "retrieved": "2026-11-04",
+      "sha256": "4162e3aa649f7a795af49f08412b029f1f931387a2d80a7ac752cac47a70feb6",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewMexico/Tracts_Block_Groups_Only/g20165nm.csv"
+    },
+    "acs5-2016-geo-NV": {
+      "bytes": 563646,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Nevada",
+      "retrieved": "2026-11-04",
+      "sha256": "59eb7840d5bfabbe5557e5b695383f1bae0ad997677684e96c9f88ee07a211a3",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Nevada/Tracts_Block_Groups_Only/g20165nv.csv"
+    },
+    "acs5-2016-geo-NY": {
+      "bytes": 4443432,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, New York",
+      "retrieved": "2026-11-04",
+      "sha256": "17812e53d8e7baa0fe20202d696f856b76f45f039443d8e5514656dca882857d",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/NewYork/Tracts_Block_Groups_Only/g20165ny.csv"
+    },
+    "acs5-2016-geo-OH": {
+      "bytes": 3249996,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Ohio",
+      "retrieved": "2026-11-04",
+      "sha256": "14207c57ec55f0e880463fa95e1d1c18dc6af3deb3bd4e69a80a682ba42c3330",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Ohio/Tracts_Block_Groups_Only/g20165oh.csv"
+    },
+    "acs5-2016-geo-OK": {
+      "bytes": 1491311,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Oklahoma",
+      "retrieved": "2026-11-04",
+      "sha256": "11ad17b07186abfc7e1bf4e8b3dd1a415a6bf6c35db82bf72f95005580169b0f",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Oklahoma/Tracts_Block_Groups_Only/g20165ok.csv"
+    },
+    "acs5-2016-geo-OR": {
+      "bytes": 949620,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Oregon",
+      "retrieved": "2026-11-04",
+      "sha256": "ed59b5a59ee123353ae345e0765489ec6dac07d234cb3afed25449d8db5e28fc",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Oregon/Tracts_Block_Groups_Only/g20165or.csv"
+    },
+    "acs5-2016-geo-PA": {
+      "bytes": 3963659,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Pennsylvania",
+      "retrieved": "2026-11-04",
+      "sha256": "8c5fc8ade53ef92727954ce3236d5e823ecdb4de22aa5f5b7a7b8c126d89f80e",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Pennsylvania/Tracts_Block_Groups_Only/g20165pa.csv"
+    },
+    "acs5-2016-geo-RI": {
+      "bytes": 276337,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Rhode Island",
+      "retrieved": "2026-11-04",
+      "sha256": "2162f867690964ad7cb5ea069d5e4885ea32881c1d4f80d960798d6a5658e2c3",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/RhodeIsland/Tracts_Block_Groups_Only/g20165ri.csv"
+    },
+    "acs5-2016-geo-SC": {
+      "bytes": 1174108,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, South Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "f58f1714f5640c8bbd94bc9b09665178d271b7c32378203e043b8bc2727e7857",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/SouthCarolina/Tracts_Block_Groups_Only/g20165sc.csv"
+    },
+    "acs5-2016-geo-SD": {
+      "bytes": 840067,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, South Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "a5486cf7b602616d57c865be529a15f21b0062dedd9713aced4cec1b4d5b04ba",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/SouthDakota/Tracts_Block_Groups_Only/g20165sd.csv"
+    },
+    "acs5-2016-geo-TN": {
+      "bytes": 1647912,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Tennessee",
+      "retrieved": "2026-11-04",
+      "sha256": "4cde73a41c24592c5190be640dacc3e54542f5a6c1090c0ba244094cb10a491c",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Tennessee/Tracts_Block_Groups_Only/g20165tn.csv"
+    },
+    "acs5-2016-geo-TX": {
+      "bytes": 5031067,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Texas",
+      "retrieved": "2026-11-04",
+      "sha256": "58a679f7faeebcdb1915fdf99c787b96fe7750d2c2559120be0083e4e4697f23",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Texas/Tracts_Block_Groups_Only/g20165tx.csv"
+    },
+    "acs5-2016-geo-UT": {
+      "bytes": 634484,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Utah",
+      "retrieved": "2026-11-04",
+      "sha256": "5a90123c5234c0985df694e0f58d60eabe55695101d2979d844799dcb1482cf5",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Utah/Tracts_Block_Groups_Only/g20165ut.csv"
+    },
+    "acs5-2016-geo-VA": {
+      "bytes": 1912161,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "4f97ac538a2a540b1bb7358c33b210728e8b4852f846b03013d45b6b036ff6f4",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Virginia/Tracts_Block_Groups_Only/g20165va.csv"
+    },
+    "acs5-2016-geo-VT": {
+      "bytes": 355774,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Vermont",
+      "retrieved": "2026-11-04",
+      "sha256": "4a7d18afec8596da78fa1c6f6f43b3df31ca9a339efc2fb60d3aa2250bb258f5",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Vermont/Tracts_Block_Groups_Only/g20165vt.csv"
+    },
+    "acs5-2016-geo-WA": {
+      "bytes": 1610849,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Washington",
+      "retrieved": "2026-11-04",
+      "sha256": "5a34d07e7f252aaae20fb245318bd49282a0fbaf019569155083eb517936fdf6",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Washington/Tracts_Block_Groups_Only/g20165wa.csv"
+    },
+    "acs5-2016-geo-WI": {
+      "bytes": 2082309,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Wisconsin",
+      "retrieved": "2026-11-04",
+      "sha256": "f9d4bcb1fca4efcf661e992f29d2fb46411e3306a7a2e956d06517e5322b9851",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Wisconsin/Tracts_Block_Groups_Only/g20165wi.csv"
+    },
+    "acs5-2016-geo-WV": {
+      "bytes": 736668,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, West Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "384b0bba1faab2e3c24adffc9bc68eaa32238772e16f6fdb657bbde129eac493",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/WestVirginia/Tracts_Block_Groups_Only/g20165wv.csv"
+    },
+    "acs5-2016-geo-WY": {
+      "bytes": 266857,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 geography file, Wyoming",
+      "retrieved": "2026-11-04",
+      "sha256": "2806d26b005c560b82f55ff08d3c732c76c4e74a8112d1f7be716acad5880e52",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_seq_by_state/Wyoming/Tracts_Block_Groups_Only/g20165wy.csv"
+    },
+    "acs5-2016-seqlookup": {
+      "bytes": 1383219,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016 sequence/table lookup",
+      "retrieved": "2026-11-04",
+      "sha256": "24f9e3f637567f2162080d60679befe7afc3c7beffad0ee3ec1bb4dbc6a55913",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/documentation/user_tools/ACS_5yr_Seq_Table_Number_Lookup.txt"
+    },
+    "acs5-2016-tbg-AZ": {
+      "bytes": 77496304,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "ACS 2012–2016, all sequences for tracts and block groups, Arizona. Used because the per-sequence file for sequence 0002 is answered with a \"Request Rejected\" page by the Census web firewall.",
+      "retrieved": "2026-11-04",
+      "sha256": "864a7d066a6f9a864dacb4b2a09faa011b8d42e3b567c08262b75afb4a012930",
+      "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2016/data/5_year_by_state/Arizona_Tracts_Block_Groups_Only.zip"
+    },
+    "bef-cd115": {
+      "bytes": 22555025,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "115th Congress block equivalency file (2010 blocks)",
+      "retrieved": "2026-11-04",
+      "sha256": "716b849d4e954de81c550602841c8fd535ac3f414c5eddcb2bea4bab6172c0f4",
+      "url": "https://www2.census.gov/programs-surveys/decennial/rdo/mapping-files/2017/115-congressional-district-bef/cd115.zip"
+    },
+    "bef-sldl2016": {
+      "bytes": 20820788,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 state legislative (lower) block equivalency file",
+      "retrieved": "2026-11-04",
+      "sha256": "0b9f0fe4326a7a50a0b3c0861b5fd45e2a3107c7f7f6b0c81e74ebb3b49fd5af",
+      "url": "https://www2.census.gov/programs-surveys/decennial/rdo/mapping-files/2016/2016-state-legislative-bef/sldl_2016.zip"
+    },
+    "bef-sldu2016": {
+      "bytes": 20371000,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 state legislative (upper) block equivalency file",
+      "retrieved": "2026-11-04",
+      "sha256": "85fd4abd24730218f66c39dccdeca1b250554ee1cb21a08543adb3151257ae77",
+      "url": "https://www2.census.gov/programs-surveys/decennial/rdo/mapping-files/2016/2016-state-legislative-bef/sldu_2016.zip"
+    },
+    "cb_2016_01_sldl_500k": {
+      "bytes": 652447,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Alabama",
+      "retrieved": "2026-11-04",
+      "sha256": "77e22e99189f91adf847f11b1d63120b4ad5f8d510cb1fdd546097aae35e2348",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_01_sldl_500k.zip"
+    },
+    "cb_2016_01_sldu_500k": {
+      "bytes": 374964,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Alabama",
+      "retrieved": "2026-11-04",
+      "sha256": "4b340ca5f3c76d332cec39be51f5447f38a96e9f582ed4e361f8ecc56ec4800f",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_01_sldu_500k.zip"
+    },
+    "cb_2016_02_sldl_500k": {
+      "bytes": 1603534,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Alaska",
+      "retrieved": "2026-11-04",
+      "sha256": "f73be011598d1f7f7492a52c7a2703c3897376fd352375aa024c9442be28ab24",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_02_sldl_500k.zip"
+    },
+    "cb_2016_02_sldu_500k": {
+      "bytes": 1481818,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Alaska",
+      "retrieved": "2026-11-04",
+      "sha256": "c48ed62b649ecab78f6704ae862365372ece9cb7956008bacdc1019f32f2735a",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_02_sldu_500k.zip"
+    },
+    "cb_2016_04_sldl_500k": {
+      "bytes": 215794,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Arizona",
+      "retrieved": "2026-11-04",
+      "sha256": "fcf2865983b917306a8afdc66cab0add972a9a5fe386a9edf8c852f8334bd37f",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_04_sldl_500k.zip"
+    },
+    "cb_2016_04_sldu_500k": {
+      "bytes": 214646,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Arizona",
+      "retrieved": "2026-11-04",
+      "sha256": "3595d66850fb87a0bb83579ece277d3531163db532935f1bed33600de401dec6",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_04_sldu_500k.zip"
+    },
+    "cb_2016_05_sldl_500k": {
+      "bytes": 459076,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Arkansas",
+      "retrieved": "2026-11-04",
+      "sha256": "b79199e6e8c4748f51996795e2f5f4d38bb54e838d60c62c6d8ddef0a8d0f30d",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_05_sldl_500k.zip"
+    },
+    "cb_2016_05_sldu_500k": {
+      "bytes": 300339,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Arkansas",
+      "retrieved": "2026-11-04",
+      "sha256": "50b5dcf357d1964a7e660e4f1167f1f7849dc57d71f799115dc095b7919059af",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_05_sldu_500k.zip"
+    },
+    "cb_2016_06_sldl_500k": {
+      "bytes": 612466,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, California",
+      "retrieved": "2026-11-04",
+      "sha256": "f3c3079cb6052c760f97d031c08db4cf6d515ac2f79d24739fddfcdc0c5c7f6c",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_06_sldl_500k.zip"
+    },
+    "cb_2016_06_sldu_500k": {
+      "bytes": 471996,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, California",
+      "retrieved": "2026-11-04",
+      "sha256": "9ab9f75490ba7afc717f6073bf4943797962daff16ffd4f6e8244d2918f399c0",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_06_sldu_500k.zip"
+    },
+    "cb_2016_08_sldl_500k": {
+      "bytes": 261608,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Colorado",
+      "retrieved": "2026-11-04",
+      "sha256": "ba97b4692cd45acc4dfb07f7e980f8b69d672266ce492302207b53a0455bf4e8",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_08_sldl_500k.zip"
+    },
+    "cb_2016_08_sldu_500k": {
+      "bytes": 178099,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Colorado",
+      "retrieved": "2026-11-04",
+      "sha256": "a6450bbce73e4e79cfbe97af9570af5d89b72cf4b267a3ea0da054aa275a4612",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_08_sldu_500k.zip"
+    },
+    "cb_2016_09_cousub_500k": {
+      "bytes": 127252,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 county subdivision names, Connecticut",
+      "retrieved": "2026-11-04",
+      "sha256": "9407fa112640728c5f971dae70c3ad41f1e7ec29464319e7a8dfe6e3727a0c9c",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_09_cousub_500k.zip"
+    },
+    "cb_2016_09_sldl_500k": {
+      "bytes": 180040,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Connecticut",
+      "retrieved": "2026-11-04",
+      "sha256": "792889bbc03f158ea9e409098fcba953fcf90cabd093757bf0fa9cf06f4bd02a",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_09_sldl_500k.zip"
+    },
+    "cb_2016_09_sldu_500k": {
+      "bytes": 94046,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Connecticut",
+      "retrieved": "2026-11-04",
+      "sha256": "7df88d4f2a5fdadf640812b68f0d541db3f4701273c8647a34db7beb649ef136",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_09_sldu_500k.zip"
+    },
+    "cb_2016_10_sldl_500k": {
+      "bytes": 63882,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Delaware",
+      "retrieved": "2026-11-04",
+      "sha256": "4447da8a838ec8cd87337838725c4f207f9e453f22b3344896ddabe643b3e3ab",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_10_sldl_500k.zip"
+    },
+    "cb_2016_10_sldu_500k": {
+      "bytes": 52036,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Delaware",
+      "retrieved": "2026-11-04",
+      "sha256": "6c45c91a1419b80297316c8ab9abed52c06ad9464ca192b48555ba8b05eaeb48",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_10_sldu_500k.zip"
+    },
+    "cb_2016_12_sldl_500k": {
+      "bytes": 388405,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Florida",
+      "retrieved": "2026-11-04",
+      "sha256": "4667b42c12736262133a3fb9118cbaa6d341a660982654d07526057efd6c88a9",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_12_sldl_500k.zip"
+    },
+    "cb_2016_12_sldu_500k": {
+      "bytes": 272837,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Florida",
+      "retrieved": "2026-11-04",
+      "sha256": "89a4b7fb244ac532ee21e8b4203255a49c9ab06ad19c49373ab02c63e5f5e1ef",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_12_sldu_500k.zip"
+    },
+    "cb_2016_13_sldl_500k": {
+      "bytes": 703461,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Georgia",
+      "retrieved": "2026-11-04",
+      "sha256": "ac704c7b570b8bb8b8472696a4a1856c53069727759506163296f909c8f3e10b",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_13_sldl_500k.zip"
+    },
+    "cb_2016_13_sldu_500k": {
+      "bytes": 381323,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Georgia",
+      "retrieved": "2026-11-04",
+      "sha256": "3ba6156e675f32c1e84396d1704db55386efd7718500f62d0ff6d8cc259a12ed",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_13_sldu_500k.zip"
+    },
+    "cb_2016_15_sldl_500k": {
+      "bytes": 113753,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Hawaii",
+      "retrieved": "2026-11-04",
+      "sha256": "e1240a1eae076e14cda9db0fdbee63f77c7c8eb46893f95d0b5efeecba3167f4",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_15_sldl_500k.zip"
+    },
+    "cb_2016_15_sldu_500k": {
+      "bytes": 85701,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Hawaii",
+      "retrieved": "2026-11-04",
+      "sha256": "2204cb8a26413b97f69f57bdfa4489c2a2dc7ffe7307414af40155e5d8e40345",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_15_sldu_500k.zip"
+    },
+    "cb_2016_16_sldl_500k": {
+      "bytes": 193203,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Idaho",
+      "retrieved": "2026-11-04",
+      "sha256": "f83afa8524529047d936ad4a000ee88fc9c444204734f8abd44e545b07a8f3c5",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_16_sldl_500k.zip"
+    },
+    "cb_2016_16_sldu_500k": {
+      "bytes": 196813,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Idaho",
+      "retrieved": "2026-11-04",
+      "sha256": "79b438fc0bf6b33cc962877fa42f60845bceba44abdf04e9880951d5332026a2",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_16_sldu_500k.zip"
+    },
+    "cb_2016_17_sldl_500k": {
+      "bytes": 373652,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Illinois",
+      "retrieved": "2026-11-04",
+      "sha256": "b2e8939e05e18d2c721f25d8e2f4ea79ffed35717bf7b2f86876ab28b683df16",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_17_sldl_500k.zip"
+    },
+    "cb_2016_17_sldu_500k": {
+      "bytes": 277885,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Illinois",
+      "retrieved": "2026-11-04",
+      "sha256": "d576667210cfdb489e6b0129e9788c714bf2ed00db7208ef7038e1a07a48e6f1",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_17_sldu_500k.zip"
+    },
+    "cb_2016_18_sldl_500k": {
+      "bytes": 209079,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Indiana",
+      "retrieved": "2026-11-04",
+      "sha256": "c016272a2553d55d68b5aadc4229553bf24eb0d62b2e4d98373cb982d94c3d61",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_18_sldl_500k.zip"
+    },
+    "cb_2016_18_sldu_500k": {
+      "bytes": 140952,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Indiana",
+      "retrieved": "2026-11-04",
+      "sha256": "3cfea61c45a2a4a884ab7293653f26400a4f32f5802723887381775c291909c5",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_18_sldu_500k.zip"
+    },
+    "cb_2016_19_sldl_500k": {
+      "bytes": 205739,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Iowa",
+      "retrieved": "2026-11-04",
+      "sha256": "77759ecbae8ea306b031bac5a1bb8ec3f3da32ca31c96cc1c0e1db6338519b1d",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_19_sldl_500k.zip"
+    },
+    "cb_2016_19_sldu_500k": {
+      "bytes": 150288,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Iowa",
+      "retrieved": "2026-11-04",
+      "sha256": "6bbcd91dd930b9b1ba3887ac2fe9e9e0f95b9a7d3c5b2137ba7e6a950971eb64",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_19_sldu_500k.zip"
+    },
+    "cb_2016_20_sldl_500k": {
+      "bytes": 171070,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Kansas",
+      "retrieved": "2026-11-04",
+      "sha256": "11e6d826eb5d171036d82670d4c15714de8e3f72e01d110625c662e417668a10",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_20_sldl_500k.zip"
+    },
+    "cb_2016_20_sldu_500k": {
+      "bytes": 103816,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Kansas",
+      "retrieved": "2026-11-04",
+      "sha256": "908873205a13d0d813c4519e657be30d3f28e4f4651b3a6ece9cc60081d822c2",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_20_sldu_500k.zip"
+    },
+    "cb_2016_21_sldl_500k": {
+      "bytes": 583628,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Kentucky",
+      "retrieved": "2026-11-04",
+      "sha256": "627019bcdcbfd9469b6bb35a56d0d8e32eb8654932db4843758c0223a33c7f93",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_21_sldl_500k.zip"
+    },
+    "cb_2016_21_sldu_500k": {
+      "bytes": 335888,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Kentucky",
+      "retrieved": "2026-11-04",
+      "sha256": "7f2e650aa8112d2675234cce0ac230cedd04c1d1ddcc1cfb8169698ba0315421",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_21_sldu_500k.zip"
+    },
+    "cb_2016_22_sldl_500k": {
+      "bytes": 539473,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Louisiana",
+      "retrieved": "2026-11-04",
+      "sha256": "afd9f5b945a0f245f12407704c08be5e4944ba63f33a2e164571f12c72411c36",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_22_sldl_500k.zip"
+    },
+    "cb_2016_22_sldu_500k": {
+      "bytes": 412302,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Louisiana",
+      "retrieved": "2026-11-04",
+      "sha256": "80975c48033f94fb9db0949eb7bd86bfad4bb9ede95a88dddfcbf81c8914537a",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_22_sldu_500k.zip"
+    },
+    "cb_2016_23_cousub_500k": {
+      "bytes": 369979,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 county subdivision names, Maine",
+      "retrieved": "2026-11-04",
+      "sha256": "73928174d3192bfef099d34770d0eeef6e37fa7bf1af1854ec371e49f1455955",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_23_cousub_500k.zip"
+    },
+    "cb_2016_23_sldl_500k": {
+      "bytes": 282371,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Maine",
+      "retrieved": "2026-11-04",
+      "sha256": "6c10e44fbbf6ec9bb5f93eb363b438540eb01c0c6a1bc2bef30cff8caf1c6750",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_23_sldl_500k.zip"
+    },
+    "cb_2016_23_sldu_500k": {
+      "bytes": 170476,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Maine",
+      "retrieved": "2026-11-04",
+      "sha256": "4abd12fdaa561d930a7c442cd19ed88121c262ae789ac71831d66229ee21ee2e",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_23_sldu_500k.zip"
+    },
+    "cb_2016_24_sldl_500k": {
+      "bytes": 640836,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Maryland",
+      "retrieved": "2026-11-04",
+      "sha256": "da95cae55830a9de89fe1f23508faa475a8c218d5c73d98926d1644fd8dff95b",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_24_sldl_500k.zip"
+    },
+    "cb_2016_24_sldu_500k": {
+      "bytes": 588288,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Maryland",
+      "retrieved": "2026-11-04",
+      "sha256": "883e74b1e952c5099dd3d22111fd4beaa41e604091746495cd9db34fedc5f655",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_24_sldu_500k.zip"
+    },
+    "cb_2016_25_cousub_500k": {
+      "bytes": 227000,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 county subdivision names, Massachusetts",
+      "retrieved": "2026-11-04",
+      "sha256": "8ca7bba6007190cec8f1fad11ab84bad55803bd75333d6426d597aeeb52a37da",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_25_cousub_500k.zip"
+    },
+    "cb_2016_25_sldl_500k": {
+      "bytes": 249922,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Massachusetts",
+      "retrieved": "2026-11-04",
+      "sha256": "75a72afeb696816beb75a92c55263292071fe5a9c87ef30b297e3b39b2b5c601",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_25_sldl_500k.zip"
+    },
+    "cb_2016_25_sldu_500k": {
+      "bytes": 138267,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Massachusetts",
+      "retrieved": "2026-11-04",
+      "sha256": "c18f3687b9dca43e46dafc32b3c77ac89d089ae18fc90c1b3f0bd486c0fac525",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_25_sldu_500k.zip"
+    },
+    "cb_2016_26_sldl_500k": {
+      "bytes": 326042,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Michigan",
+      "retrieved": "2026-11-04",
+      "sha256": "58820e0997bfb36c18a75a54967b3bad2022b1e31b3cb45548a5d5cf3ac614eb",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_26_sldl_500k.zip"
+    },
+    "cb_2016_26_sldu_500k": {
+      "bytes": 244875,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Michigan",
+      "retrieved": "2026-11-04",
+      "sha256": "66ae3a7a777401efbe5a5ee1ef84c46bb5adea5ee700aec2de5c49008e37726b",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_26_sldu_500k.zip"
+    },
+    "cb_2016_27_sldl_500k": {
+      "bytes": 298851,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Minnesota",
+      "retrieved": "2026-11-04",
+      "sha256": "433efd0e7e7b5241e5044394a031271881b80ba295dd9c3382404e39575c4512",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_27_sldl_500k.zip"
+    },
+    "cb_2016_27_sldu_500k": {
+      "bytes": 228573,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Minnesota",
+      "retrieved": "2026-11-04",
+      "sha256": "52ba82913a51809d2abba952c566cf2f0b994582047ddfbc7d1bda197cfe6847",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_27_sldu_500k.zip"
+    },
+    "cb_2016_28_sldl_500k": {
+      "bytes": 457757,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Mississippi",
+      "retrieved": "2026-11-04",
+      "sha256": "735939756bc69728b3332612f06c5f486dcfbcfdd1e47bac00ccff3b5cb9a406",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_28_sldl_500k.zip"
+    },
+    "cb_2016_28_sldu_500k": {
+      "bytes": 291620,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Mississippi",
+      "retrieved": "2026-11-04",
+      "sha256": "95d1de974527d922379b10c1669fcc2d8e516f998900c78fdbb0e4793b6dce64",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_28_sldu_500k.zip"
+    },
+    "cb_2016_29_sldl_500k": {
+      "bytes": 414859,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Missouri",
+      "retrieved": "2026-11-04",
+      "sha256": "39748b98993d41c8ae73b08ac56dbe86a19e91a414f7f78f189803fb9324e224",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_29_sldl_500k.zip"
+    },
+    "cb_2016_29_sldu_500k": {
+      "bytes": 178881,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Missouri",
+      "retrieved": "2026-11-04",
+      "sha256": "08e5858c3307acd6ca2686df3a873e2f7d35f29c11abb47d07ee29f0ff9c179b",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_29_sldu_500k.zip"
+    },
+    "cb_2016_30_sldl_500k": {
+      "bytes": 466546,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Montana",
+      "retrieved": "2026-11-04",
+      "sha256": "f074e9d8cb8f49d39658bf8bbbb3b56b62099774a6ff6cd677ce341c313d0a72",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_30_sldl_500k.zip"
+    },
+    "cb_2016_30_sldu_500k": {
+      "bytes": 374541,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Montana",
+      "retrieved": "2026-11-04",
+      "sha256": "b9c1355ee4ebcc5ebf755fb2552051b337dd671a92b9c4b05fb010c8cb796612",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_30_sldu_500k.zip"
+    },
+    "cb_2016_31_sldu_500k": {
+      "bytes": 113539,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Nebraska",
+      "retrieved": "2026-11-04",
+      "sha256": "c14b7a59f6d89e28a3e2aa6a2e549c5a16bdd36d0e41bf23f3fe4a56ad8119e7",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_31_sldu_500k.zip"
+    },
+    "cb_2016_32_sldl_500k": {
+      "bytes": 98521,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Nevada",
+      "retrieved": "2026-11-04",
+      "sha256": "cf72e62314499721861503921317cd0581ecfffd858f67247752abfa40203e64",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_32_sldl_500k.zip"
+    },
+    "cb_2016_32_sldu_500k": {
+      "bytes": 71215,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Nevada",
+      "retrieved": "2026-11-04",
+      "sha256": "d326c1f232760c05e376fb34c1556f603ebcebc7abc10f816004f246db00fbe0",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_32_sldu_500k.zip"
+    },
+    "cb_2016_33_cousub_500k": {
+      "bytes": 127922,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 county subdivision names, New Hampshire",
+      "retrieved": "2026-11-04",
+      "sha256": "c9ede8be32553d89b14211d507f9f77c9c03c7f63353560393f5e1e906a3ac12",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_33_cousub_500k.zip"
+    },
+    "cb_2016_33_sldl_500k": {
+      "bytes": 121203,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, New Hampshire",
+      "retrieved": "2026-11-04",
+      "sha256": "92257c1ba83ecbc7aae1c1b2c04b06adb999621f66aea284a2de0a85f0e85025",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_33_sldl_500k.zip"
+    },
+    "cb_2016_33_sldu_500k": {
+      "bytes": 60843,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, New Hampshire",
+      "retrieved": "2026-11-04",
+      "sha256": "222e5cc078463612e0a4ab0106627cf914030e6d36460bd7efc26592bfc874af",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_33_sldu_500k.zip"
+    },
+    "cb_2016_34_sldl_500k": {
+      "bytes": 137861,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, New Jersey",
+      "retrieved": "2026-11-04",
+      "sha256": "3516bc0c8135f4d78b1b43f38d62eb98b79866173a1c176082bb4c07f4a62993",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_34_sldl_500k.zip"
+    },
+    "cb_2016_34_sldu_500k": {
+      "bytes": 141149,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, New Jersey",
+      "retrieved": "2026-11-04",
+      "sha256": "4ae93e9c82bd7664a05204a59309137eff89d6de07cf8a30643c4c0d68d8735f",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_34_sldu_500k.zip"
+    },
+    "cb_2016_35_sldl_500k": {
+      "bytes": 377935,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, New Mexico",
+      "retrieved": "2026-11-04",
+      "sha256": "2ae0fd2f72bd540f0ed5d641a13bc6f1b36673d4c4706dbb389a7cd28265bedc",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_35_sldl_500k.zip"
+    },
+    "cb_2016_35_sldu_500k": {
+      "bytes": 300998,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, New Mexico",
+      "retrieved": "2026-11-04",
+      "sha256": "9f21b21f9021f7eb46e6481dad69b0ac522039968a20815ed0ff7b557f7be545",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_35_sldu_500k.zip"
+    },
+    "cb_2016_36_sldl_500k": {
+      "bytes": 399914,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, New York",
+      "retrieved": "2026-11-04",
+      "sha256": "4d693f295937659ea3020e9252ed60b3351b0b8f57fd60f0af4c2d3f45298434",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_36_sldl_500k.zip"
+    },
+    "cb_2016_36_sldu_500k": {
+      "bytes": 325259,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, New York",
+      "retrieved": "2026-11-04",
+      "sha256": "6c34a347f51d42c947667f8c1b97d89cc08a3d9740e4ab752d800254f943c92c",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_36_sldu_500k.zip"
+    },
+    "cb_2016_37_sldl_500k": {
+      "bytes": 723965,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, North Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "c25b3e55e401fe770c48bb433da338bfbd59e3c4f4673c145e4cc8f09c394484",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_37_sldl_500k.zip"
+    },
+    "cb_2016_37_sldu_500k": {
+      "bytes": 460222,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, North Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "be67f2b3582eb42a2def320de9d3e9b231c6053cadea521d3aee3a245f0c27f3",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_37_sldu_500k.zip"
+    },
+    "cb_2016_38_sldl_500k": {
+      "bytes": 126503,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, North Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "d3861e4b679963fcf1459ab5089ea17ae102d133934dc71ce820a54ca744d608",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_38_sldl_500k.zip"
+    },
+    "cb_2016_38_sldu_500k": {
+      "bytes": 124701,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, North Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "d6f8e76113552cc9ac66faa2eaa8919523a733d5117bf98a471c417dc7332da4",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_38_sldu_500k.zip"
+    },
+    "cb_2016_39_sldl_500k": {
+      "bytes": 347723,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Ohio",
+      "retrieved": "2026-11-04",
+      "sha256": "77f93dc57b7856b7bd2765f4a26792b2f412fbc18265efc2ab95965bb9b535fa",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_39_sldl_500k.zip"
+    },
+    "cb_2016_39_sldu_500k": {
+      "bytes": 204969,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Ohio",
+      "retrieved": "2026-11-04",
+      "sha256": "a81f1e22f63a433cada170da3e8d26814bbfecb36d65bcd92c0cc7b424283ce7",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_39_sldu_500k.zip"
+    },
+    "cb_2016_40_sldl_500k": {
+      "bytes": 284561,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Oklahoma",
+      "retrieved": "2026-11-04",
+      "sha256": "1dad4c1091153dc46fd1c2acc3bda80c6f36f105e9d606a4368a80fb22d5ff71",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_40_sldl_500k.zip"
+    },
+    "cb_2016_40_sldu_500k": {
+      "bytes": 177995,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Oklahoma",
+      "retrieved": "2026-11-04",
+      "sha256": "509018846c22d3f2fc1c108d99bdb3ed9c6db953180593799a4981a891cbac49",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_40_sldu_500k.zip"
+    },
+    "cb_2016_41_sldl_500k": {
+      "bytes": 302609,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Oregon",
+      "retrieved": "2026-11-04",
+      "sha256": "0132bee780df2d22e283762557bf6780dfba4ea83a03c9e7c600946073e91b23",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_41_sldl_500k.zip"
+    },
+    "cb_2016_41_sldu_500k": {
+      "bytes": 226445,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Oregon",
+      "retrieved": "2026-11-04",
+      "sha256": "95cf556a1fffa77a91abc365f53602ae1079792e738e3ba891549c4bbc2ecb86",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_41_sldu_500k.zip"
+    },
+    "cb_2016_42_sldl_500k": {
+      "bytes": 500124,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Pennsylvania",
+      "retrieved": "2026-11-04",
+      "sha256": "85e3fc2fc0bdd9f1ca84d8d7608ee0e4aecb620d785898df920df74078cffd50",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_42_sldl_500k.zip"
+    },
+    "cb_2016_42_sldu_500k": {
+      "bytes": 240718,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Pennsylvania",
+      "retrieved": "2026-11-04",
+      "sha256": "9930eccd27e2bee70f57a25178fd091004321cbf377a7b2a15bc04e40559d475",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_42_sldu_500k.zip"
+    },
+    "cb_2016_44_cousub_500k": {
+      "bytes": 51061,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 county subdivision names, Rhode Island",
+      "retrieved": "2026-11-04",
+      "sha256": "c28ac01387632f05fa2ecb6d99e3e0ed3cd965a64c9580d4671f5c54ed22b7c5",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_44_cousub_500k.zip"
+    },
+    "cb_2016_44_sldl_500k": {
+      "bytes": 76356,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Rhode Island",
+      "retrieved": "2026-11-04",
+      "sha256": "765ad5902b7c4309071e08fddfa9f5b2e3632a46c4ba2293cd835eff603b41cb",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_44_sldl_500k.zip"
+    },
+    "cb_2016_44_sldu_500k": {
+      "bytes": 64668,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Rhode Island",
+      "retrieved": "2026-11-04",
+      "sha256": "91cc5039e7c426dd48db41606467be7ff1cbef1bfa46c780820038ca9f9fcdde",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_44_sldu_500k.zip"
+    },
+    "cb_2016_45_sldl_500k": {
+      "bytes": 513171,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, South Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "b463dac594115af2e0d559cb808fa2234ea4f90aed24a6a4027a7dba86b14695",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_45_sldl_500k.zip"
+    },
+    "cb_2016_45_sldu_500k": {
+      "bytes": 373159,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, South Carolina",
+      "retrieved": "2026-11-04",
+      "sha256": "340e8b653b9cce35bde4428e6b174554095a93d62b7426f437ab07ff68a3cb1d",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_45_sldu_500k.zip"
+    },
+    "cb_2016_46_sldl_500k": {
+      "bytes": 136563,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, South Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "2e6c8b8860a62988f59ed8adee6c0b4ac2587943ea93da49fb459084764bfb96",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_46_sldl_500k.zip"
+    },
+    "cb_2016_46_sldu_500k": {
+      "bytes": 131116,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, South Dakota",
+      "retrieved": "2026-11-04",
+      "sha256": "a9a48d73d21766f913b1be2999b1c96b00bf56bc7a950fcafba5a2de59a61222",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_46_sldu_500k.zip"
+    },
+    "cb_2016_47_sldl_500k": {
+      "bytes": 504908,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Tennessee",
+      "retrieved": "2026-11-04",
+      "sha256": "bf05608250565866c6260f67e1c693a8700dcfe78f3126d28176ca307498de91",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_47_sldl_500k.zip"
+    },
+    "cb_2016_47_sldu_500k": {
+      "bytes": 276772,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Tennessee",
+      "retrieved": "2026-11-04",
+      "sha256": "9a7f01066e6fe529750e39b7768d8937d76a564c163b2b174b0301d110ae43ac",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_47_sldu_500k.zip"
+    },
+    "cb_2016_48_sldl_500k": {
+      "bytes": 912159,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Texas",
+      "retrieved": "2026-11-04",
+      "sha256": "2b5aea3fa4ea97460c181df9d9ab8b4987ceda956d9cd48292b0d50b105e3fc7",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_48_sldl_500k.zip"
+    },
+    "cb_2016_48_sldu_500k": {
+      "bytes": 504711,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Texas",
+      "retrieved": "2026-11-04",
+      "sha256": "e1972af7cb0db4fa409608d9ce4792f4e260b470760adde5948ca2581c4a5508",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_48_sldu_500k.zip"
+    },
+    "cb_2016_49_sldl_500k": {
+      "bytes": 224976,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Utah",
+      "retrieved": "2026-11-04",
+      "sha256": "c87f30c78b6bd5f6543b251fd3ad5f105c6aff29ffc874a3b83ce953b61a9ba8",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_49_sldl_500k.zip"
+    },
+    "cb_2016_49_sldu_500k": {
+      "bytes": 180276,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Utah",
+      "retrieved": "2026-11-04",
+      "sha256": "95224054f63550d2c1af9042b2b1e30eb135552ff56ccc1ec0a35b212435a82b",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_49_sldu_500k.zip"
+    },
+    "cb_2016_50_cousub_500k": {
+      "bytes": 119788,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 county subdivision names, Vermont",
+      "retrieved": "2026-11-04",
+      "sha256": "b9253888ce48c7dcb01f49966205d1fbb2d13a0195b24d87a6bc571d489cd35e",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_50_cousub_500k.zip"
+    },
+    "cb_2016_50_sldl_500k": {
+      "bytes": 98144,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Vermont",
+      "retrieved": "2026-11-04",
+      "sha256": "fc7af0c736a1a3cf237ca8f9d5fd0b6d739e7671d8686a333799e87faf1a7cf6",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_50_sldl_500k.zip"
+    },
+    "cb_2016_50_sldu_500k": {
+      "bytes": 49477,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Vermont",
+      "retrieved": "2026-11-04",
+      "sha256": "c85d720cb2ce7e733493ed06f1621ec08c9192cd73eb68323846b1db7f4f5c0f",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_50_sldu_500k.zip"
+    },
+    "cb_2016_51_sldl_500k": {
+      "bytes": 524566,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "06110a8b363c4908d0e71b62f523141c5d9cba02db94dbdf48d63161af08677e",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_51_sldl_500k.zip"
+    },
+    "cb_2016_51_sldu_500k": {
+      "bytes": 426133,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "47870ac804701f0c8438c604e1d1adca670844b1f301c2464bd2948427579e0b",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_51_sldu_500k.zip"
+    },
+    "cb_2016_53_sldl_500k": {
+      "bytes": 312644,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Washington",
+      "retrieved": "2026-11-04",
+      "sha256": "ed5028062f4655e6194b6159ff5db5528c05db86eb282a094f9df9e80385132d",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_53_sldl_500k.zip"
+    },
+    "cb_2016_53_sldu_500k": {
+      "bytes": 309710,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Washington",
+      "retrieved": "2026-11-04",
+      "sha256": "7855a2092b38ffc6a930d0e8199f64d76b127f511600f981f215a97a5104881b",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_53_sldu_500k.zip"
+    },
+    "cb_2016_54_sldl_500k": {
+      "bytes": 371188,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, West Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "6ad07f124eace2192916f1085dd833e0eaef8f24d45dcfe48da220d3e1d58c67",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_54_sldl_500k.zip"
+    },
+    "cb_2016_54_sldu_500k": {
+      "bytes": 201677,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, West Virginia",
+      "retrieved": "2026-11-04",
+      "sha256": "61ea6abdb022bc78959d786c0921a59b003b16eb71eaf697ed54035d996696ec",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_54_sldu_500k.zip"
+    },
+    "cb_2016_55_sldl_500k": {
+      "bytes": 360308,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Wisconsin",
+      "retrieved": "2026-11-04",
+      "sha256": "3ffa4c77d3a40cee8be11018908e31dd60a08256bbccf6aed46fd14027bb543a",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_55_sldl_500k.zip"
+    },
+    "cb_2016_55_sldu_500k": {
+      "bytes": 243182,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Wisconsin",
+      "retrieved": "2026-11-04",
+      "sha256": "e7b5af3e39b11c4f20b7b502a24cf573ecb7e6628d01bdc9558bd4a87b17a899",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_55_sldu_500k.zip"
+    },
+    "cb_2016_56_sldl_500k": {
+      "bytes": 238208,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDL names, Wyoming",
+      "retrieved": "2026-11-04",
+      "sha256": "e0572ba8b74402fb34a216cdd017362768cd582b1c19c78e5d8796395c428508",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_56_sldl_500k.zip"
+    },
+    "cb_2016_56_sldu_500k": {
+      "bytes": 185554,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 SLDU names, Wyoming",
+      "retrieved": "2026-11-04",
+      "sha256": "8b5469691d0b6f66f0738a9bb03714ced3f61591c8f553e3fa6d9745bd37d1c5",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_56_sldu_500k.zip"
+    },
+    "cb_2016_us_cd115_5m": {
+      "bytes": 1660079,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 cartographic boundary file",
+      "retrieved": "2026-11-04",
+      "sha256": "bb851d3673ed31ae3cde14d96aee8109a8e25444a14d9c343ed6047756c5ea0f",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_cd115_5m.zip"
+    },
+    "cb_2016_us_county_500k": {
+      "bytes": 11456538,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 cartographic boundary file",
+      "retrieved": "2026-11-04",
+      "sha256": "abc95214dc5364b59675e6c604175dc1b28bd42999501b33a0e31466135e5f57",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_county_500k.zip"
+    },
+    "cb_2016_us_county_5m": {
+      "bytes": 2707703,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2016 cartographic boundary file",
+      "retrieved": "2026-11-04",
+      "sha256": "94d8552386f89d37f4359bd84e8af78eca428957697b1f712dc2b014952a6adf",
+      "url": "https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_county_5m.zip"
+    },
+    "congress-legislators-executive.yaml": {
+      "bytes": 29850,
+      "license": "CC0 1.0 (unitedstates/congress-legislators)",
+      "notes": "Used only to reject generated names matching real politicians",
+      "retrieved": "2026-11-04",
+      "sha256": "a2ab6d1043f9fb77cffc6ffe97f87d774c7dbdd82bd22919b33e7dba7cba12df",
+      "url": "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/executive.yaml"
+    },
+    "congress-legislators-legislators-current.yaml": {
+      "bytes": 1081187,
+      "license": "CC0 1.0 (unitedstates/congress-legislators)",
+      "notes": "Used only to reject generated names matching real politicians",
+      "retrieved": "2026-11-04",
+      "sha256": "fcd8e7f3b8b8286d99056a2be95907c7f6bce4d2dce069a074aa2f6970ecc717",
+      "url": "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-current.yaml"
+    },
+    "congress-legislators-legislators-historical.yaml": {
+      "bytes": 8997407,
+      "license": "CC0 1.0 (unitedstates/congress-legislators)",
+      "notes": "Used only to reject generated names matching real politicians",
+      "retrieved": "2026-11-04",
+      "sha256": "ea7a1e35e7854418033b155420b522d3cefffc9763b67d7044cde45b8e49a355",
+      "url": "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-historical.yaml"
+    },
+    "cvap-2016": {
+      "bytes": 45586757,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "CVAP special tabulation from ACS 2012–2016 (block group)",
+      "retrieved": "2026-11-04",
+      "sha256": "157c567c8400a27e424333600235c242485ae85e91d49c7ac9b96e524a433875",
+      "url": "https://www2.census.gov/programs-surveys/decennial/rdo/datasets/2016/2016-cvap/CVAP_2012-2016_ACS_csv_files.zip"
+    },
+    "given-1990-dist.female.first": {
+      "bytes": 149625,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "1990 Census first-name frequency file",
+      "retrieved": "2026-11-04",
+      "sha256": "bd2f310fc4e5d5e5ea122c9d4342c9821145823118eb20db1647f305ec77b358",
+      "url": "https://www2.census.gov/topics/genealogy/1990surnames/dist.female.first"
+    },
+    "given-1990-dist.male.first": {
+      "bytes": 42665,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "1990 Census first-name frequency file",
+      "retrieved": "2026-11-04",
+      "sha256": "0a5078ef6effe3b483d15b0f7f95047662126c9bfb624ecd5e5b978fc0f2470b",
+      "url": "https://www2.census.gov/topics/genealogy/1990surnames/dist.male.first"
+    },
+    "pl94-AK": {
+      "bytes": 3884131,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Alaska: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "6d15fc801cc65a4f3afd29e77b92ce13a47ab84253e2f3ae7ed70b8936b0dd9c",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Alaska/ak2010.pl.zip"
+    },
+    "pl94-AL": {
+      "bytes": 20044483,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Alabama: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "250ce93243f9935e93d7fefd7bc8ec4997f7c3faafc8c05bbd1565ba68673fa0",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Alabama/al2010.pl.zip"
+    },
+    "pl94-AR": {
+      "bytes": 16184361,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Arkansas: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "f624c9c98e3d2adcb878e43f2305806b221ccc2fe45a294b0fabfda5447c3fd9",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Arkansas/ar2010.pl.zip"
+    },
+    "pl94-AZ": {
+      "bytes": 20796921,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Arizona: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "ce0b63d6f30e47419f2b01e31a9e35b5be7ddbc704216f1f0141343887d921d9",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Arizona/az2010.pl.zip"
+    },
+    "pl94-CA": {
+      "bytes": 84170917,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), California: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "44a8043819797e0759e9aa94143761252768f1c9563728851d2c934a9c8486a2",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/California/ca2010.pl.zip"
+    },
+    "pl94-CO": {
+      "bytes": 18639345,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Colorado: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "ae035eeba92521c142f67e83d0f81665c56a2dfdde3376a7d118d731db74777f",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Colorado/co2010.pl.zip"
+    },
+    "pl94-CT": {
+      "bytes": 7626023,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Connecticut: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "d7dfdb8672f448f57b42ac2e8b154f167d36c8876ec61d79872a196d118ed061",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Connecticut/ct2010.pl.zip"
+    },
+    "pl94-DC": {
+      "bytes": 954127,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), District of Columbia: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "8a30a88d91cd62a8b9889dfce4c93f0a8ac6c9a15aa547778e98014b2d730000",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/District_of_Columbia/dc2010.pl.zip"
+    },
+    "pl94-DE": {
+      "bytes": 2696969,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Delaware: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "5d324a856415ae88c7d751d7a9355334872c4b0b940917d3091f07345f0768d1",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Delaware/de2010.pl.zip"
+    },
+    "pl94-FL": {
+      "bytes": 49560459,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Florida: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "f88d72e79b7c72d4a5a31ba0e27dadabd5e2310b9f13ca924cbbb6f85ea54102",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Florida/fl2010.pl.zip"
+    },
+    "pl94-GA": {
+      "bytes": 26861614,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Georgia: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "2b4ff841652f5c922005d5e44bc85cd60dd7271de7b2e2eb46ec202b33576928",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Georgia/ga2010.pl.zip"
+    },
+    "pl94-HI": {
+      "bytes": 3777067,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Hawaii: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "7c79d1690217e2b6ba975f3b04735bda6c6f0cb5d95b0799ed60ba29a3656053",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Hawaii/hi2010.pl.zip"
+    },
+    "pl94-IA": {
+      "bytes": 17324854,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Iowa: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "94516fc5061f8c5cb9ed883b27bb9174c95abe9a43b7018ed93e6576e3b45e3a",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Iowa/ia2010.pl.zip"
+    },
+    "pl94-ID": {
+      "bytes": 9733262,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Idaho: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "601b207449b09d4ed1e7784425dffa0b611a10f71ebcb31658c16f38f05493d9",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Idaho/id2010.pl.zip"
+    },
+    "pl94-IL": {
+      "bytes": 48161837,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Illinois: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "e2559f77c8d15c72f4e03ff64c75475a98290fbea0074a8b9cfeab67f111be4f",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Illinois/il2010.pl.zip"
+    },
+    "pl94-IN": {
+      "bytes": 24678402,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Indiana: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "6e6e8133d180775cf25fff3ce501399649772935d3a54420c6cf6774169cb632",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Indiana/in2010.pl.zip"
+    },
+    "pl94-KS": {
+      "bytes": 18779651,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Kansas: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "a101256b952749ced9f0361f0505be0d9dd56e3eae99014140090042314e809b",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Kansas/ks2010.pl.zip"
+    },
+    "pl94-KY": {
+      "bytes": 12454400,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Kentucky: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "759df28edec0e83763f9285419d63a988ab976cfce3dfe2a4a0f3122df27caf5",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Kentucky/ky2010.pl.zip"
+    },
+    "pl94-LA": {
+      "bytes": 18290322,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Louisiana: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "8cd4f17daa47ae0622004f4baee1a55ec886819480ceaa403b93f43496584d1b",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Louisiana/la2010.pl.zip"
+    },
+    "pl94-MA": {
+      "bytes": 16191304,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Massachusetts: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "04f199fbd5cd5f2691736b4c62a9b24ab8389fb41a0b86b6f6abc1c4df967667",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Massachusetts/ma2010.pl.zip"
+    },
+    "pl94-MD": {
+      "bytes": 14779539,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Maryland: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "65cd451b074c2f1e54663a34fc782dbb9e96f03ff0f2db9493f5dd87f527f04a",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Maryland/md2010.pl.zip"
+    },
+    "pl94-ME": {
+      "bytes": 5372737,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Maine: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "73a98b926b6815324f4f2815af1fa32bfdcd5b38e27d9011b7ccc7cc8409d57c",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Maine/me2010.pl.zip"
+    },
+    "pl94-MI": {
+      "bytes": 31640056,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Michigan: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "8bf8784dfdf0358d610198c1b76fe483a56fa225f47bf442e9925aa7db3811b9",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Michigan/mi2010.pl.zip"
+    },
+    "pl94-MN": {
+      "bytes": 22600137,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Minnesota: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "d77a3f36de651c21021192c27230fde356e21e660529082045575aab525e2bd4",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Minnesota/mn2010.pl.zip"
+    },
+    "pl94-MO": {
+      "bytes": 29219732,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Missouri: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "30d041d3e5c17fedbb61b9e0a840c08da2cf7e6d4566e16be31e6fce4f0b6301",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Missouri/mo2010.pl.zip"
+    },
+    "pl94-MS": {
+      "bytes": 14297425,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Mississippi: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "5027377a71403117fbf6a8aa240d4ef3ade533fcdc5d59fac793e10d59beb8e9",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Mississippi/ms2010.pl.zip"
+    },
+    "pl94-MT": {
+      "bytes": 8747516,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Montana: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "cd3830731f77967388ac8929a2f9a9f71da9f6e5cd65a4ac93066ea9e10eff6a",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Montana/mt2010.pl.zip"
+    },
+    "pl94-NC": {
+      "bytes": 28466987,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), North Carolina: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "f014473c6b1673df03e957ee5d74c30fa60e855e1b6cf6f79c6147d34208c4d1",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/North_Carolina/nc2010.pl.zip"
+    },
+    "pl94-ND": {
+      "bytes": 8610667,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), North Dakota: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "6df6a7fba258704b790ac85b9801e2f4bbe2ae5bec045e6d8e91f25f79da6b2a",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/North_Dakota/nd2010.pl.zip"
+    },
+    "pl94-NE": {
+      "bytes": 13746503,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Nebraska: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "24a1d27842065d660d5cd9ebb14821f8f69a3cb0fbc328b9e735745b677b19de",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Nebraska/ne2010.pl.zip"
+    },
+    "pl94-NH": {
+      "bytes": 3917169,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), New Hampshire: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "9c1721c6f3622c7365baac45261dc8055d32cedcd2ca3db5c668de1d6f6a2756",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/New_Hampshire/nh2010.pl.zip"
+    },
+    "pl94-NJ": {
+      "bytes": 21927524,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), New Jersey: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "f86ca8b307181f326e6d2a4fd2cc167d9695e85c395ad2381623bb2e1fd244d2",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/New_Jersey/nj2010.pl.zip"
+    },
+    "pl94-NM": {
+      "bytes": 12552689,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), New Mexico: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "6fa2efb2166bf22af561adc0c80b0686bcbe18aaea94e34b18677650d925af64",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/New_Mexico/nm2010.pl.zip"
+    },
+    "pl94-NV": {
+      "bytes": 8506390,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Nevada: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "914e57f9b8b7d07a5b384ff1fa3369159d81fca43036ca2a009c32a7728bf161",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Nevada/nv2010.pl.zip"
+    },
+    "pl94-NY": {
+      "bytes": 47224379,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), New York: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "63b813b906e6e9fc00a6001143b698996d45a66cd890dde16b60858675202aa0",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/New_York/ny2010.pl.zip"
+    },
+    "pl94-OH": {
+      "bytes": 39492498,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Ohio: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "87c9efb5709696176f55a53c82c3f7445c8522b5bbe475a943cf07c34bdf488f",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Ohio/oh2010.pl.zip"
+    },
+    "pl94-OK": {
+      "bytes": 21992179,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Oklahoma: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "fe6bacc469098ae22be752183e5cdbe025c56abbf2c14d5eb4e99751c17913ea",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Oklahoma/ok2010.pl.zip"
+    },
+    "pl94-OR": {
+      "bytes": 13787984,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Oregon: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "d78b86ba8ecbebcd9e895cfbfa0c50133b20f46f93068a45ad453605a60b2f3d",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Oregon/or2010.pl.zip"
+    },
+    "pl94-PA": {
+      "bytes": 40977899,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Pennsylvania: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "3cf2460ea17d1be087d9b12700e45962b164f6233f8c1071ddc67ab55392951a",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Pennsylvania/pa2010.pl.zip"
+    },
+    "pl94-RI": {
+      "bytes": 2443892,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Rhode Island: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "277ec30be6957ea23edaab8e731caa968c2244e37af582f9229c3fdba5f3e40e",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Rhode_Island/ri2010.pl.zip"
+    },
+    "pl94-SC": {
+      "bytes": 16533250,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), South Carolina: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "fc01b2f5374b5ce2270000b7c9e3b7f30e46c242a07fe2b91a50efdd6923b1a2",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/South_Carolina/sc2010.pl.zip"
+    },
+    "pl94-SD": {
+      "bytes": 7063018,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), South Dakota: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "14640eaa4df8d8e8387e8fa1ec26825577adcdba237b74fffad69bd7ddbfbc6c",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/South_Dakota/sd2010.pl.zip"
+    },
+    "pl94-TN": {
+      "bytes": 20470566,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Tennessee: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "5912164fc21bf47ac41234a6da4cc1941369493160d7db07b614de261da7d50a",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Tennessee/tn2010.pl.zip"
+    },
+    "pl94-TX": {
+      "bytes": 77616647,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Texas: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "bb7bfb6d6cde0415be961ab15976842824884cf4b422bca6a15d9aeca9549d71",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Texas/tx2010.pl.zip"
+    },
+    "pl94-UT": {
+      "bytes": 10245927,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Utah: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "2c72be8f4502a52748f0404e14a263d5534a11c6dc331bee7bb928b3f40cf1a9",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Utah/ut2010.pl.zip"
+    },
+    "pl94-VA": {
+      "bytes": 24239629,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Virginia: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "d5392dd0f2c856a377cb9cf6d29d60f17ac9405958fc236e900b5222eb1f15ed",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Virginia/va2010.pl.zip"
+    },
+    "pl94-VT": {
+      "bytes": 2684100,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Vermont: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "129e6f72d7f8115e5e299748bf71748a2cf6cc774975455d640bb098406caf85",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Vermont/vt2010.pl.zip"
+    },
+    "pl94-WA": {
+      "bytes": 23581151,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Washington: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "daa4bbb8ec5db5b5e091eb5b56ca2ddc6b90351f709767fcda797de933878c8d",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Washington/wa2010.pl.zip"
+    },
+    "pl94-WI": {
+      "bytes": 24954341,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Wisconsin: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "ca41377243252c146e42123fa56104d3c0401c34cd48e54fb75dfd54cf7ce7ab",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Wisconsin/wi2010.pl.zip"
+    },
+    "pl94-WV": {
+      "bytes": 10296834,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), West Virginia: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "ed67888b2c0236ce032cf34afc53fd40bd75a9106ad2ac3f02fcfc27d92eca56",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/West_Virginia/wv2010.pl.zip"
+    },
+    "pl94-WY": {
+      "bytes": 5363984,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census Redistricting Data (PL 94-171), Wyoming: geographic header, P1, P3, P4",
+      "retrieved": "2026-11-04",
+      "sha256": "a0ec51a5e977968c7909354f32c4f5faff62057353cc060e685ece748a703b26",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/Wyoming/wy2010.pl.zip"
+    },
+    "pl94-layout-pl_geohd_2010.sas": {
+      "bytes": 5686,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 PL 94-171 SAS layout (field positions)",
+      "retrieved": "2026-11-04",
+      "sha256": "1eee1fa04a6ece8759fd4ec02cb3cec5250de69ee018ad060500015dc07a6d11",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/pl_geohd_2010.sas"
+    },
+    "pl94-layout-pl_part1_2010.sas": {
+      "bytes": 14955,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 PL 94-171 SAS layout (field positions)",
+      "retrieved": "2026-11-04",
+      "sha256": "13949283cb1e390e85eef5043efaf486e27cfd789a1b8c3cfb285dccb7ec2726",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/pl_part1_2010.sas"
+    },
+    "pl94-layout-pl_part2_2010.sas": {
+      "bytes": 15080,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 PL 94-171 SAS layout (field positions)",
+      "retrieved": "2026-11-04",
+      "sha256": "1f9e5a9aca2c9b683abfdb4140a075b3c4ab8c8402031fc14b7c1720fe0606e3",
+      "url": "https://www2.census.gov/census_2010/01-Redistricting_File--PL_94-171/pl_part2_2010.sas"
+    },
+    "popest-v2016": {
+      "bytes": 2532069,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "Vintage 2016 county population estimates",
+      "retrieved": "2026-11-04",
+      "sha256": "51550f951cd08c8e3b49d994f66eea1c3aa86db729dc199105e555e101c94125",
+      "url": "https://www2.census.gov/programs-surveys/popest/datasets/2010-2016/counties/totals/co-est2016-alldata.csv"
+    },
+    "surnames-2010": {
+      "bytes": 12874389,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "2010 Census surname file",
+      "retrieved": "2026-11-04",
+      "sha256": "117c41cb4668727b7627b2845b6df3f83eb2a22a1813f42c0ff4bdcab86de135",
+      "url": "https://www2.census.gov/topics/genealogy/2010surnames/names.zip"
+    },
+    "tl_2016_us_cd115": {
+      "bytes": 40108045,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "TIGER/Line 2016 CD115 polygons (used only to cross-check the Virginia CD2/CD3 assignment in validation)",
+      "retrieved": "2026-11-04",
+      "sha256": "ab5e854cfc0a437f9fcdc09e320c16619473078af2dc76878a91f5f5146232bc",
+      "url": "https://www2.census.gov/geo/tiger/TIGER2016/CD/tl_2016_us_cd115.zip"
+    },
+    "tl_2016_us_county": {
+      "bytes": 77186698,
+      "license": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "notes": "TIGER/Line 2016 counties, full resolution, not shoreline-clipped (used for county adjacency)",
+      "retrieved": "2026-11-04",
+      "sha256": "1d6557a35fcc164312d940283a1f181d35a0ece762a5a3f8466fa569de487faf",
+      "url": "https://www2.census.gov/geo/tiger/TIGER2016/COUNTY/tl_2016_us_county.zip"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Lint and module boundaries
+        run: npm run lint
+      - name: Unit, property and real-data tests
+        run: npx vitest run
+      - name: Build
+        run: npx vite build
+      - name: End-to-end (Chromium)
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: e2e-results, path: test-results, if-no-files-found: ignore }

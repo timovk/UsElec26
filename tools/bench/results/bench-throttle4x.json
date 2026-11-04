@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-04T11:45:39.607Z",
+  "throttle": 4,
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "measurements": {
+    "createUniverseMs": 6065,
+    "advanceMonthMs": 163,
+    "mapScreenMs": 1413,
+    "diagnostics": [
+      [
+        "Ballot kernel",
+        "300 ns per binomial draw",
+        "20,000 units × 4 modes × 8 contests in 576 ms. Projected national general election (230k units): 6.6 s single-threaded."
+      ],
+      [
+        "Archive encoding",
+        "1.43 bytes per count",
+        "250,000 counts encoded in 26 ms"
+      ],
+      [
+        "Database writes",
+        "161,160 rows per second",
+        "20,000 rows in one transaction in 124 ms"
+      ],
+      [
+        "Electorate evaluation",
+        "1,259 ms",
+        "Expected vote of all 265,023 Base Units × 64 cohorts"
+      ],
+      [
+        "Checkpoint save",
+        "4 ms",
+        "Write of the universe checkpoint to on-device storage"
+      ],
+      [
+        "Logical processors",
+        "4 threads",
+        "Reported by the browser"
+      ],
+      [
+        "County map redraw",
+        "105 ms (median)",
+        "3,142 counties at 1200×750 px; budget ≤ 50 ms"
+      ]
+    ]
+  }
+}

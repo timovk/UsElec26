@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`keyed RNG streams > known-answer vector (guards against accidental algorithm changes) 1`] = `
+[
+  3514301790,
+  2385103425,
+  3634757090,
+]
+`;

@@ -1,0 +1,17 @@
+{
+  "name": "ena-geo-pipeline",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Build-time Census geography pipeline for Election Night: America (dev-only)",
+  "dependencies": {
+    "d3-geo": "^3.1.2",
+    "d3-geo-projection": "^4.0.0",
+    "flatbush": "^4.7.0",
+    "js-yaml": "^5.5.0",
+    "shapefile": "^0.6.6",
+    "topojson-client": "^3.1.0",
+    "topojson-server": "^3.0.1",
+    "topojson-simplify": "^3.0.3"
+  }
+}

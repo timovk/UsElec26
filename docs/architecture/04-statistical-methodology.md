@@ -126,9 +126,12 @@ p^T_{b,τ,E} = logistic( τ_E                         election type (presidentia
 Turnout depends on `ẑ_g`, so turnout shocks change the *partisan composition* of the electorate. Turnout
 and preference are separate processes (spec §6.4) that interact through the type distribution.
 
-**Eligibility.** `E_{b,k}` is the voting-eligible population: citizens aged 18+ (CVAP-based) minus the state-specific
-felony-disenfranchised share. Turnout is reported against VEP, and VAP is also available. Turnout cannot
-exceed VEP, because ballots are drawn as `Binomial(E, p)`.
+**Eligibility.** `E_{b,k}` is the voting-eligible population. The formula is
+`VEP_b = VAP2010_b × (county pop2016 / pop2010) × r̂_b × (1 − felony_s)`. Here
+`r̂_b = clamp((CVAP_b + κ·r_county) / (VAP2010_b + κ), 0.2, 1)` with κ = 400. In words: block-group CVAP is a noisy
+survey estimate (29.5% of Base Units exceed their 2010 adult count), so it is shrunk toward the county
+citizenship rate and capped. The exact decennial adult count supplies the base. Turnout is reported against
+VEP, and VAP is also available. Turnout cannot exceed VEP, because ballots are drawn as `Binomial(E, p)`.
 
 ### 4.5.2 Ballot mode
 
@@ -271,10 +274,10 @@ American electoral history. Partisan direction is never constrained.
 | Statistic (two-party, presidential unless noted) | Target range |
 |---|---|
 | National Democratic two-party share, first election | 45–55% (drawn) |
-| SD of state margins | 10–18 points |
+| SD of state margins (50 states; DC excluded by convention) | 10–20 points |
 | SD of county margins | 22–32 points |
-| Share of counties won with >60% two-party share | 55–80% |
-| States decided by <5 points | 4–12 |
+| Share of counties won with >60% two-party share | 45–85% |
+| States decided by <5 points | 3–14 |
 | Moran's I of county margins | 0.5–0.8 |
 | SD of county margin swing between consecutive presidentials | 3–8 points |
 | Senate races won by the party losing that state's presidential vote | 0–20% |
@@ -286,6 +289,17 @@ American electoral history. Partisan direction is never constrained.
 The calibration is iterative: draw, simulate a "phantom" baseline election analytically from
 expectations, measure, rescale, repeat. It converges in a few passes. The targets are tests: CI runs
 the generator on 100+ seeds and asserts the distribution of each statistic.
+
+**Phase 1 implementation notes.**
+- *Controls.* The calibrator uses two damped controls. A "between-state" scale (coalition composition,
+  place covariates, regional fields) steers the state spread. A "within-state" scale (county fields) steers the
+  county spread. An unsmoothed county component tunes Moran's I, and the intercept fixes the national share.
+- *Retries.* If an attempt misses any range, the generator redraws with the next attempt index (deterministic) and
+  keeps the best attempt. On the real Census geography, 10/10 test seeds landed inside every range, in 1–3 s each.
+- *Ranges.* Two ranges were widened from the Phase 0 values to span modern U.S. history rather than a single
+  election. Lopsided counties ran from about 50% (2000) to over 80% (2016); close states ran from 4 to 14.
+- *Cell evaluation.* Expected cell values are tabulated per cohort on a fine grid of cell means (step 0.04 logit),
+  so a universe-wide evaluation of 265k Base Units × 64 cohorts takes about 1.3–2.3 s.
 
 ## 4.8 Polling
 

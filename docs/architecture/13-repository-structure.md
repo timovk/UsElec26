@@ -8,7 +8,7 @@ package later without code changes.
 ```
 UsElec26/
 ├── README.md                          project overview, how to open the app, status
-├── package.json · pnpm-lock.yaml
+├── package.json · package-lock.json   (npm, exact pinned versions)
 ├── tsconfig.json · vite.config.ts · vitest.config.ts · playwright.config.ts
 ├── .dependency-cruiser.cjs            layering + information-firewall rules (CI-enforced)
 ├── .github/workflows/

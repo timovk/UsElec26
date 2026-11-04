@@ -1,41 +1,48 @@
 # Election Night: America
 
-A persistent, statistically grounded simulation of American electoral history. It has fictional politicians and
-a fictional electorate, set in real American geography and institutions, and it begins on January 1, 2016. Its
-centrepiece is a broadcast-style election night, inspired by the information density of network election
-coverage, that reveals elections which actually exist inside the simulation. Every completed election becomes
-permanent, inspectable history.
+A persistent, statistically grounded simulation of American electoral history. It has fictional politicians and a
+fictional electorate, set in real American geography and institutions, beginning January 1, 2016.
 
 ## Status
 
-**Phase 0 (Architecture & Feasibility) is complete and awaiting approval.** No application code has been written
-yet, by design. The specification requires an architecture-first approach.
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Architecture & feasibility | ✅ [docs/architecture](docs/architecture/README.md) |
+| 1 | Foundational universe: geography, population, electorate, government, people, clock, saves, dashboard | ✅ implemented, awaiting approval ([report](docs/phase-1-report.md)) |
+| 2 | Core elections: calendar, candidates, shared-electorate ballots, President/Senate/House/Governor, archive | next |
+| 3–10 | Election-night counting, broadcast, campaigns and polls, political evolution, full coverage, archive, advanced systems, polish | [roadmap](docs/architecture/10-roadmap.md) |
 
-- Architecture: [`docs/architecture/`](docs/architecture/README.md). Start with the README there: it lists the key
-  decisions and the decisions needed from the project owner.
-- Feasibility measurements: [`docs/architecture/15-feasibility-spikes.md`](docs/architecture/15-feasibility-spikes.md)
-  (spike scripts in [`tools/spikes/`](tools/spikes/)).
+## Using it (Chromebook)
 
-## How it will be used (from Phase 1)
+1. Open **https://timovk.github.io/UsElec26/** in Chrome (available once GitHub Pages is enabled; see the Phase 1 report §7).
+2. Optional: click *Install* in the address bar. The app then opens in its own window and works offline.
+3. Create a universe, explore the Desk, Map and People screens, and advance time.
+4. **Back up regularly** with **Export**. Universes are stored only in this browser until you export them. The save dialog
+   can write directly to Google Drive.
 
-The planned delivery is an installable web app hosted on GitHub Pages. On a Chromebook: open the URL in Chrome
-and optionally click *Install*. It runs offline after the first visit. Universes are stored **on the device**,
-and the app provides one-click export (for example to Google Drive) for backups.
+## Development
 
-## Roadmap
+Everything runs in the browser. There is no server. The commands below are for development only. Users never need them.
 
-| Phase | Scope |
-|---|---|
-| 0 | Architecture & feasibility ✅ |
-| 1 | Foundational universe: geography, population, electorate, government, people, clock, saves, dashboard |
-| 2 | Core elections: calendar, candidates, shared-electorate ballots, President/Senate/House/Governor, archive |
-| 3 | Election-night counting: poll closings, reporting batches, expected vote, race calls, replay |
-| 4 | Broadcast interface: maps, counters, alerts, projections, commentary |
-| 5 | Campaigns, polling, forecasts, primaries |
-| 6 | Political evolution, census, reapportionment, redistricting, state legislatures |
-| 7 | Complete electoral coverage (down-ballot, local, measures, special rules) |
-| 8 | Advanced historical archive |
-| 9 | Advanced political systems (redistricting politics, recounts, legal disputes, multiple networks) |
-| 10 | Optimization & polish |
+```bash
+npm ci
+npm run dev                         # local dev server
+npx vitest run                      # unit, property and real-data tests
+npx vite build && npx playwright test   # end-to-end in Chromium
+node tools/bench/run.mjs 4          # benchmark with 4× CPU throttling
+node tools/geo-pipeline/run.mjs     # rebuild the Census geography pack (downloads ~1.7 GB; see its README)
+```
 
-Details are in [`docs/architecture/10-roadmap.md`](docs/architecture/10-roadmap.md).
+Key documents:
+- [Architecture](docs/architecture/README.md)
+- [Phase 1 report](docs/phase-1-report.md)
+- [Geography pack format](docs/data/geo-pack-format.md)
+- [Geography validation](docs/data/geo-pack-2016.1-validation.md)
+- [Data sources and licenses](docs/data-sources.md)
+
+## Data and licenses
+
+Geography and population come from U.S. Census Bureau products, which are public domain (17 U.S.C. §105). The
+real-politician blocklist comes from `unitedstates/congress-legislators` (CC0). Fonts are Inter and Barlow
+Condensed (SIL Open Font License). Every politician, the parties' coalitions and every event in a universe are
+fictional.

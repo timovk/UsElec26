@@ -1,0 +1,57 @@
+{
+  "name": "election-night-america",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Election Night: America — a persistent simulation of American electoral history",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "lint": "eslint . && depcruise src --config .dependency-cruiser.cjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "bench": "node tools/bench/run.mjs"
+  },
+  "dependencies": {
+    "@fontsource/barlow-condensed": "5.3.0",
+    "@fontsource/inter": "5.3.0",
+    "@sqlite.org/sqlite-wasm": "3.54.1-build1",
+    "d3-geo": "3.1.2",
+    "d3-scale": "4.0.3",
+    "d3-scale-chromatic": "3.1.1",
+    "flatbush": "4.7.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "topojson-client": "3.1.0",
+    "zustand": "5.0.16"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
+    "@types/d3-geo": "3.1.1",
+    "@types/d3-scale": "4.0.9",
+    "@types/d3-scale-chromatic": "3.1.0",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/topojson-client": "3.1.5",
+    "@types/topojson-specification": "1.0.5",
+    "@vitejs/plugin-react": "6.2.1",
+    "dependency-cruiser": "18.7.2",
+    "eslint": "10.14.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "fast-check": "4.10.2",
+    "globals": "17.14.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "8.3.5",
+    "vite-plugin-pwa": "2.0.0",
+    "vitest": "5.1.0"
+  }
+}

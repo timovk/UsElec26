@@ -36,10 +36,12 @@ All sources below are U.S. Census Bureau products (works of the U.S. Government,
 | Names | Census 2010 surname file; SSA national given-name files | 2010 / by year | Public data |
 | Real-name blocklist | `unitedstates/congress-legislators` (CC0) + curated governors list | current | Used only to *reject* matches |
 
-**Environment status (Phase 0 finding):** this cloud development environment's network policy currently
-**blocks `www2.census.gov` and `api.census.gov`**. The npm registry is reachable, and `us-atlas@3.0.1`
-(Census 2017 cartographic boundaries, ISC license) was used for the spikes. Phase 1 needs the Census
-hosts to be allow-listed (see README, *Decisions*).
+**Phase 1 outcome:** the Census hosts were allow-listed. `api.census.gov` now requires a key, so the
+pipeline uses bulk files on `www2.census.gov` only. The ⚑ items were resolved with **official** block equivalency
+files for the 115th Congress and for the 2016 state legislative plans; no spatial join was needed. Every source is
+pinned in `tools/geo-pipeline/sources.lock.json` and described in [docs/data-sources.md](../data-sources.md).
+The measured counts are **265,023 Base Units** (264,692 without the New England town split) and 4,703 reporting
+jurisdictions. Full results are in [docs/data/geo-pack-2016.1-validation.md](../data/geo-pack-2016.1-validation.md).
 
 ## 6.3 The geographic hierarchy
 

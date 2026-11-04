@@ -1,0 +1,111 @@
+import { useEffect, useState } from 'react';
+import { engine } from '../state/engineClient';
+import { useApp } from '../state/store';
+import type { CalendarEntry, DeskSummary, NewsDto } from '../../engine/protocol';
+import { formatDate } from '../../core/time';
+import { OfficeHolder, PARTY_NAME, Planned, SeatBar, Truth, fmtLean } from '../components/common';
+
+export function useQuery<T>(q: Parameters<typeof engine.query>[0], deps: unknown[] = []): T | null {
+  const revision = useApp((s) => s.revision);
+  const [data, setData] = useState<T | null>(null);
+  useEffect(() => {
+    let live = true;
+    engine.query<T>(q).then((d) => { if (live) setData(d); }).catch((e: Error) => useApp.getState().toast(e.message, 'error'));
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revision, JSON.stringify(q), ...deps]);
+  return data;
+}
+
+function Chamber({ c, title }: { c: DeskSummary['senate']; title: string }) {
+  const get = (p: number) => c.composition.find((x) => x.party === p)?.seats ?? 0;
+  const vacant = get(0), other = c.composition.filter((x) => x.party > 2).reduce((a, x) => a + x.seats, 0);
+  return (
+    <div>
+      <div className="row between"><strong>{title}</strong><span className="small muted">{c.majority ? `${PARTY_NAME[c.majority]} majority` : 'Tied'}</span></div>
+      <div className="row between" style={{ margin: '6px 0' }}>
+        <span className="bignum" style={{ color: 'var(--dem-2)' }}>{get(1)}</span>
+        <span className="small muted">{other ? `${other} other · ` : ''}{vacant ? `${vacant} vacant` : ''}</span>
+        <span className="bignum" style={{ color: 'var(--rep-2)' }}>{get(2)}</span>
+      </div>
+      <SeatBar composition={c.composition} seats={c.seats} />
+    </div>
+  );
+}
+
+export function Desk() {
+  const d = useQuery<DeskSummary>({ kind: 'desk' });
+  const cal = useQuery<CalendarEntry[]>({ kind: 'calendar' });
+  const news = useQuery<NewsDto[]>({ kind: 'news', limit: 25 });
+  const [showCabinet, setShowCabinet] = useState(false);
+  if (!d) return <p className="muted">Loading…</p>;
+  const pres = d.executive[0]!, vp = d.executive[1]!;
+  const presParty = pres.holder?.party ?? 0;
+  return (
+    <>
+      <div className="kicker">{d.universe.name} · seed {d.universe.seed}</div>
+      <h1 className="screen-title">The Desk</h1>
+      <p className="screen-sub">
+        {formatDate(d.universe.time, 'America/New_York', true)}. {pres.holder ? `${pres.holder.name}, a ${presParty === 1 ? 'Democrat' : presParty === 2 ? 'Republican' : 'independent'}, is President` : 'The presidency is vacant'}
+        {d.presidentTermNumber === 2 ? ' in the final year of a second term.' : ' and eligible to seek a second term.'}
+      </p>
+
+      <div className="grid cols-3">
+        <section className="card">
+          <h2>Executive</h2>
+          <OfficeHolder o={pres} /><OfficeHolder o={vp} />
+          <button className="btn ghost small" onClick={() => setShowCabinet(!showCabinet)} aria-expanded={showCabinet}>{showCabinet ? '▾ Hide' : '▸ Show'} the Cabinet ({d.executive.length - 2})</button>
+          {showCabinet && d.executive.slice(2).map((o) => <OfficeHolder key={o.officeId} o={o} />)}
+        </section>
+
+        <section className="card">
+          <h2>Congress <span className="tiny muted">115th Congress districts</span></h2>
+          <Chamber c={d.senate} title="Senate" />
+          <div style={{ height: 14 }} />
+          <Chamber c={d.house} title="House of Representatives" />
+          <h3>Leadership</h3>
+          {d.congressLeaders.filter((o) => /Speaker|Leader|pro tempore/.test(o.title)).map((o) => <OfficeHolder key={o.officeId} o={o} />)}
+        </section>
+
+        <section className="card">
+          <h2>The states</h2>
+          <div className="row between"><strong>Governors</strong><span className="small muted">{d.governors.vacant ? `${d.governors.vacant} vacant` : ''}</span></div>
+          <div className="row between" style={{ margin: '6px 0' }}><span className="bignum" style={{ color: 'var(--dem-2)' }}>{d.governors.D}</span><span className="bignum" style={{ color: 'var(--rep-2)' }}>{d.governors.R}</span></div>
+          <SeatBar composition={[{ party: 1, seats: d.governors.D }, { party: 5, seats: d.governors.other }, { party: 0, seats: d.governors.vacant }, { party: 2, seats: d.governors.R }]} seats={50} />
+          <h3>State legislatures (both chambers)</h3>
+          <div className="row between small"><span>Democratic control: <strong>{d.legislatures.dControlled}</strong></span><span>Split: <strong>{d.legislatures.split}</strong></span><span>Republican control: <strong>{d.legislatures.rControlled}</strong></span></div>
+          <div className="small muted" style={{ marginTop: 6 }}>{d.legislatures.dSeats.toLocaleString()} Democratic and {d.legislatures.rSeats.toLocaleString()} Republican legislators{d.legislatures.otherSeats ? `, ${d.legislatures.otherSeats} others` : ''}.</div>
+          <h3>Underlying national lean <Truth /></h3>
+          <div className="bignum" style={{ color: d.nationalLean >= 0 ? 'var(--dem-2)' : 'var(--rep-2)' }}>{fmtLean(d.nationalLean)}</div>
+          <div className="tiny muted">{d.electorateNote}</div>
+        </section>
+      </div>
+
+      <div className="grid cols-2" style={{ marginTop: 16 }}>
+        <section className="card">
+          <h2>Upcoming elections <Planned phase={2}>Simulation</Planned></h2>
+          {cal?.map((c) => (
+            <div key={c.date} className="news-item">
+              <div className="h">{c.label}</div>
+              <div className="t">{new Date(`${c.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}</div>
+              <div className="small">{c.contests.map((x) => `${x.label}${x.count > 1 ? ` (${x.count})` : ''}`).join(' · ')}</div>
+              <div className="tiny muted">{c.status}</div>
+            </div>
+          ))}
+          <p className="tiny muted">Dates and offices follow federal law and each state's election cycle as of 2016. Primaries, special elections and state legislative contests will appear as they are implemented.</p>
+        </section>
+        <section className="card">
+          <h2>News</h2>
+          {news?.length ? news.map((n) => (
+            <div key={n.id} className="news-item">
+              <div className="t">{formatDate(n.time)}</div>
+              <div className="h">{n.personId ? <a href={`#/people/${n.personId}`} style={{ color: 'inherit' }}>{n.headline}</a> : n.headline}</div>
+              <div className="small muted">{n.body}</div>
+            </div>
+          )) : <p className="muted">No news yet.</p>}
+          {d.vacancies.length > 0 && <><h3>Vacant offices</h3>{d.vacancies.map((o) => <OfficeHolder key={o.officeId} o={o} />)}</>}
+        </section>
+      </div>
+    </>
+  );
+}

@@ -1,6 +1,6 @@
 # Election Night: America — Phase 0 Architecture
 
-**Status:** Phase 0 (Architecture & Feasibility) — submitted for approval.
+**Status:** Phase 0 approved; Phase 1 implemented — see [../phase-1-report.md](../phase-1-report.md).
 **Spec version answered:** Master Development Specification v0.1.0.
 **No application code has been written yet.** Phase 0 deliverables are these documents plus three small
 feasibility spikes in [`tools/spikes/`](../../tools/spikes/) whose measured results are in

@@ -1,0 +1,430 @@
+/**
+ * The Universe: authoritative simulation state plus its database. Lives in the Engine Worker.
+ * Time advances by discrete events: a daily tick (06:00 Eastern) and one-off scheduled events.
+ */
+import { Rng } from '../core/rng';
+import { MINUTES_PER_DAY, easternDay, zonedToUtc, utcToZoned, daysToCivil, ageOn, type SimTime } from '../core/time';
+import { sha256Hex } from '../core/codec';
+import type { Db } from '../persistence/db';
+import { migrate, SCHEMA_VERSION } from '../persistence/schema';
+import type { Storage } from '../persistence/storage';
+import { UNIVERSE_DIR } from '../persistence/storage';
+import { loadGeoPack, SEMANTIC_FILES, type GeoPack } from '../geo/pack';
+import { buildPopulation } from '../population/population';
+import { rebuildElectorate } from '../electorate/model';
+import { BASE_PARTIES, PARTY_D, PARTY_R, PRE_SIM, SIMULATED, fullName, type NewsItem, type Office, type Person, type Term } from '../institutions/model';
+import { STATES_2016 } from '../rules/states2016';
+import { NameGenerator, type NameData } from '../politicians/names';
+import { generatePerson } from '../politicians/generate';
+import { genesis, type Progress } from './genesis';
+import { aggregateLean, emptyPending, type World } from './world';
+import { loadRows, prepareStateBlobs, writeChamberCompositions, writeGenesis, writePending, writeStateBlobs, type ScheduledEvent } from './save';
+
+export const ENGINE_VERSION = '0.1.0';
+
+export type AdvanceTarget = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number };
+
+export interface CreateOptions { name: string; seed?: string }
+
+function randomSeed(): string {
+  const b = new Uint8Array(8); crypto.getRandomValues(b);
+  return [...b].map((x) => x.toString(36).padStart(2, '0')).join('').slice(0, 12).toUpperCase();
+}
+
+export class Universe {
+  private queue: ScheduledEvent[] = [];
+  private names: NameGenerator | null = null;
+  private dirtyChambers = false;
+
+  private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null) {}
+
+  get id(): string { return this.fileName.slice(UNIVERSE_DIR.length, -'.sqlite3'.length); }
+
+  // ---- Lifecycle -------------------------------------------------------------------------------
+
+  static async create(storage: Storage, opts: CreateOptions, packFiles: Map<string, Uint8Array>, names: NameData, progress: Progress = () => {}): Promise<Universe> {
+    const seed = (opts.seed?.trim() || randomSeed()).slice(0, 64);
+    const pack = await loadGeoPack(async (f) => { const b = packFiles.get(f); if (!b) throw new Error(`geo pack file missing: ${f}`); return b; });
+    const { world, careers, scheduled } = genesis({ seed, name: opts.name || 'Untitled universe', pack, names }, progress);
+    progress('Saving the universe', 0.9);
+    const id = `${randomSeed().toLowerCase()}-${seed.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8)}`;
+    const fileName = `${UNIVERSE_DIR}u-${id}.sqlite3`;
+    const events: ScheduledEvent[] = scheduled.map((s, i) => ({ id: i + 1, time: s.time, priority: 10, kind: 'assume_office', data: { ...s } }));
+    world.ids.event = events.length + 1;
+    const db = storage.open(fileName);
+    try {
+      db.exec('PRAGMA page_size = 8192');
+      migrate(db);
+      progress('Saving the universe: compressing state', 0.91);
+      const blobs = await prepareStateBlobs(world, true);
+      progress('Saving the universe: hashing geography', 0.93);
+      const packRows: [string, string, Uint8Array][] = [];
+      for (const f of SEMANTIC_FILES) { const b = packFiles.get(f)!; packRows.push([f, await sha256Hex(b), b]); }
+      const packSha = await sha256Hex(packFiles.get('manifest.json')!);
+      progress('Saving the universe: writing database', 0.95);
+      db.tx(() => {
+        writeGenesis(db, world, careers, events, { createdReal: new Date().toISOString(), geoPack: pack.version, geoSha: packSha, engineVersion: ENGINE_VERSION, options: { seed } });
+        writePending(db, world);
+        writeStateBlobs(db, world.time, blobs);
+        db.insertMany('INSERT INTO geo_pack_file VALUES (?,?,?)', packRows);
+        db.run('INSERT INTO engine_ledger(from_time, to_time, engine_version, schema_version) VALUES (?,?,?,?)', [world.startTime, null, ENGINE_VERSION, SCHEMA_VERSION]);
+        db.run('INSERT INTO command_log(sim_time, command_json) VALUES (?,?)', [world.time, JSON.stringify({ kind: 'universe.create', name: world.name, seed })]);
+        db.run("INSERT INTO meta VALUES ('created_real', ?), ('last_export_real', '')", [new Date().toISOString()]);
+      });
+      storage.flush(fileName, db);
+    } catch (e) { db.close(); storage.remove(fileName); throw e; }
+    const u = new Universe(storage, fileName, db, world, names);
+    u.queue = scheduledFromDb(db);
+    for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
+    return u;
+  }
+
+  /** Open a saved universe. Semantic geography is read from the universe's own copy of the pack. */
+  static async open(storage: Storage, fileName: string, names: NameData | null): Promise<Universe> {
+    const db = storage.open(fileName);
+    try {
+      const qc = db.value<string>('PRAGMA quick_check');
+      if (qc !== 'ok') throw new Error(`Database integrity check failed: ${qc}`);
+      migrate(db);
+      const files = new Map(db.all<{ name: string; payload: Uint8Array }>('SELECT name, payload FROM geo_pack_file').map((r) => [r.name, r.payload]));
+      const pack = await loadGeoPack(async (f) => { const b = files.get(f); if (!b) throw new Error(`universe is missing its geography (${f})`); return b; });
+      const rows = await loadRows(db);
+      const pop = buildPopulation(pack);
+      const electorate = rebuildElectorate(rows.params, rows.fields, pack, pop);
+      const bu = { dVotes: Float64Array.from(rows.leanBu.d), votes: Float64Array.from(rows.leanBu.t) };
+      const world: World = {
+        seed: rows.universe.seed, name: rows.universe.name, startTime: rows.universe.start_time, time: rows.universe.clock_time,
+        pack, pop, electorate, lean: { bu, ...aggregateLean(bu, pack) },
+        parties: BASE_PARTIES.map((p) => ({ ...p })), persons: new Map(rows.persons.map((p) => [p.id, p])), offices: rows.offices,
+        officeById: new Map(rows.offices.map((o) => [o.id, o])), current: new Map(rows.current.map((t) => [t.officeId, t])),
+        vacancies: new Map(rows.vacancies.map((v) => [v.officeId, v])), chambers: rows.chambers, history: rows.meta.history, ids: rows.meta.ids, pending: emptyPending(),
+      };
+      const last = db.get<{ seq: number; engine_version: string }>('SELECT seq, engine_version FROM engine_ledger WHERE to_time IS NULL ORDER BY seq DESC LIMIT 1');
+      if (last && last.engine_version !== ENGINE_VERSION) {
+        db.tx(() => {
+          db.run('UPDATE engine_ledger SET to_time = ? WHERE seq = ?', [world.time, last.seq]);
+          db.run('INSERT INTO engine_ledger(from_time, to_time, engine_version, schema_version) VALUES (?,?,?,?)', [world.time, null, ENGINE_VERSION, SCHEMA_VERSION]);
+        });
+      }
+      const u = new Universe(storage, fileName, db, world, names);
+      u.queue = rows.scheduled;
+      for (const r of db.all<{ office_id: number; party_id: number }>('SELECT office_id, party_id FROM office_term t WHERE party_id IS NOT NULL AND term_id = (SELECT term_id FROM office_term x WHERE x.office_id = t.office_id ORDER BY start_time DESC, term_id DESC LIMIT 1)')) u.lastParty.set(r.office_id, r.party_id);
+      for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
+      return u;
+    } catch (e) { db.close(); throw e; }
+  }
+
+  close(): void { this.storage.flush(this.fileName, this.db); this.db.close(); }
+
+  // ---- Time ------------------------------------------------------------------------------------
+
+  private static nextDailyTick(t: SimTime): SimTime {
+    const day = easternDay(t);
+    const c = daysToCivil(day);
+    let tick = zonedToUtc(c.y, c.m, c.d, 6, 0, 'America/New_York');
+    if (tick <= t) { const n = daysToCivil(day + 1); tick = zonedToUtc(n.y, n.m, n.d, 6, 0, 'America/New_York'); }
+    return tick;
+  }
+
+  /** Advance simulated time. Returns the news produced. Writes everything in one transaction per call. */
+  async advance(target: AdvanceTarget, command = true): Promise<NewsItem[]> {
+    const w = this.world;
+    const start = w.time;
+    const until = target.kind === 'days' ? start + Math.max(0, target.days) * MINUTES_PER_DAY
+      : target.kind === 'until' ? Math.max(start, target.time) : start + (target.maxDays ?? 366) * MINUTES_PER_DAY;
+    const produced: NewsItem[] = [];
+    const newsBefore = () => w.pending.news.length;
+    for (;;) {
+      const tick = Universe.nextDailyTick(w.time);
+      const ev = this.queue[0];
+      const next = ev && ev.time <= tick ? ev.time : tick;
+      if (next > until) break;
+      const n0 = newsBefore();
+      w.time = next;
+      if (ev && ev.time === next) { this.queue.shift(); this.runEvent(ev); }
+      else this.dailyTick(easternDay(next));
+      for (let i = n0; i < w.pending.news.length; i++) produced.push(w.pending.news[i]!);
+      if (target.kind === 'nextEvent' && w.pending.news.length > n0) break;
+    }
+    if (target.kind !== 'nextEvent' || produced.length === 0) w.time = Math.max(w.time, until);
+    if (target.kind === 'nextEvent' && produced.length === 0) w.time = until;
+    await this.flush(command ? target : null);
+    return produced;
+  }
+
+  private async flush(command: AdvanceTarget | null): Promise<void> {
+    const w = this.world;
+    const blobs = await prepareStateBlobs(w, false);
+    const removedSet = new Set(this.removedEvents.splice(0));
+    const addedAll = this.addedEvents.splice(0);
+    const added = addedAll.filter((e) => !removedSet.has(e.id));          // created and consumed in this interval: never persisted
+    const addedIds = new Set(addedAll.map((e) => e.id));
+    const removed = [...removedSet].filter((id) => !addedIds.has(id));
+    this.db.tx(() => {
+      writePending(this.db, w);
+      for (const snap of this.compositionSnaps.splice(0)) writeChamberCompositions(this.db, [snap], snap.compositionAsOf);
+      this.dirtyChambers = false;
+      for (const id of removed) this.db.run('DELETE FROM scheduled_event WHERE event_id = ?', [id]);
+      for (const e of added) this.db.run('INSERT INTO scheduled_event VALUES (?,?,?,?,?)', [e.id, e.time, e.priority, e.kind, JSON.stringify(e.data)]);
+      writeStateBlobs(this.db, w.time, blobs);
+      this.db.run('UPDATE universe SET clock_time = ? WHERE id = 1', [w.time]);
+      if (command) this.db.run('INSERT INTO command_log(sim_time, command_json) VALUES (?,?)', [w.time, JSON.stringify({ kind: 'clock.advance', target: command })]);
+    });
+    this.storage.flush(this.fileName, this.db);
+  }
+
+  private removedEvents: number[] = [];
+  private compositionSnaps: import('../institutions/model').Chamber[] = [];
+  private addedEvents: ScheduledEvent[] = [];
+
+  private schedule(time: SimTime, kind: string, data: Record<string, unknown>, priority = 10): void {
+    const e: ScheduledEvent = { id: this.world.ids.event++, time, priority, kind, data };
+    this.queue.push(e);
+    this.queue.sort((a, b) => a.time - b.time || a.priority - b.priority || a.id - b.id);
+    this.addedEvents.push(e);
+  }
+
+  // ---- Processes -------------------------------------------------------------------------------
+
+  private dailyTick(day: number): void {
+    const w = this.world;
+    const r = Rng.stream(w.seed, 'mortality', day);
+    for (const p of w.persons.values()) { // Map iteration is insertion (id) order: deterministic
+      if (p.deathDay !== null) continue;
+      const age = ageOn(p.birthDay, day);
+      const annual = Math.min(0.6, 0.55 * Math.exp(-10.4 + 0.094 * age));
+      if (r.float() < annual / 365.25) this.death(p, day);
+    }
+  }
+
+  private runEvent(ev: ScheduledEvent): void {
+    this.removedEvents.push(ev.id);
+    const d = ev.data as Record<string, number | string>;
+    switch (ev.kind) {
+      case 'assume_office': {
+        const person = this.world.persons.get(d.personId as number);
+        if (!person || person.deathDay !== null) { this.vacate(d.officeId as number, 'officer-elect died before taking office'); return; }
+        this.endTerm(d.officeId as number, 'term ended');
+        this.startTerm(d.officeId as number, person, d.acquired as string, PRE_SIM);
+        const o = this.world.officeById.get(d.officeId as number)!;
+        this.news('inauguration', `${fullName(person)} sworn in as ${o.title}`, `${fullName(person)} (${this.partyAbbrev(person.partyId)}) took the oath of office.`, { personId: person.id, officeId: o.id });
+        return;
+      }
+      case 'fill': this.fill(d.officeId as number); return;
+      default: throw new Error(`unknown scheduled event ${ev.kind}`);
+    }
+  }
+
+  private news(kind: string, headline: string, body: string, refs: Record<string, unknown>): void {
+    const w = this.world;
+    w.pending.news.push({ id: w.ids.news++, time: w.time, kind, headline, body, refs });
+  }
+
+  private partyAbbrev(id: number): string { return this.world.parties.find((p) => p.id === id)?.abbrev ?? '?'; }
+
+  private termsOf(personId: number): Term[] {
+    const out: Term[] = [];
+    for (const t of this.world.current.values()) if (t.personId === personId) out.push(t);
+    return out.sort((a, b) => (this.world.officeById.get(a.officeId)!.rank - this.world.officeById.get(b.officeId)!.rank));
+  }
+
+  private endTerm(officeId: number, reason: string): Term | null {
+    const t = this.world.current.get(officeId); if (!t) return null;
+    this.world.current.delete(officeId);
+    if (t.partyId !== null) this.lastParty.set(officeId, t.partyId);
+    this.world.pending.termEnds.push({ id: t.id, end: this.world.time, reason });
+    t.end = this.world.time; t.endReason = reason;
+    this.markChamber(officeId);
+    return t;
+  }
+
+  private startTerm(officeId: number, person: Person, acquired: string, provenance = SIMULATED): Term {
+    const t: Term = { id: this.world.ids.term++, officeId, personId: person.id, partyId: person.partyId, start: this.world.time, end: null, acquired, endReason: null, provenance };
+    this.world.current.set(officeId, t); this.world.pending.terms.push(t);
+    if (this.world.vacancies.delete(officeId)) this.world.pending.vacanciesCleared.push(officeId);
+    this.markChamber(officeId);
+    return t;
+  }
+
+  private markChamber(officeId: number): void {
+    const o = this.world.officeById.get(officeId)!;
+    if (o.kind !== 'us_senator' && o.kind !== 'us_representative') return;
+    const chamber = this.world.chambers.find((c) => c.id === o.chamberId)!;
+    const comp = new Map<number, number>();
+    let filled = 0;
+    for (const off of this.world.offices) {
+      if (off.chamberId !== chamber.id || off.kind === 'congress_leader') continue;
+      const t = this.world.current.get(off.id);
+      if (t) { comp.set(t.partyId ?? 5, (comp.get(t.partyId ?? 5) ?? 0) + 1); filled++; }
+    }
+    if (chamber.seats - filled > 0) comp.set(0, chamber.seats - filled);
+    chamber.composition = comp; chamber.compositionAsOf = this.world.time; chamber.compositionProvenance = SIMULATED;
+    this.dirtyChambers = true;
+    this.compositionSnaps.push({ ...chamber, composition: new Map(comp) });
+  }
+
+  private vacate(officeId: number, reason: string, resolution?: string): void {
+    const o = this.world.officeById.get(officeId)!;
+    const res = resolution ?? this.vacancyResolution(o);
+    const v = { officeId, since: this.world.time, reason, resolution: res };
+    this.world.vacancies.set(officeId, v); this.world.pending.vacanciesSet.push(v);
+    const delay = { president: 0, vice_president: 45, cabinet: 40, us_senator: 12, us_representative: -1, governor: 0, lt_governor: 30, attorney_general: 30,
+      secretary_of_state: 30, congress_leader: 10, state_leg_leader: 10 }[o.kind];
+    if (o.kind === 'us_senator' && STATES_2016[this.world.pack.states[o.stateIdx!]!.usps]?.senateVacancy === 'special_only') return;
+    if (delay >= 0) this.schedule(this.world.time + Math.max(1, delay) * MINUTES_PER_DAY, 'fill', { officeId });
+  }
+
+  private vacancyResolution(o: Office): string {
+    switch (o.kind) {
+      case 'us_representative': return 'Special election required (elections arrive in Phase 2)';
+      case 'us_senator': {
+        const rule = STATES_2016[this.world.pack.states[o.stateIdx!]!.usps]?.senateVacancy;
+        return rule === 'special_only' ? 'Special election required; state law allows no interim appointment (Phase 2)' : 'Gubernatorial appointment pending; special election to follow (Phase 2)';
+      }
+      case 'vice_president': return 'Presidential nomination and congressional confirmation (25th Amendment)';
+      case 'cabinet': return 'Presidential nomination and Senate confirmation';
+      case 'congress_leader': case 'state_leg_leader': return 'Election by the party caucus';
+      default: return 'Appointment by the Governor';
+    }
+  }
+
+  private death(p: Person, day: number): void {
+    const w = this.world;
+    p.deathDay = day;
+    w.pending.deaths.push({ id: p.id, day });
+    const held = this.termsOf(p.id);
+    const age = ageOn(p.birthDay, day);
+    const title = held.length ? w.officeById.get(held[0]!.officeId)!.title : null;
+    this.news('death', `${title ? `${title} ` : ''}${fullName(p)} dies at ${age}`,
+      `${fullName(p)} (${this.partyAbbrev(p.partyId)}) died at age ${age}.${title ? ` The death leaves the office of ${title} vacant.` : ''}`, { personId: p.id });
+    w.pending.careers.push({ id: w.ids.career++, personId: p.id, yearFrom: daysToCivil(day).y, yearTo: null, simTime: w.time, kind: 'death', text: `Died in office at age ${age}`.replace(' in office', held.length ? ' in office' : ''), provenance: SIMULATED });
+    for (const t of held) { this.endTerm(t.officeId, 'died'); this.succession(t.officeId, p); }
+  }
+
+  /** Immediate constitutional succession, otherwise a vacancy with a scheduled fill. */
+  private succession(officeId: number, departed: Person): void {
+    const w = this.world;
+    const o = w.officeById.get(officeId)!;
+    if (o.kind === 'president') {
+      const vpOffice = w.offices.find((x) => x.kind === 'vice_president')!;
+      const vpTerm = w.current.get(vpOffice.id);
+      if (vpTerm) {
+        const vp = w.persons.get(vpTerm.personId)!;
+        this.endTerm(vpOffice.id, 'succeeded to the presidency');
+        this.startTerm(o.id, vp, `succeeded on the death of President ${fullName(departed)}`);
+        this.news('succession', `${fullName(vp)} sworn in as President`, `Vice President ${fullName(vp)} became President under the 25th Amendment.`, { personId: vp.id });
+        this.vacate(vpOffice.id, 'Vice President succeeded to the presidency');
+        return;
+      }
+    }
+    if (o.kind === 'governor') {
+      const usps = w.pack.states[o.stateIdx!]!.usps;
+      const rule = STATES_2016[usps]?.governor?.successor ?? 'lt_governor';
+      const kind = rule === 'lt_governor' ? 'lt_governor' : rule === 'secretary_of_state' ? 'secretary_of_state' : 'state_leg_leader';
+      const sOffice = w.offices.find((x) => x.stateIdx === o.stateIdx && x.kind === kind && (kind !== 'state_leg_leader' || x.title.includes('Senate') || x.title.includes('Legislature')));
+      const st = sOffice ? w.current.get(sOffice.id) : undefined;
+      if (sOffice && st) {
+        const successor = w.persons.get(st.personId)!;
+        this.endTerm(sOffice.id, 'succeeded to the governorship');
+        this.startTerm(o.id, successor, `succeeded on the death of Governor ${fullName(departed)}`);
+        this.news('succession', `${fullName(successor)} becomes Governor of ${w.pack.states[o.stateIdx!]!.name}`, `${sOffice.title} ${fullName(successor)} succeeded to the governorship.`, { personId: successor.id });
+        this.vacate(sOffice.id, 'officeholder succeeded to the governorship');
+        return;
+      }
+    }
+    this.vacate(officeId, `death of ${fullName(departed)}`);
+  }
+
+  /** Fill a vacancy by appointment or caucus election. */
+  private fill(officeId: number): void {
+    const w = this.world;
+    if (w.current.has(officeId)) return;
+    const o = w.officeById.get(officeId)!;
+    const presTerm = w.current.get(w.offices.find((x) => x.kind === 'president')!.id);
+    const presParty = presTerm?.partyId ?? PARTY_D;
+    const govParty = (s: number) => { const g = w.offices.find((x) => x.kind === 'governor' && x.stateIdx === s); return (g && w.current.get(g.id)?.partyId) || PARTY_D; };
+    const r = Rng.stream(w.seed, 'fill', officeId, w.time);
+    let party = presParty, tier: Person['tier'] = 'B', stateIdx = o.stateIdx ?? 0, how: string;
+    switch (o.kind) {
+      case 'vice_president': case 'cabinet': {
+        party = presParty; tier = 'A'; how = o.kind === 'vice_president' ? 'nominated by the President and confirmed by Congress' : 'nominated by the President and confirmed by the Senate';
+        // A sitting senator or governor of the President's party is often chosen for Vice President.
+        if (o.kind === 'vice_president') {
+          const pool = w.offices.filter((x) => (x.kind === 'us_senator' || x.kind === 'governor') && w.current.get(x.id)?.partyId === party).map((x) => w.current.get(x.id)!);
+          if (pool.length) {
+            const pick = pool[r.weighted(pool.map((t) => { const p = w.persons.get(t.personId)!; return Math.exp(3 * p.traits.recognition + 2 * p.traits.leadership); }))]!;
+            const person = w.persons.get(pick.personId)!;
+            this.endTerm(pick.officeId, 'became Vice President');
+            this.startTerm(o.id, person, how);
+            this.news('appointment', `${fullName(person)} confirmed as Vice President`, `${fullName(person)}, previously ${w.officeById.get(pick.officeId)!.title}, was confirmed as Vice President.`, { personId: person.id });
+            this.succession(pick.officeId, person);
+            return;
+          }
+        }
+        stateIdx = r.weighted(w.pack.states.map((_, s) => w.pop.stateVep[s]!));
+        break;
+      }
+      case 'us_senator': {
+        const usps = w.pack.states[o.stateIdx!]!.usps;
+        const rule = STATES_2016[usps]?.senateVacancy;
+        const lastParty = this.lastPartyOf(officeId);
+        party = rule === 'appoint_same_party' && lastParty ? lastParty : govParty(o.stateIdx!); tier = 'A';
+        how = `appointed by the Governor; serves until a special election (Phase 2)`;
+        break;
+      }
+      case 'congress_leader': {
+        const chamberOffices = w.offices.filter((x) => x.chamberId === o.chamberId && x.kind !== 'congress_leader');
+        const holders = new Set([...w.offices.filter((x) => x.kind === 'congress_leader').map((x) => w.current.get(x.id)?.personId)]);
+        const lastParty = this.lastPartyOf(officeId) ?? PARTY_D;
+        const pool = chamberOffices.map((x) => w.current.get(x.id)).filter((t): t is Term => !!t && t.partyId === lastParty && !holders.has(t.personId));
+        if (!pool.length) return;
+        const pick = pool[r.weighted(pool.map((t) => Math.exp(4 * w.persons.get(t.personId)!.traits.leadership)))]!;
+        const person = w.persons.get(pick.personId)!;
+        this.startTerm(o.id, person, 'elected by the party conference');
+        this.news('leadership', `${fullName(person)} elected ${o.title}`, `${fullName(person)} (${this.partyAbbrev(person.partyId)}) was chosen to fill the vacancy.`, { personId: person.id });
+        return;
+      }
+      case 'state_leg_leader': party = this.lastPartyOf(officeId) ?? PARTY_D; how = 'elected by the chamber'; break;
+      default: party = govParty(o.stateIdx ?? 0); how = 'appointed by the Governor';
+    }
+    const person = this.newPerson(r, tier, party, stateIdx);
+    this.startTerm(o.id, person, how);
+    this.news('appointment', `${fullName(person)} named ${o.title}`, `${fullName(person)} (${this.partyAbbrev(party)}) was ${how}.`, { personId: person.id, officeId: o.id });
+  }
+
+  private lastPartyOf(officeId: number): number | null { return this.lastParty.get(officeId) ?? null; }
+
+  /** Party of the most recent holder of each office (in memory; rebuilt from the database on load). */
+  private lastParty = new Map<number, number>();
+
+  private newPerson(r: Rng, tier: Person['tier'], party: number, stateIdx: number): Person {
+    const w = this.world;
+    if (!this.names) {
+      if (!this.nameData) throw new Error('Name data unavailable; cannot create new people offline before first load.');
+      this.names = new NameGenerator(this.nameData);
+      for (const p of w.persons.values()) this.names.reserve(p.given, p.surname);
+    }
+    const plat = party === PARTY_R ? w.electorate.params.platforms.R : w.electorate.params.platforms.D;
+    const p = generatePerson({ id: w.ids.person++, tier, stateIdx, homeCounty: w.pack.counties.find((c) => c.stateIdx === stateIdx)?.idx ?? null, partyId: party,
+      raceShares: [0.7, 0.12, 0.1, 0.08], femaleShare: 0.3, ageMean: 55, ageSd: 9, minAge: 30, asOfYear: utcToZoned(w.time, 'America/New_York').y,
+      platform: plat, moderation: 0.15, prominence: tier === 'A' ? 0.3 : 0.1, createdTime: w.time }, r, this.names);
+    p.provenance = SIMULATED;
+    p.bio = `${fullName(p)} entered the universe's public life in ${utcToZoned(w.time, 'America/New_York').y}.`;
+    w.persons.set(p.id, p); w.pending.persons.push(p);
+    return p;
+  }
+
+  // ---- Exports ---------------------------------------------------------------------------------
+  exportBytes(): Uint8Array { this.storage.flush(this.fileName, this.db); return this.storage.exportFile(this.fileName); }
+  markExported(): void { this.db.run("INSERT OR REPLACE INTO meta VALUES ('last_export_real', ?)", [new Date().toISOString()]); this.storage.flush(this.fileName, this.db); }
+
+  get pack(): GeoPack { return this.world.pack; }
+  static partyName(id: number): string { return BASE_PARTIES.find((p) => p.id === id)?.short ?? 'Vacant'; }
+  static readonly PARTY_D = PARTY_D;
+  static readonly PARTY_R = PARTY_R;
+}
+
+function scheduledFromDb(db: Db): ScheduledEvent[] {
+  return db.all<{ event_id: number; sim_time: number; priority: number; kind: string; data_json: string }>('SELECT * FROM scheduled_event ORDER BY sim_time, priority, event_id')
+    .map((e) => ({ id: e.event_id, time: e.sim_time, priority: e.priority, kind: e.kind, data: JSON.parse(e.data_json) as Record<string, unknown> }));
+}
