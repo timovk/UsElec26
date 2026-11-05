@@ -53,10 +53,10 @@ describe('electorate dynamics', () => {
     // Start about ten points more Democratic than the generated electorate, with Democrats holding the White House throughout.
     let dyn = initialDynamics(e0, 2016); const m0 = nationalMargin(dyn.mu, e0, base);
     dyn = { ...dyn, mu: Float32Array.from(dyn.mu, (x) => x + 0.3) };
-    let demo = initialDemography(pack, base); const d0 = demo; let pop = base;
+    let demo = initialDemography(pack, base); const d0 = demo;
     const L0 = nationalMargin(dyn.mu, e0, base), path: number[] = [L0];
     for (let y = 2017; y <= 2040; y++) {
-      const s = stepDemography('C', pack, demo); demo = s.next; pop = applyDemography('C', pack, base, d0, demo);
+      const s = stepDemography('C', pack, demo); demo = s.next; const pop = applyDemography('C', pack, base, d0, demo);
       dyn = stepElectorate('C', y, e0, dyn, pack, pop, base, { outParty: 2, outTerms: 1 + Math.floor((y - 2017) / 4), nominees: { D: null, R: null }, flows: s.flows });
       path.push(nationalMargin(dyn.mu, e0, pop));
     }
