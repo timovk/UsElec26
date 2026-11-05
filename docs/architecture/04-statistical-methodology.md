@@ -72,14 +72,25 @@ Long-run partisanship is a slowly moving stock per (county, cohort):
 - `γ_b` is the Base Unit's local deviation (neighbourhood effect, §4.3).
 
 **As implemented in Phase 6** (`electorate/dynamics.ts`, `population/evolution.ts`), one step each January 1:
-- **Platforms** move under vote seeking (the out-party toward the swing electorate at 0.015 + 0.012 × terms out
-  of the White House; the in-party at 0.004), activist pull toward the party's own coalition (0.016), the
-  presidential nominee's imprint (0.03 in a nomination year) and noise (SD 0.02). They are kept at least 0.7 apart.
+- **Platforms** move under four forces:
+  - vote seeking: the out-party moves toward the electorate's centre at 0.006 + 0.004 × terms out of the White
+    House, the in-party at 0.002;
+  - activist pull (0.03) toward the party's identity: 85% its founding positions, 15% its current coalition
+    (beyond its centre);
+  - the presidential nominee's imprint (0.03 in a nomination year);
+  - noise (SD 0.02).
+
+  They are kept at least 0.7 apart. In 50-year runs they settle about 0.9–1.0 apart (from about 1.3); an
+  earlier calibration let them converge onto the floor within 20 years.
 - **Attachments** drift slowly and revert toward their founding values.
 - **Party competition** (the long-run guardrail): the trailing party recruits and rebrands, and a dominant
   coalition frays. μ\* shifts against the national leader by 0.028 per point of the current neutral national
-  margin. The feedback is proportional, not cumulative, so a lopsided electorate erodes without swinging to
-  the other side: on the fixture a D+20 electorate falls to about D+6 in 24 years.
+  margin, plus an accumulated 0.0015 per point per year (stored with the electorate's state). A lopsided
+  electorate erodes over decades without swinging to the other side: on the fixture, D+8 → about 0 and R+7 →
+  R+2.4 in 50 years.
+- **Founding balance:** a new universe's national two-party target is drawn from N(50%, 1.5) clipped to
+  47.5–52.5% (within about ±5 points of margin). It was N(50, 2.2) clipped to 45.5–54.5% before Phase 6's
+  acceptance run, which showed a D+9 founding staying lopsided for decades.
 - **μ relaxes toward μ\*** at age-band rates 0.12, 0.07, 0.045 and 0.03 a year (18–29 … 65+). Ageing carries μ
   into the next band, new adults start at the current μ\*, and in-migrants bring their group's national μ, half
   adapted to the destination.

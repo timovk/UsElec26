@@ -12,15 +12,21 @@
  *
  * - **Party competition** (the long-run guardrail): the trailing party recruits and rebrands, and a dominant
  *   coalition frays. The partisanship target shifts against the national leader in proportion to its lead
- *   (COMPETITION per point of margin), and voters follow at their usual, generational pace. Proportional, not
- *   cumulative, so it damps a lopsided electorate without swinging it to the other side.
+ *   (COMPETITION per point of margin) plus a slowly accumulated shift (COMPETITION_YEARLY per point per year),
+ *   and voters follow at their usual, generational pace. The proportional part acts at once; the accumulated
+ *   part keeps eroding a persistent lead; both are small enough not to swing the electorate to the other side.
  *
  * Realignment is therefore emergent: groups better represented by the other party drift, and generational
  * replacement accelerates it.
  */
 
-/** μ shift per point of national two-party margin (against the leader). */
-export const COMPETITION = 0.028;
+/** Platform movement per year: vote seeking (the out-party, more the longer it has been out; the in-party a
+ * little), activist pull, and how much of the activists' target is the party's founding positions (party
+ * identity is sticky: with these values the parties stay about 0.9–1.0 apart over 50 years, from about 1.3). */
+export const PLATFORM = { seekOut: 0.006, seekPerTerm: 0.004, seekIn: 0.002, activist: 0.03, anchor: 0.85 } as const;
+
+/** μ shift per point of national two-party margin against the leader: immediate, and accumulated per year. */
+export const COMPETITION = 0.028, COMPETITION_YEARLY = 0.0015;
 
 /** National two-party margin (points, D+) of an electorate state under neutral conditions (county level). */
 export function nationalMargin(mu: Float32Array, e: Electorate, pop: Population): number {
@@ -41,6 +47,8 @@ export interface ElectorateDynamics {
   attach: number[];
   /** Long-run partisanship per county × cohort (the electorate's μ). */
   mu: Float32Array;
+  /** The accumulated party-competition shift of the partisanship target (μ units; 0 at founding). */
+  balance: number;
 }
 
 export interface DynamicsContext {
@@ -52,7 +60,7 @@ export interface DynamicsContext {
 }
 
 export function initialDynamics(e: Electorate, year: number): ElectorateDynamics {
-  return { year, platforms: { D: [...e.params.platforms.D], R: [...e.params.platforms.R] }, attach: [...e.params.attach], mu: Float32Array.from(e.mu) };
+  return { year, platforms: { D: [...e.params.platforms.D], R: [...e.params.platforms.R] }, attach: [...e.params.attach], mu: Float32Array.from(e.mu), balance: 0 };
 }
 
 const RESPONSIVE = [0.12, 0.07, 0.045, 0.03];      // yearly relaxation toward μ* by age band
@@ -89,12 +97,15 @@ export function stepElectorate(seed: string, year: number, e: Electorate, dyn: E
   for (const party of ['D', 'R'] as const) {
     const id = party === 'D' ? 1 : 2;
     const out = ctx.outParty === id;
-    const voteSeeking = out ? 0.015 + 0.012 * Math.min(3, ctx.outTerms) : 0.004;
-    const activist = 0.016;
+    const voteSeeking = out ? PLATFORM.seekOut + PLATFORM.seekPerTerm * Math.min(3, ctx.outTerms) : PLATFORM.seekIn;
+    const activist = PLATFORM.activist;
     const nominee = ctx.nominees[party];
     const P = next[party];
     for (let d = 0; d < DIMS; d++) {
-      let step = voteSeeking * (pos.all[d]! - P[d]!) + activist * (pos[party][d]! + (pos[party][d]! - pos.all[d]!) - P[d]!);
+      // Activists pull toward the party's founding positions and, less, its current coalition (beyond its
+      // centre): party identity persists, so the parties do not converge as coalitions blur.
+      const core = (1 - PLATFORM.anchor) * (pos[party][d]! + (pos[party][d]! - pos.all[d]!)) + PLATFORM.anchor * params.platforms[party][d]!;
+      let step = voteSeeking * (pos.all[d]! - P[d]!) + activist * (core - P[d]!);
       if (nominee) step += 0.03 * (nominee[d]! - P[d]!);
       P[d] = P[d]! + step + r.normal(0, 0.02);
     }
@@ -106,8 +117,10 @@ export function stepElectorate(seed: string, year: number, e: Electorate, dyn: E
   const attach = dyn.attach.map((a, k) => a + 0.06 * (params.attach[k]! - a) + r.normal(0, 0.025));
   // Partisanship, with the competition shift against the national leader.
   const target = targetMu(params, next, attach, e.fields, pack, pop, basePop);
-  const balance = -COMPETITION * nationalMargin(dyn.mu, e, pop);
-  for (let i = 0; i < target.length; i++) target[i] = target[i]! + balance;
+  const lead = nationalMargin(dyn.mu, e, pop);
+  const balance = (dyn.balance ?? 0) - COMPETITION_YEARLY * lead;
+  const shift = balance - COMPETITION * lead;
+  for (let i = 0; i < target.length; i++) target[i] = target[i]! + shift;
   const C = pack.counties.length;
   const old = dyn.mu, mu = new Float32Array(old.length);
   // National cohort partisanship (in-migrants' origin), VEP-weighted.
@@ -130,7 +143,7 @@ export function stepElectorate(seed: string, year: number, e: Electorate, dyn: E
       mu[i] = x + drift;
     }
   }
-  return { year, platforms: next, attach, mu };
+  return { year, platforms: next, attach, mu, balance };
 }
 
 /** The electorate for a dynamic state and population: μ from the state, BU shifts from the population. */

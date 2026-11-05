@@ -39,8 +39,8 @@ export class Evolution {
     }
     if (e) {
       const { arrays, meta } = await decodeBundle(e);
-      const m = meta as { year: number; platforms: { D: number[]; R: number[] }; attach: number[] };
-      ev.dyn = { year: m.year, platforms: m.platforms, attach: m.attach, mu: arrays.mu as Float32Array };
+      const m = meta as { year: number; platforms: { D: number[]; R: number[] }; attach: number[]; balance?: number };
+      ev.dyn = { year: m.year, platforms: m.platforms, attach: m.attach, mu: arrays.mu as Float32Array, balance: m.balance ?? 0 };
       w.electorate = electorateAt(ev.baseElectorate, ev.dyn, w.pack, w.pop);
     }
     return ev;
@@ -82,7 +82,7 @@ export class Evolution {
     const d = this.demo;
     const blobs: StateBlob[] = [
       { key: 'demography.state', codec: 'bundle', payload: await encodeBundle({ age: d.age, race: d.race, college: d.college, total: d.total, trend: d.trend, divTrend: d.divTrend }, { year: d.year }) },
-      { key: 'electorate.dynamics', codec: 'bundle', payload: await encodeBundle({ mu: this.dyn.mu }, { year: this.dyn.year, platforms: this.dyn.platforms, attach: this.dyn.attach }) },
+      { key: 'electorate.dynamics', codec: 'bundle', payload: await encodeBundle({ mu: this.dyn.mu }, { year: this.dyn.year, platforms: this.dyn.platforms, attach: this.dyn.attach, balance: this.dyn.balance }) },
       { key: 'lean.bu', codec: 'bundle', payload: await encodeBundle({ d: Float32Array.from(bu.dVotes), t: Float32Array.from(bu.votes) }) },
     ];
     const growth = 100 * (sum.adults / (demographySummary(w.pack, this.baseDemo).adults) - 1);

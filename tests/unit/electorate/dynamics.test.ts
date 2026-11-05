@@ -46,7 +46,7 @@ describe('electorate dynamics', () => {
     const shift = s0.reduce((acc, x, k) => acc + Math.abs(s1[k]! - x), 0) / N_COHORTS;
     expect(shift).toBeGreaterThan(0.01);                      // the coalitions move
     const gap = Math.hypot(...a.dyn.platforms.D.map((x, i) => x - a.dyn.platforms.R[i]!));
-    expect(gap).toBeGreaterThanOrEqual(0.69);                 // the parties never merge
+    expect(gap).toBeGreaterThan(0.8);                         // the parties stay distinct, well clear of the 0.7 floor
     for (const x of a.dyn.mu) expect(Number.isFinite(x)).toBe(true);
   });
   it('party competition: a lopsided electorate drifts back toward balance without swinging past it', () => {

@@ -416,7 +416,8 @@ export function generateElectorate(seed: string, pack: GeoPack, pop: Population,
   let best: Electorate | null = null, bestPenalty = Infinity;
   const tr = Rng.stream(seed, 'electorate', 'targets');
   const targets: CalibrationTargets = {
-    national: Math.min(54.5, Math.max(45.5, tr.normal(50, 2.2))), stateSd: tr.range(11.5, 17.5), countySd: tr.range(24, 31),
+    // The founding national balance: within about ±5 points of margin (the 2016 baseline was close to even).
+    national: Math.min(52.5, Math.max(47.5, tr.normal(50, 1.5))), stateSd: tr.range(11.5, 17.5), countySd: tr.range(24, 31),
     // Coalitions: how far groups' partisanship differs (typical groups split between 55/45 and 80/20, §4.1).
     groupSd: tr.range(0.5, 0.8),
   };

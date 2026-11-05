@@ -103,6 +103,7 @@ congressional and gubernatorial primaries, debates, endorsements.
 - **Acceptance:** follow 2016 from January primaries through November with live polls and forecasts, and inspect forecast-versus-result afterwards.
 
 ### Phase 6: Political evolution
+**Status:** implemented — see [../phase-6-report.md](../phase-6-report.md). Deviations: no state legislative primaries (one nominee per party); the national map draws the 2016 district shapes (new plans are drawn from base units on the Government page); redistricting is neutral and algorithmic only (as planned; strategies are Phase 9); the two Phase 5 carry-overs (speed, live primary nights) were deferred at your request.
 Deliverables: careers (retirements, ambition, ladders), appointments, resignations, deaths, special
 elections, approval from the electorate, event chains, economy (full), Congress activity (bills, roll calls,
 vetoes), state government activity, demographic evolution (aging, migration, growth), **census,
