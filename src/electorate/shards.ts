@@ -43,6 +43,8 @@ export interface ShardContext {
   tauE: number; ranges: StateRange[];
   /** BU → congressional district for this election (the plan in effect); the 2016 plan when absent. */
   cdOf?: Uint16Array;
+  /** BU → state senate / state house district (plans in effect), when the ballot has legislative contests. */
+  slduOf?: Uint16Array; sldlOf?: Uint16Array;
 }
 
 let classCache: { key: unknown; classOf: Uint8Array } | null = null;
@@ -84,7 +86,9 @@ export function buildShard(ctx: ShardContext, stateIdx: number, kind: ShardInput
     crossover: primaryType === 'closed' ? 0.03 : primaryType === 'semi' ? 0.12 : 0.22,
     homeStateBonus: 0.1, homeCountyBonus: 0.22,
     bus: { start: rg.buStart, count, county: pack.bu.county.slice(rg.buStart, rg.buEnd), cd: (ctx.cdOf ?? pack.bu.cd).slice(rg.buStart, rg.buEnd), rj: pack.bu.rj.slice(rg.buStart, rg.buEnd),
-      vep: pop.vep.slice(rg.buStart, rg.buEnd), shift, turnout, marg },
+      vep: pop.vep.slice(rg.buStart, rg.buEnd), shift, turnout, marg,
+      ...(contests.some((c) => c.geo === 1) ? { sldu: (ctx.slduOf ?? pack.bu.sldu).slice(rg.buStart, rg.buEnd) } : {}),
+      ...(contests.some((c) => c.geo === 2) ? { sldl: (ctx.sldlOf ?? pack.bu.sldl).slice(rg.buStart, rg.buEnd) } : {}) },
     counties: { first: rg.countyFirst, mu, turnout: cTurn, joint },
     classOf: cls, sigma: Float64Array.from(e.params.sigma), tau,
     betaInt: kind === 'primary' ? e.params.betaIntensity * 3 : e.params.betaIntensity, enth: env?.enthusiasm ?? 0,

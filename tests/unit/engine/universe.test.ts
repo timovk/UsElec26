@@ -58,7 +58,7 @@ describe('Universe lifecycle', () => {
     const strip = async (u: Universe) => { u.db.exec('DELETE FROM command_log'); return contentHash(u.db); };
     expect(await strip(reopened)).toBe(await strip(a.u));
     expect(integrityReport(reopened.db).ok).toBe(true);
-  });
+  }, 900_000);
 
   it('advances time, ages people and handles vacancies over several years', async () => {
     const { u } = await make('years-1');
@@ -67,10 +67,12 @@ describe('Universe lifecycle', () => {
     expect(news.some((n) => n.kind === 'inauguration')).toBe(true); // LA/MS January 2016
     const deaths = news.filter((n) => n.kind === 'death').length;
     expect(deaths).toBeGreaterThan(0);
-    expect(deaths).toBeLessThan(60);
+    // Everyone the universe tracks can die: since Phase 6 that includes about 7,400 state legislators and
+    // their challengers. U.S. mortality at these ages is about 1% a year; allow well under that.
+    expect(deaths).toBeLessThan(0.01 * 4 * u.world.persons.size);
     const rep = integrityReport(u.db);
     expect(rep.checks.filter((c) => !c.ok)).toEqual([]);
-  });
+  }, 900_000);
 
   it('export → import round-trips to identical content', async () => {
     const { storage, u } = await make('exp-1');

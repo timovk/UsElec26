@@ -4,7 +4,12 @@ export type OfficeKind =
   | 'president' | 'vice_president' | 'cabinet'
   | 'us_senator' | 'us_representative'
   | 'governor' | 'lt_governor' | 'attorney_general' | 'secretary_of_state'
-  | 'congress_leader' | 'state_leg_leader';
+  | 'congress_leader' | 'state_leg_leader'
+  | 'state_senator' | 'state_representative';
+
+/** State legislative seats (Phase 6). */
+export const LEGISLATOR_KINDS: readonly OfficeKind[] = ['state_senator', 'state_representative'];
+export const isLegislator = (k: OfficeKind | string): boolean => k === 'state_senator' || k === 'state_representative';
 
 export interface Party { id: number; name: string; short: string; abbrev: string; color: string; major: boolean; status: 'active' | 'defunct' }
 

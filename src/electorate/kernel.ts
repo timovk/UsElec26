@@ -78,7 +78,9 @@ export interface KernelOption {
 
 export interface KernelContest {
   id: number;
-  cd: number;            // −1 statewide; otherwise only Base Units in this congressional district vote
+  cd: number;            // −1 statewide; otherwise only Base Units in this district vote (congressional unless `geo` says otherwise)
+  /** Which district `cd` refers to: 0 congressional (default), 1 state senate, 2 state house. */
+  geo?: 0 | 1 | 2;
   weight: number;        // partisan salience w_e
   abstain: number;       // undervote utility
   options: KernelOption[];
@@ -91,7 +93,9 @@ export interface ShardInput {
   crossover: number;                 // primary: participation of non-members (by primary type)
   homeStateBonus: number; homeCountyBonus: number;
   /** Per BU: marginals (13 floats: age×4, male, race×4, college-by-age×4) are raked to the county joint inside the kernel. */
-  bus: { start: number; count: number; county: Uint16Array; cd: Uint16Array; rj: Uint16Array; vep: Float32Array; shift: Float32Array; turnout: Float32Array; marg: Float32Array };
+  bus: { start: number; count: number; county: Uint16Array; cd: Uint16Array; rj: Uint16Array; vep: Float32Array; shift: Float32Array; turnout: Float32Array; marg: Float32Array;
+    /** State senate and state house districts (only needed when a contest uses them). */
+    sldu?: Uint16Array; sldl?: Uint16Array };
   counties: { first: number; mu: Float32Array; turnout: Float32Array; joint: Float32Array }; // local county index = county − first
   classOf: Uint8Array; sigma: Float64Array; tau: Float64Array;          // per cohort; tau includes the election-type intercept
   betaInt: number; enth: number;
@@ -252,6 +256,7 @@ export function runShard(inp: ShardInput): ShardOutput {
     return t;
   };
 
+  const geoOf = inp.contests.map((c) => (c.geo === 1 ? inp.bus.sldu! : c.geo === 2 ? inp.bus.sldl! : inp.bus.cd));
   for (let i = 0; i < n; i++) {
     const b = inp.bus.start + i;
     const county = inp.bus.county[i]!;
@@ -260,7 +265,7 @@ export function runShard(inp: ShardInput): ShardOutput {
     eligible[i] = E;
     if (E <= 0) continue;
     let onBallot = false;
-    for (let ci = 0; ci < C; ci++) { const cd = inp.contests[ci]!.cd; if (cd < 0 || cd === inp.bus.cd[i]) { onBallot = true; break; } }
+    for (let ci = 0; ci < C; ci++) { const cd = inp.contests[ci]!.cd; if (cd < 0 || cd === geoOf[ci]![i]) { onBallot = true; break; } }
     if (!onBallot) { eligible[i] = 0; continue; } // no election here: no ballots, and the unit is not in this electorate
     // 1. Voter types (shared with the measurement port).
     unitTypes(inp, i, E, sc);
@@ -285,7 +290,7 @@ export function runShard(inp: ShardInput): ShardOutput {
     const rjLocal = inp.bus.rj[i]! - inp.rjFirst;
     for (let ci = 0; ci < C; ci++) {
       const c = inp.contests[ci]!;
-      if (c.cd >= 0 && c.cd !== inp.bus.cd[i]) continue;
+      if (c.cd >= 0 && c.cd !== geoOf[ci]![i]) continue;
       const J = c.options.length, K = J + 1;
       const P = probTable(ci, county);
       const out = outs[ci]!;

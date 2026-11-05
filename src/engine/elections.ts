@@ -7,12 +7,13 @@ import { Rng } from '../core/rng';
 import { MINUTES_PER_DAY, ageOn, civilToDays, daysToCivil, easternDay, formatDay, formatTime, generalElectionDay, weekday, zonedToUtc, type DayNumber, type SimTime } from '../core/time';
 import type { Db } from '../persistence/db';
 import { NONE16, cdCode } from '../geo/pack';
-import { PARTY_D, PARTY_G, PARTY_L, PARTY_R, SIMULATED, fullName, type Office, type OfficeKind, type Person, type Term } from '../institutions/model';
+import { PARTY_D, PARTY_G, PARTY_L, PARTY_R, SIMULATED, fullName, isLegislator, type Office, type OfficeKind, type Person, type Term } from '../institutions/model';
 import { SENATE_CLASS_NEXT_ELECTION, STATES_2016 } from '../rules/states2016';
 import { DISTRICT_EV_STATES, ELECTION_RULES_2016, ELECTORS_MEET, electoralVotes, ruleDay } from '../rules/elections2016';
 import { cohortClasses } from '../electorate/kernel';
 import { buildShard, stateRanges, type StateRange } from '../electorate/shards';
 import { retirementExtra } from '../careers/model';
+import { legislativeField, legislativeSeatUp, sldLean } from './legislatures';
 import { TURNOUT_OFFSET, calibrateTurnout, drawEnvironment, setEnvironmentEconomy, stepEnvironment, type Environment } from '../electorate/environment';
 import { certifiedFromCast, prepareContest, prepareDerived, prepareRejected, prepareRollup, prepareTurnout, readRollup, writeContest, writeTotalsRevision, K, totalsOf, type ContestResult } from '../archive/results';
 import { crc32 } from '../core/codec';
@@ -46,6 +47,8 @@ export interface ElectionHost {
   progress(step: string, fraction: number): void;
   /** The economy and the President's standing at the ballot box today (logit, D+); null before Phase 6 state exists. */
   voteTerm(): number | null;
+  /** A statement to run inside the next commit. */
+  deferSql(sql: string, params: (string | number | null)[]): void;
   /** Severity of an open scandal hanging over a person (0 when none). */
   scandalOf(personId: number): number;
   /** Public fundamentals for forecasts: the approval average and released economic figures. */
@@ -106,6 +109,10 @@ export class ElectionEngine {
       if (o.kind === 'president') up = year % 4 === 0;
       else if (o.kind === 'us_senator') up = ((year - SENATE_CLASS_NEXT_ELECTION[o.senateClass!]!) % 6 + 6) % 6 === 0;
       else if (o.kind === 'us_representative') up = year % 2 === 0 && !this.w.districts.isAbolished(o.id, year);
+      else if (o.kind === 'state_senator' || o.kind === 'state_representative') {
+        const t = this.w.districts.table(o.kind === 'state_senator' ? 'sldu' : 'sldl')[o.districtIdx!];
+        up = !!t && legislativeSeatUp(o, t.number, year, this.w.pack.states[o.stateIdx!]!.usps);
+      }
       else if (STATEWIDE.includes(o.kind)) {
         const inst = STATES_2016[this.w.pack.states[o.stateIdx!]!.usps];
         const g = inst?.governor; if (!g) continue;
@@ -276,13 +283,36 @@ export class ElectionEngine {
     return { person, quality: this.quality(person, bg[0]) };
   }
 
+  /** A state legislator of the party running for higher office (in the district when one is given), weighted by ambition and quality. */
+  private ladderCandidate(r: Rng, party: number, stateIdx: number, cd: number | null, year: number): { person: Person; quality: number } | null {
+    const w = this.w;
+    const cdOf = cd !== null ? w.districts.assignment('cd', year) : null;
+    const pool: Person[] = [];
+    for (const o of w.offices) {
+      if ((o.kind !== 'state_senator' && o.kind !== 'state_representative') || o.stateIdx !== stateIdx) continue;
+      const t = w.current.get(o.id); if (!t || t.partyId !== party) continue;
+      const p = w.persons.get(t.personId); if (!p || p.deathDay !== null || this.runningIn(year).has(p.id)) continue;
+      if (cdOf && p.homeCounty !== null) {
+        const c = w.pack.counties[p.homeCounty]!; let inside = false;
+        for (let b = c.buStart; b < c.buStart + c.buCount; b++) if (cdOf[b] === cd) { inside = true; break; }
+        if (!inside) continue;
+      }
+      pool.push(p);
+    }
+    if (!pool.length) return null;
+    const p = pool[r.weighted(pool.map((x) => Math.exp(2.5 * x.traits.ambition + 1.5 * x.traits.campaign)))]!;
+    return { person: p, quality: this.quality(p, 0.47) };
+  }
+
   /** Candidate emergence for a state's races of the year; creates general, primary and minor-party candidacies. */
   filing(year: number, stateIdx: number): void {
     const w = this.w; const st = w.pack.states[stateIdx]!; const rules = ELECTION_RULES_2016[st.usps]!;
     const generalId = this.electionOf(year, 'general', stateIdx);
     if (generalId === null) return;
     const primaryId = this.electionOf(year, 'primary', stateIdx);
-    const races = this.regularRaces(year).filter((r) => r.office.stateIdx === stateIdx);
+    const allRaces = this.regularRaces(year).filter((r) => r.office.stateIdx === stateIdx);
+    const legRaces = allRaces.filter((r) => isLegislator(r.office.kind));
+    const races = allRaces.filter((r) => !isLegislator(r.office.kind));
     for (const p of this.db.all<{ office_id: number }>('SELECT office_id FROM pending_special')) {
       const o = w.officeById.get(p.office_id);
       if (o && o.stateIdx === stateIdx && !races.some((r) => r.office.id === o.id)) races.push({ office: o, special: true, termStart: 0 });
@@ -365,7 +395,8 @@ export class ElectionEngine {
             : (r.bernoulli(o.kind === 'us_representative' ? 0.86 + 0.14 * Math.min(1, pr * 3) : 0.99) ? 1 + Math.floor(r.float() * (1.5 + 3 * pr)) : 0);
           const have = field.get(party)!.filter((x) => !x.incumbent).length;
           for (let i = have; i < want; i++) {
-            const c = this.newCandidate(r, party, stateIdx, cd, 0.08 + 0.1 * r.float(), year);
+            // The career ladder: about half of newcomers are sitting state legislators from the area.
+            const c = (r.bernoulli(0.5) ? this.ladderCandidate(r, party, stateIdx, cd, year) : null) ?? this.newCandidate(r, party, stateIdx, cd, 0.08 + 0.1 * r.float(), year);
             field.get(party)!.push({ ...c, incumbent: false });
             this.runningIn(year).add(c.person.id);
           }
@@ -413,7 +444,40 @@ export class ElectionEngine {
         contestsCreated.push(label);
       }
     });
-    if (contestsCreated.length) this.h.news('filing', `Candidate filing closes in ${st.name}`, `${contestsCreated.length} race${contestsCreated.length === 1 ? '' : 's'} on the ${year} ballot.`, { state: stateIdx });
+    const leg = this.legislativeFiling(year, stateIdx, generalId, legRaces);
+    if (contestsCreated.length || leg) this.h.news('filing', `Candidate filing closes in ${st.name}`, `${contestsCreated.length + leg} race${contestsCreated.length + leg === 1 ? '' : 's'} on the ${year} ballot${leg ? `, ${leg} of them for the state legislature` : ''}.`, { state: stateIdx });
+  }
+
+  /** State legislative seats: one general contest per seat, each party's nominee chosen without a primary. */
+  private legislativeFiling(year: number, stateIdx: number, generalId: number, races: Race[]): number {
+    if (!races.length) return 0;
+    const w = this.w;
+    const lean = { sldu: sldLean(w, 'sldu', w.districts.assignment('sldu', year)), sldl: sldLean(w, 'sldl', w.districts.assignment('sldl', year)) };
+    const env = this.environmentFor(year);
+    const swing = 100 * 0.17 * env.national * 2;
+    let retirements = 0;
+    this.h.commit(() => {
+      for (const race of races) {
+        const o = race.office, sld = o.kind === 'state_senator' ? 'sldu' : 'sldl';
+        const r = this.rng('leg-filing', year, o.id);
+        const district = this.w.districts.districtNumbered(sld, stateIdx, w.districts.table(sld)[o.districtIdx!]!.number, year)?.idx ?? o.districtIdx!;
+        const margin = (lean[sld][district] ?? 0) + swing;
+        const { field, retired } = legislativeField(w, r, o, margin, year, (party) => this.h.newPerson(r, 'C', party, stateIdx, { homeCounty: this.homeCountyLeg(r, stateIdx, sld, district, year), ageMean: 48, prominence: 0.02 }), (p, b) => this.quality(p, b), this.runningIn(year));
+        if (retired) retirements++;
+        this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          [generalId, o.id, 'general', null, stateIdx, district, 'plurality', `${year} ${o.title}`, 'set', null, null, race.termStart, null, null, null, year]);
+        const cid = Number(this.db.value('SELECT last_insert_rowid()'));
+        field.forEach((c) => this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [cid, c.person.id, c.party, BALLOT_ORDER(c.party), c.incumbent ? 1 : 0, null, 'running', c.quality]));
+      }
+    });
+    void retirements;
+    return races.length;
+  }
+
+  private homeCountyLeg(r: Rng, stateIdx: number, sld: 'sldu' | 'sldl', district: number, year: number): number | null {
+    const rg = this.ranges[stateIdx]!; const a = this.w.districts.assignment(sld, year); const bus: number[] = [], wts: number[] = [];
+    for (let b = rg.buStart; b < rg.buEnd; b++) { if (a[b] !== district) continue; const v = this.w.pop.vep[b]!; if (v > 0) { bus.push(b); wts.push(v); } }
+    return bus.length ? this.w.pack.bu.county[bus[r.weighted(wts)]!]! : null;
   }
 
   private trimForSpecial<T extends { party: number; quality: number; incumbent: boolean }>(xs: T[]): T[] {
@@ -547,7 +611,8 @@ export class ElectionEngine {
     const tauE = this.ensureTurnout() + turnoutOffset;
     const env = this.state.env[String(year)] ? this.environmentFor(year) : null;
     const cdOf = this.w.districts.assignment('cd', year, key.startsWith('special|'));
-    const ctx = { seed: this.w.seed, electionKey: key, pack: this.w.pack, pop: this.w.pop, electorate: this.w.electorate, env, tauE, ranges: this.ranges, cdOf };
+    const ctx = { seed: this.w.seed, electionKey: key, pack: this.w.pack, pop: this.w.pop, electorate: this.w.electorate, env, tauE, ranges: this.ranges, cdOf,
+      slduOf: this.w.districts.assignment('sldu', year), sldlOf: this.w.districts.assignment('sldl', year) };
     const kctx = { classCentroids: this.cls.centroids, platforms: this.w.electorate.params.platforms };
     this.h.progress('Preparing the electorate', 0);
     const inputs = groups.filter((g) => g.contests.length).map((g) => {
@@ -558,7 +623,8 @@ export class ElectionEngine {
         // Counted election: the job also builds this state's night (count plan, wire, survey, desk).
         const parts = buildParts(inp.bus.rj, inp.bus.cd);
         inp.parts = { of: parts.of, count: parts.count };
-        const races = nightRaces(this.w.pack, g.stateIdx, g.contests.map((c, i) => ({ contestIndex: i, office: c.officeKind, method: c.row.method, parties: c.cands.map((x) => x.cand.party_id), districtEv: c.row.method === 'district_ev' })),
+        // State legislative contests are counted and certified but not part of the broadcast night.
+        const races = nightRaces(this.w.pack, g.stateIdx, g.contests.flatMap((c, i) => (isLegislator(c.officeKind) ? [] : [{ contestIndex: i, office: c.officeKind, method: c.row.method, parties: c.cands.map((x) => x.cand.party_id), districtEv: c.row.method === 'district_ev' }])),
           this.w.districts.districtsOf('cd', g.stateIdx, year).map((d) => d.idx));
         // The desks' priors: the last public forecast of each race (statewide two-party races), when one exists.
         for (const race of races) {
@@ -1156,8 +1222,8 @@ export class ElectionEngine {
       this.h.endTerm(officeId, 'term ended (re-elected)');
     } else if (cur) this.h.endTerm(officeId, 'term ended');
     // A person can hold only one elective office: leaving the old one may create a vacancy.
-    for (const [oid, t] of [...w.current]) {
-      if (t.personId !== personId || oid === officeId) continue;
+    const others: number[] = []; for (const [oid, t] of w.current) if (t.personId === personId && oid !== officeId) others.push(oid);
+    for (const oid of others) {
       const o = w.officeById.get(oid)!;
       if (o.kind === 'congress_leader') { this.h.endTerm(oid, `left the chamber to become ${office.title}`); this.h.vacate(oid, `${fullName(person)} left the chamber`); continue; }
       const sameTime = this.db.value<number>("SELECT COUNT(*) FROM scheduled_event WHERE kind = 'take_office' AND sim_time = ? AND data_json LIKE ?", [w.time, `%"office":${oid},%`]) ?? 0;
@@ -1166,7 +1232,8 @@ export class ElectionEngine {
     }
     const contest = contestId !== null ? this.db.get<{ label: string; kind: string }>('SELECT label, kind FROM contest WHERE contest_id = ?', [contestId]) : null;
     this.h.startTerm(officeId, person, how ?? (contest ? `elected (${contest.label})` : 'elected'));
-    this.h.commit(() => this.db.run('DELETE FROM pending_special WHERE office_id = ?', [officeId]));
+    // Written with the next commit (thousands of offices change hands on the same day after a general election).
+    this.h.deferSql('DELETE FROM pending_special WHERE office_id = ?', [officeId]);
     if (office.kind === 'president' || office.kind === 'governor' || office.kind === 'us_senator') this.h.news('inauguration', `${fullName(person)} takes office as ${office.title}`, `${fullName(person)} (${this.abbr(person.partyId)}) was sworn in.`, { personId });
   }
 

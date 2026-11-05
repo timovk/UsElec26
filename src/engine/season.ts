@@ -164,6 +164,7 @@ export class Season {
       const pending = awaiting.get(c.contest_id);
       if (cands.length < 1 && !pending) continue;
       const office = this.E.officeKindOf(c);
+      if (office === 'state_senator' || office === 'state_representative') continue; // not polled or forecast
       const st = c.state_idx !== null ? w.pack.states[c.state_idx]! : null;
       const primary = c.kind === 'primary' || c.kind === 'top_two' || c.kind === 'pres_primary';
       const cd = c.district_idx;

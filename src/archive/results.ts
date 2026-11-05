@@ -322,7 +322,9 @@ export async function auditElection(db: Db, electionId: number, buState: (bu: nu
       const t2 = totalsOfRev(c.contest_id, 2, cands), t3 = totalsOfRev(c.contest_id, 3, cands), t1 = totalsOfRev(c.contest_id, 1, cands);
       if (t2.present && JSON.stringify(t2.votes) !== JSON.stringify(t3.votes)) fail('Canvass = certified', `contest ${c.contest_id}`);
       if (t1.present && t1.votes.some((v, j) => v > t2.votes[j]!)) fail('Unofficial ≤ canvass', `contest ${c.contest_id}`);
-      if (night) {
+      // State legislative contests are certified from the cast ballots without a broadcast night feed.
+      const legislative = !!db.value<number>("SELECT 1 FROM contest c JOIN office o ON o.office_id = c.office_id WHERE c.contest_id = ? AND o.kind IN ('state_senator','state_representative')", [c.contest_id]);
+      if (night && !legislative) {
         const ri = night.races.findIndex((r) => r.contestId === c.contest_id && r.cd < 0);
         if (ri < 0) fail('Night feed covers the contest', `contest ${c.contest_id}`);
         else {

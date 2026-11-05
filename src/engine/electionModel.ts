@@ -72,7 +72,8 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
   });
   const uncontested = cands.length <= 1;
   return {
-    id: c.contest_id, cd: officeKind === 'us_representative' && c.district_idx !== null ? c.district_idx : -1,
+    id: c.contest_id, cd: (officeKind === 'us_representative' || officeKind === 'state_senator' || officeKind === 'state_representative') && c.district_idx !== null ? c.district_idx : -1,
+    geo: officeKind === 'state_senator' ? 1 : officeKind === 'state_representative' ? 2 : 0,
     weight: primary ? 0 : officeWeight(officeKind), abstain: (primary ? -2.2 : officeAbstain(officeKind)) + (uncontested ? 1.6 : majorCount < 2 ? 0.5 : 0),
     options,
   };

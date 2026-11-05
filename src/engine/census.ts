@@ -30,6 +30,8 @@ interface Host {
 }
 
 const ET = 'America/New_York';
+/** House districts per senate district where 2016 law nests them. */
+const NESTED: Record<string, number> = { AK: 2, IL: 2, IA: 2, MN: 2, MT: 2, NV: 2, OR: 2, WY: 2, OH: 3, WI: 3 };
 const SPELL = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
 export class CensusEngine {
@@ -142,8 +144,53 @@ export class CensusEngine {
     }
     // The neutral lean now covers the new districts too (candidate emergence and forecasts use it).
     w.lean = { bu: w.lean.bu, ...aggregateLean(w.lean.bu, pack, w.districts) };
+    // State legislative plans: the same districts' worth of seats, redrawn; lower houses nest inside senate
+    // districts where 2016 law required it (two or three house districts per senate district).
+    const legStats = await this.redistrictLegislature(census, stateIdx, r, pop, b0);
     const dev = (100 * res.stats.maxDeviation).toFixed(2);
-    this.h.news('redistricting', `${st.name} adopts a new congressional map`, `${seats} district${seats === 1 ? '' : 's'} for ${firstYear}: largest population deviation ${dev}%, ${res.stats.countiesSplit} counties split${res.stats.contiguous ? '' : ' (some districts are joined across water)'}.${gone.length ? ` ${gone.map((o) => { const t = w.current.get(o.id); const p = t ? w.persons.get(t.personId) : null; return `${o.title}${p ? ` (${fullName(p as Person)})` : ''}`; }).join(', ')} will be eliminated.` : ''}`, { state: stateIdx });
+    this.h.news('redistricting', `${st.name} adopts new congressional and legislative maps`, `${seats} congressional district${seats === 1 ? '' : 's'} for ${firstYear}: largest population deviation ${dev}%, ${res.stats.countiesSplit} counties split${res.stats.contiguous ? '' : ' (some districts are joined across water)'}.${legStats}${gone.length ? ` ${gone.map((o) => { const t = w.current.get(o.id); const p = t ? w.persons.get(t.personId) : null; return `${o.title}${p ? ` (${fullName(p as Person)})` : ''}`; }).join(', ')} will be eliminated.` : ''}`, { state: stateIdx });
+  }
+
+  private async redistrictLegislature(census: number, stateIdx: number, r: PlanRegion, pop: Float64Array, b0: number): Promise<string> {
+    const w = this.w, st = w.pack.states[stateIdx]!, firstYear = census + 2;
+    const n = pop.length;
+    let upperLocal: Int32Array | null = null, upperCount = 0, text = '';
+    const graph = buGraph(r);
+    for (const [chKind, kind, sld] of [['state_upper', 'state_senator', 'sldu'], ['state_lower', 'state_representative', 'sldl']] as const) {
+      const ch = w.chambers.find((c) => c.kind === chKind && c.stateIdx === stateIdx); if (!ch) continue;
+      // The current districts (in effect this year) and their seats, by number.
+      const offices = w.offices.filter((o) => o.kind === kind && o.stateIdx === stateIdx);
+      if (!offices.length) continue;
+      const table = w.districts.table(sld);
+      const byNumber = new Map<number, number>();
+      for (const o of offices) { const num = table[o.districtIdx!]!.number; byNumber.set(num, (byNumber.get(num) ?? 0) + 1); }
+      const numbers = [...byNumber.keys()].sort((a, b) => a - b), sizes = numbers.map((x) => byNumber.get(x)!);
+      if (numbers.length < 2) continue;
+      const nest = NESTED[st.usps];
+      const nestOk = kind === 'state_representative' && nest && upperLocal && numbers.length === nest * upperCount;
+      const res = drawPlan(r, { sizes, tolerance: 0.04, ...(nestOk ? { nest: { within: upperLocal!, parentOf: numbers.map((_, i) => Math.floor(i / nest!)) } } : {}) }, graph);
+      // Number north to south, west to east (within each senate district when nested).
+      const cen = numbers.map((_, d) => { let x = 0, y = 0, p = 0; for (let i = 0; i < n; i++) if (res.district[i] === d) { x += r.x[i]! * (pop[i]! + 1); y += r.y[i]! * (pop[i]! + 1); p += pop[i]! + 1; } return { d, x: x / p, y: y / p }; });
+      // Numbers keep their seat counts: within each size, numbers go to districts in geographic order.
+      const geo = nestOk ? cen.map((c) => c.d) : [...cen].sort((a, b) => Math.round(a.y / 25) - Math.round(b.y / 25) || a.x - b.x).map((c) => c.d);
+      const numberOf = new Array<number>(numbers.length);
+      for (const size of [...new Set(sizes)]) {
+        const ds = geo.filter((d) => sizes[d] === size), ns = numbers.filter((_, k) => sizes[k] === size);
+        ds.forEach((d, i) => { numberOf[d] = ns[i]!; });
+      }
+      // Local index j ↔ numbers[j] (and its seats sizes[j]), as the offices expect.
+      const toLocal = new Int32Array(numbers.length); for (let d = 0; d < numbers.length; d++) toLocal[d] = numbers.indexOf(numberOf[d]!);
+      const local = Int32Array.from(res.district, (d) => toLocal[d]!);
+      const pops = new Array<number>(numbers.length).fill(0); for (let i = 0; i < n; i++) pops[local[i]!]! += pop[i]!;
+      const planId = (this.h.db.value<number>('SELECT MAX(plan_id) FROM district_plan') ?? 0) + 1;
+      const adopted = await w.districts.adopt(sld, stateIdx, census, firstYear, w.time, local, numbers, sizes, pops,
+        { maxDeviation: res.stats.maxDeviation, contiguous: res.stats.contiguous, countiesSplit: res.stats.countiesSplit, nested: !!nestOk }, planId);
+      this.h.commit(() => adopted.write(this.h.db));
+      if (kind === 'state_senator') { upperLocal = local; upperCount = numbers.length; }
+      text += ` ${ch.name}: ${numbers.length} districts, largest deviation ${(100 * res.stats.maxDeviation).toFixed(1)}%${nestOk ? ', nested' : ''}.`;
+    }
+    void b0;
+    return text;
   }
 
   /** January 3 after the first elections on new maps: House offices now represent their new districts; eliminated seats end. */

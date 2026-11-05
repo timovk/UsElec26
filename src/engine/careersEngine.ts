@@ -111,16 +111,23 @@ export class CareersEngine {
    * party holds the Speakership and the majority posts; leaders still in the chamber and still in the
    * majority's or minority's party keep their posts, others are replaced by the members with most leadership.
    */
-  newCongress(): void {
+  newCongress(state = false): void {
     const w = this.w;
-    const r = Rng.stream(w.seed, 'leadership', easternDay(w.time));
-    for (const ch of w.chambers.filter((c) => c.kind === 'us_house' || c.kind === 'us_senate')) {
-      const memberKind = ch.kind === 'us_house' ? 'us_representative' : 'us_senator';
-      const members = w.offices.filter((o) => o.kind === memberKind).map((o) => w.current.get(o.id)).filter((t): t is Term => !!t);
+    const r = Rng.stream(w.seed, 'leadership', easternDay(w.time), state ? 1 : 0);
+    const chambers = state ? w.chambers.filter((c) => c.kind === 'state_upper' || c.kind === 'state_lower') : w.chambers.filter((c) => c.kind === 'us_house' || c.kind === 'us_senate');
+    for (const ch of chambers) {
+      const memberKind = ch.kind === 'us_house' ? 'us_representative' : ch.kind === 'us_senate' ? 'us_senator' : ch.kind === 'state_upper' ? 'state_senator' : 'state_representative';
+      const members = w.offices.filter((o) => o.kind === memberKind && o.chamberId === ch.id).map((o) => w.current.get(o.id)).filter((t): t is Term => !!t);
+      if (!members.length) continue;
       const d = members.filter((t) => t.partyId === PARTY_D).length, rr = members.filter((t) => t.partyId === PARTY_R).length;
       const vpParty = w.current.get(w.offices.find((o) => o.kind === 'vice_president')!.id)?.partyId ?? PARTY_D;
       const maj = d > rr ? PARTY_D : rr > d ? PARTY_R : ch.kind === 'us_senate' ? vpParty : PARTY_D;
-      const posts = w.offices.filter((o) => o.kind === 'congress_leader' && o.chamberId === ch.id && !o.title.includes('pro tempore'));
+      const posts = w.offices.filter((o) => (o.kind === 'congress_leader' || o.kind === 'state_leg_leader') && o.chamberId === ch.id && !o.title.includes('pro tempore'));
+      // A change of control in a state chamber is news (the presiding officer's party is the old majority).
+      if (state) {
+        const presiding = posts.find((o) => !/Minority/.test(o.title)); const prev = presiding ? w.current.get(presiding.id)?.partyId : undefined;
+        if (prev !== undefined && prev !== maj && (prev === PARTY_D || prev === PARTY_R)) this.h.news('legislature', `${maj === PARTY_D ? 'Democrats' : 'Republicans'} take control of the ${ch.name}`, `${maj === PARTY_D ? d : rr} of ${ch.seats} seats.`, { chamberId: ch.id, state: ch.stateIdx });
+      }
       const used = new Set<number>();
       for (const o of posts) {
         const party = /Minority/.test(o.title) ? (maj === PARTY_D ? PARTY_R : PARTY_D) : maj;

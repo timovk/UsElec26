@@ -26,6 +26,7 @@ import { Districts } from './districts';
 import { CensusEngine } from './census';
 import { CareersEngine, emptyCareersState, type CareersState } from './careersEngine';
 import { GovernmentEngine, emptyGovernmentState, type GovernmentState } from './governmentEngine';
+import { materializeLegislatures } from './legislatures';
 import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from './economyEngine';
 import { SIM_START } from '../core/time';
 
@@ -96,6 +97,7 @@ export class Universe {
       succession: (o, p, c) => this.succession(o, p, c), vacate: (o, r, res) => this.vacate(o, r, res),
       commit: (extra) => this.commit(null, extra), progress: (st, f) => this.onProgress(st, f),
       voteTerm: () => this.economy.voteTerm(),
+      deferSql: (sql, params) => { this.pendingSql.push([sql, params]); },
       scandalOf: (personId) => this.careers.scandalOf(personId, easternDay(this.world.time)),
       publicFundamentals: (day) => ({ approval: this.economy.publishedApproval(day), ...this.economy.publishedEconomy(day) }),
     };
@@ -142,6 +144,7 @@ export class Universe {
     const u = new Universe(storage, fileName, db, world, names, emptyElectionState(), emptyEconomyEngineState(seed, pack.states.length), emptyCareersState(), null);
     u.evolution = Evolution.fresh(world);
     u.queue = scheduledFromDb(db);
+    await u.ensureLegislatures();
     for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
     return u;
   }
@@ -188,6 +191,7 @@ export class Universe {
       }
       for (const r of db.all<{ office_id: number; party_id: number }>('SELECT office_id, party_id FROM office_term t WHERE party_id IS NOT NULL AND term_id = (SELECT term_id FROM office_term x WHERE x.office_id = t.office_id ORDER BY start_time DESC, term_id DESC LIMIT 1)')) u.lastParty.set(r.office_id, r.party_id);
       for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
+      if (names) await u.ensureLegislatures();
       return u;
     } catch (e) { db.close(); throw e; }
   }
@@ -260,10 +264,15 @@ export class Universe {
     const addedIds = new Set(addedAll.map((e) => e.id));
     const removed = [...removedSet].filter((id) => !addedIds.has(id));
     this.db.tx(() => {
+      for (const o of this.pendingOffices.splice(0)) this.db.run('INSERT INTO office VALUES (?,?,?,?,?,?,?,?,?)', [o.id, o.kind, o.title, o.stateIdx, o.districtIdx, o.senateClass, o.chamberId, o.dept, o.rank]);
       writePending(this.db, w);
       this.elections.season.flush();
       this.elections.season.invalidate();
-      for (const snap of this.compositionSnaps.splice(0)) writeChamberCompositions(this.db, [snap], snap.compositionAsOf);
+      // One composition row set per chamber and moment (many seats can change hands at once).
+      const snaps = new Map<string, (typeof this.compositionSnaps)[number]>();
+      for (const snap of this.compositionSnaps.splice(0)) snaps.set(`${snap.id}|${snap.compositionAsOf}`, snap);
+      for (const snap of snaps.values()) writeChamberCompositions(this.db, [snap], snap.compositionAsOf);
+      for (const [q, p] of this.pendingSql.splice(0)) this.db.run(q, p);
       this.dirtyChambers = false;
       for (const id of removed) this.db.run('DELETE FROM scheduled_event WHERE event_id = ?', [id]);
       for (const e of added) this.db.run('INSERT INTO scheduled_event VALUES (?,?,?,?,?)', [e.id, e.time, e.priority, e.kind, JSON.stringify(e.data)]);
@@ -281,8 +290,11 @@ export class Universe {
 
   schedule(time: SimTime, kind: string, data: Record<string, unknown>, priority = 10): void {
     const e: ScheduledEvent = { id: this.world.ids.event++, time, priority, kind, data };
-    this.queue.push(e);
-    this.queue.sort((a, b) => a.time - b.time || a.priority - b.priority || a.id - b.id);
+    // Binary insertion (the queue stays sorted by time, priority, id).
+    const before = (a: ScheduledEvent) => a.time < e.time || (a.time === e.time && (a.priority < e.priority || (a.priority === e.priority && a.id < e.id)));
+    let lo = 0, hi = this.queue.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (before(this.queue[mid]!)) lo = mid + 1; else hi = mid; }
+    this.queue.splice(lo, 0, e);
     this.addedEvents.push(e);
   }
 
@@ -309,6 +321,37 @@ export class Universe {
       const annual = Math.min(0.6, 0.55 * Math.exp(-10.4 + 0.094 * age));
       if (r.float() < annual / 365.25) this.death(p, day);
     }
+  }
+
+  private pendingOffices: Office[] = [];
+  private pendingSql: [string, (string | number | null)[]][] = [];
+  /** A new office (written with the next commit). */
+  addOffice(o: Omit<Office, 'id'>): Office {
+    const w = this.world;
+    const off: Office = { ...o, id: (w.offices[w.offices.length - 1]?.id ?? 0) + 1 };
+    w.offices.push(off); w.officeById.set(off.id, off); this.pendingOffices.push(off);
+    if (off.chamberId !== null) this.chamberOffices.delete(off.chamberId);
+    return off;
+  }
+
+  /**
+   * State legislators (Phase 6): created once — at founding, or when a universe saved before Phase 6 is first
+   * opened — to match each chamber's composition.
+   */
+  async ensureLegislatures(): Promise<void> {
+    const w = this.world;
+    const r0 = Rng.stream(w.seed, 'legislatures', 'install');
+    void r0;
+    const n = materializeLegislatures({
+      world: w, newPerson: (r, tier, party, st, opts) => this.newPerson(r, tier, party, st, opts), addOffice: (o) => this.addOffice(o),
+      installTerm: (officeId, person, start, acquired) => {
+        const t: Term = { id: w.ids.term++, officeId, personId: person.id, partyId: person.partyId, start, end: null, acquired, endReason: null, provenance: w.time > SIM_START + 10 ? 'created when the universe gained state legislators (Phase 6)' : PRE_SIM };
+        w.current.set(officeId, t); w.pending.terms.push(t); return t;
+      },
+    });
+    if (!n) return;
+    for (const ch of w.chambers) if (ch.kind === 'state_upper' || ch.kind === 'state_lower') { const first = w.offices.find((o) => o.chamberId === ch.id && (o.kind === 'state_senator' || o.kind === 'state_representative')); if (first) this.markChamber(first.id); }
+    this.commit(null);
   }
 
   /** Appoint a sitting officeholder (weighted by recognition and leadership); their old office falls vacant. */
@@ -369,9 +412,11 @@ export class Universe {
         const y = n('year');
         await this.yearStart(y); this.census.planYear(y);
         if (y % 2 === 1) this.schedule(zonedToUtc(y, 1, 3, 13, 0, 'America/New_York'), 'new_congress', { year: y }, 3);
+        if (y > 2016) this.schedule(zonedToUtc(y, 1, 21, 12, 0, 'America/New_York'), 'new_legislatures', { year: y }, 3);
         E.planYear(y); return;
       }
       case 'new_congress': this.careers.newCongress(); return;
+      case 'new_legislatures': this.careers.newCongress(true); return;
       case 'census_day': this.census.censusDay(n('year')); return;
       case 'apportionment': this.census.apportionment(n('year')); return;
       case 'redistrict': await this.census.redistrict(n('census'), n('state')); return;
@@ -445,13 +490,16 @@ export class Universe {
     return t;
   }
 
+  private chamberOffices = new Map<number, Office[]>();
   private markChamber(officeId: number): void {
     const o = this.world.officeById.get(officeId)!;
-    if (o.kind !== 'us_senator' && o.kind !== 'us_representative') return;
+    if (o.kind !== 'us_senator' && o.kind !== 'us_representative' && o.kind !== 'state_senator' && o.kind !== 'state_representative') return;
     const chamber = this.world.chambers.find((c) => c.id === o.chamberId)!;
     const comp = new Map<number, number>();
     let filled = 0;
-    for (const off of this.world.offices) {
+    let members = this.chamberOffices.get(chamber.id);
+    if (!members) { members = this.world.offices.filter((x) => x.chamberId === chamber.id && x.kind !== 'congress_leader' && x.kind !== 'state_leg_leader'); this.chamberOffices.set(chamber.id, members); }
+    for (const off of members) {
       if (off.chamberId !== chamber.id || off.kind === 'congress_leader') continue;
       const t = this.world.current.get(off.id);
       if (t) { comp.set(t.partyId ?? 5, (comp.get(t.partyId ?? 5) ?? 0) + 1); filled++; }
@@ -468,7 +516,7 @@ export class Universe {
     const v = { officeId, since: this.world.time, reason, resolution: res };
     this.world.vacancies.set(officeId, v); this.world.pending.vacanciesSet.push(v);
     const delay = { president: 0, vice_president: 45, cabinet: 40, us_senator: 12, us_representative: -1, governor: 0, lt_governor: 30, attorney_general: 30,
-      secretary_of_state: 30, congress_leader: 10, state_leg_leader: 10 }[o.kind];
+      secretary_of_state: 30, congress_leader: 10, state_leg_leader: 10, state_senator: 30, state_representative: 30 }[o.kind];
     if (o.kind === 'us_representative') { this.elections.houseSpecial(officeId); return; }
     if (o.kind === 'us_senator') this.elections.senateSpecialNeeded(officeId, reason);
     if (o.kind === 'us_senator' && STATES_2016[this.world.pack.states[o.stateIdx!]!.usps]?.senateVacancy === 'special_only') return;
@@ -485,6 +533,7 @@ export class Universe {
       case 'vice_president': return 'Presidential nomination and congressional confirmation (25th Amendment)';
       case 'cabinet': return 'Presidential nomination and Senate confirmation';
       case 'congress_leader': case 'state_leg_leader': return 'Election by the party caucus';
+      case 'state_senator': case 'state_representative': return 'Interim appointment; the seat is filled at the next regular election';
       default: return 'Appointment by the Governor';
     }
   }
@@ -597,6 +646,7 @@ export class Universe {
         return;
       }
       case 'state_leg_leader': party = this.lastPartyOf(officeId) ?? PARTY_D; how = 'elected by the chamber'; break;
+      case 'state_senator': case 'state_representative': party = this.lastPartyOf(officeId) ?? govParty(o.stateIdx ?? 0); tier = 'C'; how = 'appointed to fill the vacancy until the next election'; break;
       default: party = govParty(o.stateIdx ?? 0); how = 'appointed by the Governor';
     }
     const person = this.newPerson(r, tier, party, stateIdx);
