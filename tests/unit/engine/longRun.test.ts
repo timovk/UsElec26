@@ -3,7 +3,7 @@
  *
  * - ENA_LONGRUN=<years>[,seed] — the fixture geography from 2016 for that many years (the roadmap's 50-year run).
  * - ENA_ACCEPT=<seed> — the Phase 6 acceptance run: real Census geography from January 1, 2016 to January 1, 2041.
- *   It checkpoints the universe to ENA_CHECKPOINT_DIR (default: test-results/acceptance) every year and resumes
+ *   It checkpoints the universe to ENA_CHECKPOINT_DIR (default: .cache/acceptance; not test-results/, which Playwright clears) every year and resumes
  *   from the latest checkpoint, so it can run in pieces.
  *
  * Both print a year-by-year table and every check, then assert the checks.
@@ -54,7 +54,7 @@ describe.skipIf(!accept || !existsSync(`${REAL}manifest.json`))('Phase 6 accepta
   it(`2016 → 2040, seed ${accept}`, async () => {
     const sqlite3 = await initSqlite();
     const names = parseNameFile(JSON.parse(readFileSync('public/data/names-v1.json', 'utf8')));
-    const dir = process.env.ENA_CHECKPOINT_DIR ?? 'test-results/acceptance';
+    const dir = process.env.ENA_CHECKPOINT_DIR ?? '.cache/acceptance';
     mkdirSync(dir, { recursive: true });
     const storage = new MemoryStorage(sqlite3);
     const latest = readdirSync(dir).filter((f) => f.startsWith(`${accept}-`) && f.endsWith('.sqlite3')).sort().pop();
