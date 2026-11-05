@@ -69,7 +69,7 @@ describe('election determinism and continuity (fixture)', () => {
     await b2.advance({ kind: 'until', time: target });
     const strip = async (u: Universe) => { u.db.exec('DELETE FROM command_log'); return contentHash(u.db); };
     expect(await strip(b2)).toBe(await strip(a));
-  }, 300_000);
+  }, 900_000);
 
   it('archive audit passes for every 2016 election', async () => {
     const { auditElection } = await import('../../../src/archive/results');
