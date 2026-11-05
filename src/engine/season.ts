@@ -449,12 +449,13 @@ export class Season {
     const pollsters = this.loadPollsters();
     const cyc = cycleBias(w.seed, year);
     const lean = this.leanIndex(year);
+    const sal = new Map(races.map((r) => [r.key, this.salience(r, day, lean)])); // the same for every pollster
     for (const pz of pollsters) {
       const rr = Rng.stream(w.seed, 'poll', pz.id, day);
       // Candidate races for this pollster, weighted by salience and the season.
       const cand = races.filter((r) => r.options.length >= 2 && !r.awaiting && (pz.scope === 'national' ? r.geo === 'US' || (r.stateIdx !== null && rr.float() < 0.15) : pz.scope === 'multi-state' ? r.stateIdx !== null : r.stateIdx === pz.homeState));
       if (!cand.length) continue;
-      const weights = cand.map((r) => this.salience(r, day, lean));
+      const weights = cand.map((r) => sal.get(r.key)!);
       const total = weights.reduce((a, b) => a + b, 0);
       const rate = (pz.params.perMonth / 30) * Math.min(1.5, total / (pz.scope === 'state' ? 2 : 6));
       if (!rr.bernoulli(Math.min(0.9, rate))) continue;
@@ -710,6 +711,7 @@ export class Season {
     const gDay = this.generalDay(year);
     const anyFuture = gDay !== null && gDay >= day;
     if (!anyFuture) return;
+    this.E.host.progress('Campaigns, polls and forecasts', 0);
     await this.loadPolls(year);
     const T0 = (globalThis as unknown as { __seasonT?: Record<string, number> }).__seasonT; const r0 = performance.now();
     const races = this.races(day);

@@ -67,6 +67,24 @@ compute workers (≈2 s of the 3.2 s seal step), cheaper primaries, and fewer ev
 | Jan 1 → the 2016 general's ballot lock | 28.6–31.3 s (Phase 3: 30–34 s) |
 | The Election Day step (ballot lock) | 13.1–13.7 s (Phase 3: 13.7 s). The engine's seal step fell from 3.2 s to 0.07 s (sealing now happens in the compute workers, +1.4 s there); the night-record step grew by about 1.5 s (it now writes the commentary) |
 
+### Measured in Phase 5 (see [../phase-5-report.md](../phase-5-report.md) §5.3)
+
+| Operation | Chromium, 1366×768 (4-core server, headless) |
+|---|---|
+| Jan 1 → the 2016 general's ballot lock (stopping on every primary day) | 76.5–78.1 s (Phase 4: 28.6–31.3 s): the daily campaign season (polls, averages, forecasts, campaigns) is the new cost |
+| The whole of 2016 (**+1 year**) | 72.4–78.0 s |
+| Election Day work at the ballot lock | About 12 s, as in Phase 4 |
+| Season work over 2016, Node, real geography | Poll fieldwork 6.0 s (1,552 polls); forecasts 4.0 s (106 runs of 1,500 draws); voter-type caches 3.8 s; races 1.0 s; campaigns 0.8 s |
+| Playback, camera flight, recolour | Unchanged |
+
+**This is over the §11.1 budgets.** A year with a general election takes 72–78 s on this server against a budget
+of 40 s on the slower reference Chromebook. A campaign month takes about 6–7 s here against 1.5 s; 2–4 minutes
+from January to Election Day are expected on a Chromebook. Mitigations, in order:
+1. the forecast in a compute worker, in parallel with the day's fieldwork;
+2. poll fieldwork in the compute workers;
+3. incremental forecast inputs;
+4. fewer draws before the final 100 days.
+
 ## 11.3 Likely bottlenecks and mitigations
 
 | Bottleneck | Mitigation |

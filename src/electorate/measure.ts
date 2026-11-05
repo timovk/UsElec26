@@ -206,6 +206,25 @@ export interface PollDesign {
 /** One jurisdiction of a poll: its contest as the ballot would show it there, its electorate pieces, and the current swing since the cache was built. */
 export interface PollArea { contest: KernelContest; pieces: readonly PieceTypes[]; zShift: readonly number[]; bonuses: { homeStateBonus: number; homeCountyBonus: number } }
 
+/** An area's pieces split into its candidates' home counties and the rest summed (cached per pieces array and home set). */
+const splitCache = new WeakMap<readonly PieceTypes[], Map<string, { rest: PieceTypes; own: PieceTypes[] }>>();
+function splitHomes(pieces: readonly PieceTypes[], homeCounties: number[]): { rest: PieceTypes; own: PieceTypes[] } {
+  const key = [...new Set(homeCounties)].sort((a, b) => a - b).join(',');
+  let m = splitCache.get(pieces); if (!m) { m = new Map(); splitCache.set(pieces, m); }
+  const hit = m.get(key); if (hit) return hit;
+  const homes = new Set(homeCounties);
+  const rest: PieceTypes = { county: -1, cd: -1, lv: new Float32Array(N_TYPES), rv: new Float32Array(N_TYPES) };
+  const own: PieceTypes[] = [];
+  for (const p of pieces) {
+    if (homes.has(p.county)) { own.push(p); continue; }
+    for (let ty = 0; ty < N_TYPES; ty++) { rest.lv[ty]! += p.lv[ty]!; rest.rv[ty]! += p.rv[ty]!; }
+  }
+  const out = { rest, own };
+  if (m.size > 16) m.clear();
+  m.set(key, out);
+  return out;
+}
+
 /**
  * Field a poll: the sampled responses (one count per option, then the undecided). The true intentions never
  * leave this function; observers receive only what a pollster would publish.
@@ -217,13 +236,7 @@ export function fieldPoll(areas: readonly PollArea[], design: PollDesign, recogn
   for (const ar of areas) {
     const c = ar.contest;
     // Choice probabilities differ by county only through home-county bonuses: evaluate the rest of the area as one piece.
-    const homes = new Set(c.options.map((o) => o.homeCounty).filter((x) => x >= 0));
-    const rest: PieceTypes = { county: -1, cd: -1, lv: new Float32Array(N_TYPES), rv: new Float32Array(N_TYPES) };
-    const own: PieceTypes[] = [];
-    for (const p of ar.pieces) {
-      if (homes.has(p.county)) { own.push(p); continue; }
-      for (let ty = 0; ty < N_TYPES; ty++) { rest.lv[ty]! += p.lv[ty]!; rest.rv[ty]! += p.rv[ty]!; }
-    }
+    const { rest, own } = splitHomes(ar.pieces, c.options.map((o) => o.homeCounty).filter((x) => x >= 0));
     for (const p of [rest, ...own]) for (let h = 0; h < N_CLASS; h++) for (let g = 0; g < ZG; g++) {
       const ty = h * ZG + g;
       const lv = p.lv[ty]!, rv = p.rv[ty]!;
