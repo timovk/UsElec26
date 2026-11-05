@@ -12,6 +12,7 @@ import { SENATE_CLASS_NEXT_ELECTION, STATES_2016 } from '../rules/states2016';
 import { DISTRICT_EV_STATES, ELECTION_RULES_2016, ELECTORS_MEET, electoralVotes, ruleDay } from '../rules/elections2016';
 import { cohortClasses } from '../electorate/kernel';
 import { buildShard, stateRanges, type StateRange } from '../electorate/shards';
+import { retirementExtra } from '../careers/model';
 import { TURNOUT_OFFSET, calibrateTurnout, drawEnvironment, setEnvironmentEconomy, stepEnvironment, type Environment } from '../electorate/environment';
 import { certifiedFromCast, prepareContest, prepareDerived, prepareRejected, prepareRollup, prepareTurnout, readRollup, writeContest, writeTotalsRevision, K, totalsOf, type ContestResult } from '../archive/results';
 import { crc32 } from '../core/codec';
@@ -39,12 +40,14 @@ export interface ElectionHost {
   newPerson(r: Rng, tier: Person['tier'], party: number, stateIdx: number, opts?: PersonOptions): Person;
   startTerm(officeId: number, person: Person, acquired: string, provenance?: string): Term;
   endTerm(officeId: number, reason: string): Term | null;
-  succession(officeId: number, departed: Person): void;
+  succession(officeId: number, departed: Person, cause?: string): void;
   vacate(officeId: number, reason: string, resolution?: string): void;
   commit(extra?: () => void): void;
   progress(step: string, fraction: number): void;
   /** The economy and the President's standing at the ballot box today (logit, D+); null before Phase 6 state exists. */
   voteTerm(): number | null;
+  /** Severity of an open scandal hanging over a person (0 when none). */
+  scandalOf(personId: number): number;
   /** Public fundamentals for forecasts: the approval average and released economic figures. */
   publicFundamentals(day: DayNumber): { approval: number | null; unemployment: number | null; unempChange: number | null; gdp: number | null };
 }
@@ -284,6 +287,19 @@ export class ElectionEngine {
       const o = w.officeById.get(p.office_id);
       if (o && o.stateIdx === stateIdx && !races.some((r) => r.office.id === o.id)) races.push({ office: o, special: true, termStart: 0 });
     }
+    // House members whose seat was eliminated by reapportionment run in the new district holding most of their old one.
+    const displaced = new Map<number, Person>();
+    if (year % 10 === 2) {
+      const oldA = w.districts.assignment('cd', year - 2), newA = w.districts.assignment('cd', year);
+      for (const o of w.offices) {
+        if (o.kind !== 'us_representative' || o.stateIdx !== stateIdx || !w.districts.isAbolished(o.id, year)) continue;
+        const t = w.current.get(o.id); const p = t ? w.persons.get(t.personId) : undefined; if (!p || p.deathDay !== null) continue;
+        const rg = this.ranges[stateIdx]!; const share = new Map<number, number>();
+        for (let b = rg.buStart; b < rg.buEnd; b++) if (oldA[b] === o.districtIdx) share.set(newA[b]!, (share.get(newA[b]!) ?? 0) + w.pop.vep[b]!);
+        const to = [...share].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
+        if (to !== undefined && !displaced.has(to)) displaced.set(to, p);
+      }
+    }
     // Higher offices first, so ambitious officeholders vacate lower seats before those races are filled.
     const order: Record<string, number> = { us_senator: 0, governor: 1, lt_governor: 2, attorney_general: 3, secretary_of_state: 4, us_representative: 5 };
     races.sort((a, b) => order[a.office.kind]! - order[b.office.kind]! || a.office.id - b.office.id);
@@ -308,12 +324,22 @@ export class ElectionEngine {
           const age = ageOn(incP.birthDay, easternDay(w.time));
           const hostile = Math.max(0, ((incP.partyId === PARTY_D ? -margin : margin)) / 100);
           const base = o.kind === 'us_representative' ? 0.06 : o.kind === 'us_senator' ? 0.09 : 0.1;
-          const pRetire = Math.min(0.9, base + Math.max(0, age - 68) * 0.035 + hostile * 0.25 + (incP.traits.integrity < 0.15 ? 0.1 : 0));
+          // Tenure (since first taking this office), an open scandal, and a new district less friendly than the old one.
+          const firstStart = this.db.value<number>('SELECT MIN(start_time) FROM office_term WHERE office_id = ? AND person_id = ?', [o.id, incP.id]) ?? w.time;
+          const tenure = (w.time - firstStart) / (365.25 * 1440);
+          let shift = 0;
+          if (o.kind === 'us_representative' && cd !== null && cd !== o.districtIdx) shift = (incP.partyId === PARTY_D ? 1 : -1) * (this.cdMargin(o.districtIdx!, year) - this.cdMargin(cd, year));
+          const pRetire = Math.min(0.9, base + Math.max(0, age - 68) * 0.035 + hostile * 0.25 + (incP.traits.integrity < 0.15 ? 0.1 : 0) + retirementExtra(tenure, this.h.scandalOf(incP.id), shift));
           incumbentRuns = !r.bernoulli(pRetire);
           if (!incumbentRuns) this.h.news('retirement', `${fullName(incP)} will not seek re-election`, `${o.title} ${fullName(incP)} (${this.abbr(incP.partyId)}) announced retirement at age ${age}.`, { personId: incP.id });
         }
         const field = new Map<number, { person: Person; quality: number; incumbent: boolean }[]>([[PARTY_D, []], [PARTY_R, []]]);
-        if (incP && incumbentRuns && field.has(incP.partyId)) { field.get(incP.partyId)!.push({ person: incP, quality: this.quality(incP), incumbent: true }); this.runningIn(year).add(incP.id); }
+        if (incP && incumbentRuns && field.has(incP.partyId)) { field.get(incP.partyId)!.push({ person: incP, quality: this.quality(incP) - 0.3 * this.h.scandalOf(incP.id), incumbent: true }); this.runningIn(year).add(incP.id); }
+        const dp = cd !== null ? displaced.get(cd) : undefined;
+        if (dp && field.has(dp.partyId) && !this.runningIn(year).has(dp.id) && !r.bernoulli(field.get(dp.partyId)!.some((x) => x.incumbent) ? 0.45 : 0.15)) {
+          field.get(dp.partyId)!.push({ person: dp, quality: this.quality(dp) + 0.08, incumbent: false }); this.runningIn(year).add(dp.id);
+          this.h.news('candidacy', `${fullName(dp)} will run in the new ${w.districts.cds[cd!]!.code}`, `${fullName(dp)}'s seat was eliminated by reapportionment.`, { personId: dp.id });
+        }
         for (const party of [PARTY_D, PARTY_R]) {
           const pr = this.prospects(party, margin);
           const hasInc = incumbentRuns && incP?.partyId === party;

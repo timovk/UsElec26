@@ -144,11 +144,11 @@ async function contest(u: Universe, id: number): Promise<ContestDetail | null> {
     }
   }
   const office = c.office_id !== null ? w.officeById.get(c.office_id)! : null;
-  const cd = c.district_idx !== null ? w.pack.cds[c.district_idx] : undefined;
+  const cd = c.district_idx !== null ? w.districts.cds[c.district_idx] : undefined;
   return {
     id, label: c.label, kind: c.kind, method: c.method, status: c.status, office: office?.title ?? null, officeKind: office?.kind ?? null,
     stateUsps: c.state_idx !== null ? w.pack.states[c.state_idx]!.usps : null, stateIdx: c.state_idx,
-    districtLabel: cd ? `${w.pack.states[cd.stateIdx]!.usps}-${cd.district === 0 ? 'AL' : String(cd.district).padStart(2, '0')}` : null,
+    districtLabel: cd ? `${w.pack.states[cd.stateIdx]!.usps}-${cd.number === 0 ? 'AL' : String(cd.number).padStart(2, '0')}` : null,
     date: formatDay(e.day, true), electionLabel: e.label, candidates: cands, ballots: turnout?.ballots ?? null, undervotes: turnout?.undervotes ?? null, eligible: turnout?.eligible ?? null,
     ev: c.ev, seal: rev?.sha256 ?? null, revisionKind: live ? 'counting' : rev?.kind ?? null, parent: c.parent_contest, next: c.next_contest, grain: blob?.grain ?? (live ? 'live' : rv > 0 ? 'bu' : null),
     counties, modes,
@@ -197,7 +197,8 @@ async function resultsMap(u: Universe, year: number, office: ResultsMapDto['offi
   const kindFilter = office === 'president' ? "c.kind = 'pres_state'" : `c.kind IN ('general','special') AND o.kind = '${office}'`;
   const rows = u.db.all<CRow>(`SELECT c.* FROM contest c LEFT JOIN office o ON o.office_id = c.office_id WHERE c.year = ? AND ${kindFilter} AND c.status IN ('decided','certified','counting') ORDER BY c.contest_id`, [year]);
   let counting = false;
-  const n = layer === 'state' ? w.pack.states.length : layer === 'county' ? w.pack.counties.length : w.pack.cds.length;
+  const n = layer === 'state' ? w.pack.states.length : layer === 'county' ? w.pack.counties.length : w.districts.cds.length;
+  const cdOf = w.districts.assignment('cd', year);
   const D = new Float64Array(n), R = new Float64Array(n), V = new Float64Array(n), Bc = new Float64Array(n), has = new Uint8Array(n);
   const lead = new Map<number, Map<number, number>>(); // area → party → votes (for the leading party)
   const bD = new Float64Array(n), bR = new Float64Array(n), bV = new Float64Array(n), bHas = new Uint8Array(n);
@@ -241,7 +242,7 @@ async function resultsMap(u: Universe, year: number, office: ResultsMapDto['offi
   }
   const values = Array.from({ length: n }, (_, i) => (has[i] && D[i]! + R[i]! > 0 ? Math.round(1000 * (D[i]! - R[i]!) / (D[i]! + R[i]!)) / 10 : has[i] ? 0 : null));
   // Turnout: eligible voters and ballots by area, for this election and the baseline one.
-  const area = (bu: number) => (layer === 'state' ? w.pack.counties[w.pack.bu.county[bu]!]!.stateIdx : layer === 'county' ? w.pack.bu.county[bu]! : w.pack.bu.cd[bu]!);
+  const area = (bu: number) => (layer === 'state' ? w.pack.counties[w.pack.bu.county[bu]!]!.stateIdx : layer === 'county' ? w.pack.bu.county[bu]! : cdOf[bu]!);
   const turnout = async (pairs: { election_id: number; state_idx: number }[]) => {
     const el = new Float64Array(n), ba = new Float64Array(n); let any = false;
     for (const e of pairs) {

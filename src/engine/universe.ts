@@ -24,6 +24,7 @@ import { InlineRunner, type ShardRunner } from './computePool';
 import { Evolution, type StateBlob } from './evolution';
 import { Districts } from './districts';
 import { CensusEngine } from './census';
+import { CareersEngine, emptyCareersState, type CareersState } from './careersEngine';
 import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from './economyEngine';
 import { SIM_START } from '../core/time';
 
@@ -56,11 +57,22 @@ export class Universe {
   readonly economy: EconomyEngine;
   /** Census, apportionment and redistricting. */
   readonly census: CensusEngine;
+  /** Scandals, resignations, cabinet turnover, party switches and leadership elections. */
+  readonly careers: CareersEngine;
+  private careersStateJson = '';
   private economyStateJson = '';
 
-  private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null, electionState: ElectionState, economyState: EconomyEngineState) {
+  private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null, electionState: ElectionState, economyState: EconomyEngineState, careersState: CareersState) {
     const getRunner = () => this.runner;
     this.economy = new EconomyEngine({ world, db, news: (k, h, b, r, tm) => this.news(k, h, b, r, tm) }, economyState);
+    this.careers = new CareersEngine({
+      world, db, news: (k, h, b, r, tm) => this.news(k, h, b, r, tm),
+      endTerm: (o, r) => this.endTerm(o, r), startTerm: (o, p, a) => this.startTerm(o, p, a), vacate: (o, r) => this.vacate(o, r),
+      succession: (o, p, c) => this.succession(o, p, c), shockPresident: (x) => this.economy.shock(x),
+      career: (personId, kind, text) => { const y = daysToCivil(easternDay(world.time)).y; world.pending.careers.push({ id: world.ids.career++, personId, yearFrom: y, yearTo: null, simTime: world.time, kind, text, provenance: SIMULATED }); },
+      setParty: (person, party) => this.setParty(person, party),
+    }, careersState);
+    this.careersStateJson = JSON.stringify(careersState);
     this.census = new CensusEngine({
       world, db, evolution: () => this.evolution,
       schedule: (t, k, d, p) => this.schedule(t, k, d, p), news: (k, h, b, r, tm) => this.news(k, h, b, r, tm),
@@ -74,9 +86,10 @@ export class Universe {
       schedule: (t, k, d, p) => this.schedule(t, k, d, p), news: (k, h, b, r, tm) => this.news(k, h, b, r, tm),
       newPerson: (r, tier, party, st, opts) => this.newPerson(r, tier, party, st, opts),
       startTerm: (o, p, a, pr) => this.startTerm(o, p, a, pr), endTerm: (o, r) => this.endTerm(o, r),
-      succession: (o, p) => this.succession(o, p), vacate: (o, r, res) => this.vacate(o, r, res),
+      succession: (o, p, c) => this.succession(o, p, c), vacate: (o, r, res) => this.vacate(o, r, res),
       commit: (extra) => this.commit(null, extra), progress: (st, f) => this.onProgress(st, f),
       voteTerm: () => this.economy.voteTerm(),
+      scandalOf: (personId) => this.careers.scandalOf(personId, easternDay(this.world.time)),
       publicFundamentals: (day) => ({ approval: this.economy.publishedApproval(day), ...this.economy.publishedEconomy(day) }),
     };
     this.elections = new ElectionEngine(host, electionState);
@@ -119,7 +132,7 @@ export class Universe {
       });
       storage.flush(fileName, db);
     } catch (e) { db.close(); storage.remove(fileName); throw e; }
-    const u = new Universe(storage, fileName, db, world, names, emptyElectionState(), emptyEconomyEngineState(seed, pack.states.length));
+    const u = new Universe(storage, fileName, db, world, names, emptyElectionState(), emptyEconomyEngineState(seed, pack.states.length), emptyCareersState());
     u.evolution = Evolution.fresh(world);
     u.queue = scheduledFromDb(db);
     for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
@@ -157,7 +170,8 @@ export class Universe {
       const evolution = await Evolution.load(db, world);
       const es = await readJsonState<ElectionState>(db, 'elections.state');
       const ecs = await readJsonState<EconomyEngineState>(db, 'economy.state');
-      const u = new Universe(storage, fileName, db, world, names, es ?? emptyElectionState(), ecs ?? emptyEconomyEngineState(world.seed, pack.states.length));
+      const cas = await readJsonState<CareersState>(db, 'careers.state');
+      const u = new Universe(storage, fileName, db, world, names, es ?? emptyElectionState(), ecs ?? emptyEconomyEngineState(world.seed, pack.states.length), cas ?? emptyCareersState());
       u.evolution = evolution;
       u.queue = rows.scheduled;
       if (!es) { // Universe saved by Phase 1: plan the current year's elections from now on.
@@ -228,6 +242,8 @@ export class Universe {
     if (es !== this.electionStateJson) { blobs.push(rawJsonBlob('elections.state', this.elections.state)); this.electionStateJson = es; }
     const ecs = JSON.stringify(this.economy.st);
     if (ecs !== this.economyStateJson) { blobs.push(rawJsonBlob('economy.state', this.economy.st)); this.economyStateJson = ecs; }
+    const cas = JSON.stringify(this.careers.st);
+    if (cas !== this.careersStateJson) { blobs.push(rawJsonBlob('careers.state', this.careers.st)); this.careersStateJson = cas; }
     const removedSet = new Set(this.removedEvents.splice(0));
     const addedAll = this.addedEvents.splice(0);
     const added = addedAll.filter((e) => !removedSet.has(e.id));          // created and consumed in this interval: never persisted
@@ -265,6 +281,7 @@ export class Universe {
   private async dailyTick(day: number): Promise<void> {
     const w = this.world;
     await this.economy.daily(day);
+    if (daysToCivil(day).d === 1) this.careers.monthly(day);
     await this.elections.daily(day);
     const r = Rng.stream(w.seed, 'mortality', day);
     for (const p of w.persons.values()) { // Map iteration is insertion (id) order: deterministic
@@ -273,6 +290,32 @@ export class Universe {
       const annual = Math.min(0.6, 0.55 * Math.exp(-10.4 + 0.094 * age));
       if (r.float() < annual / 365.25) this.death(p, day);
     }
+  }
+
+  /** Appoint a sitting officeholder (weighted by recognition and leadership); their old office falls vacant. */
+  private appointSitting(o: Office, pool: Term[], r: Rng, how: string): boolean {
+    const w = this.world;
+    const pick = pool[r.weighted(pool.map((t) => { const p = w.persons.get(t.personId)!; return Math.exp(3 * p.traits.recognition + 2 * p.traits.leadership); }))];
+    if (!pick) return false;
+    const person = w.persons.get(pick.personId)!; const from = w.officeById.get(pick.officeId)!;
+    this.endTerm(from.id, `resigned to become ${o.title}`);
+    this.startTerm(o.id, person, how);
+    this.news('appointment', `${fullName(person)} named ${o.title}`, `${from.title} ${fullName(person)} (${this.partyAbbrev(person.partyId)}) was ${how}.`, { personId: person.id, officeId: o.id });
+    if (from.kind === 'governor') this.succession(from.id, person, 'resignation'); else this.vacate(from.id, `${fullName(person)} became ${o.title}`);
+    return true;
+  }
+
+  /** A party switch: the person's affiliation, and the party of any office they hold. */
+  private setParty(person: Person, party: number): void {
+    const w = this.world, now = w.time;
+    person.partyId = party;
+    const held = [...w.current.values()].filter((t) => t.personId === person.id);
+    for (const t of held) { t.partyId = party; this.markChamber(t.officeId); }
+    this.commit(null, () => {
+      this.db.run('UPDATE party_affiliation SET to_time = ? WHERE person_id = ? AND to_time IS NULL', [now, person.id]);
+      this.db.run('INSERT INTO party_affiliation VALUES (?,?,?,?)', [person.id, party, now, null]);
+      for (const t of held) this.db.run('UPDATE office_term SET party_id = ? WHERE term_id = ?', [party, t.id]);
+    });
   }
 
   /** January 1: the population and the electorate move on a year (before the year's elections are planned). */
@@ -303,7 +346,13 @@ export class Universe {
     const d = ev.data as Record<string, number | string>;
     const E = this.elections, n = (k: string) => Number(d[k]);
     switch (ev.kind) {
-      case 'plan_year': await this.yearStart(n('year')); this.census.planYear(n('year')); E.planYear(n('year')); return;
+      case 'plan_year': {
+        const y = n('year');
+        await this.yearStart(y); this.census.planYear(y);
+        if (y % 2 === 1) this.schedule(zonedToUtc(y, 1, 3, 13, 0, 'America/New_York'), 'new_congress', { year: y }, 3);
+        E.planYear(y); return;
+      }
+      case 'new_congress': this.careers.newCongress(); return;
       case 'census_day': this.census.censusDay(n('year')); return;
       case 'apportionment': this.census.apportionment(n('year')); return;
       case 'redistrict': await this.census.redistrict(n('census'), n('state')); return;
@@ -322,7 +371,13 @@ export class Universe {
       case 'certify': E.certify(n('year'), n('day')); return;
       case 'electors': await E.electors(n('year')); return;
       case 'ec_count': await E.ecCount(n('year')); return;
-      case 'take_office': E.takeOffice(n('office'), n('person'), (d.how as string | undefined) ?? null, d.contest !== undefined ? n('contest') : null); return;
+      case 'take_office': {
+        const presOffice = this.world.offices.find((o) => o.kind === 'president')!;
+        const before = this.world.current.get(presOffice.id)?.personId;
+        E.takeOffice(n('office'), n('person'), (d.how as string | undefined) ?? null, d.contest !== undefined ? n('contest') : null);
+        if (n('office') === presOffice.id && before !== n('person')) this.careers.newAdministration();
+        return;
+      }
       case 'assume_office': {
         const person = this.world.persons.get(d.personId as number);
         this.endTerm(d.officeId as number, 'term ended');
@@ -429,7 +484,8 @@ export class Universe {
   }
 
   /** Immediate constitutional succession, otherwise a vacancy with a scheduled fill. */
-  private succession(officeId: number, departed: Person): void {
+  private succession(officeId: number, departed: Person, cause = 'death'): void {
+    const on = cause === 'death' ? 'on the death of' : cause === 'resignation' ? 'on the resignation of' : `after ${cause} of`;
     const w = this.world;
     const o = w.officeById.get(officeId)!;
     if (o.kind === 'president') {
@@ -438,7 +494,7 @@ export class Universe {
       if (vpTerm) {
         const vp = w.persons.get(vpTerm.personId)!;
         this.endTerm(vpOffice.id, 'succeeded to the presidency');
-        this.startTerm(o.id, vp, `succeeded on the death of President ${fullName(departed)}`);
+        this.startTerm(o.id, vp, `succeeded ${on} President ${fullName(departed)}`);
         this.news('succession', `${fullName(vp)} sworn in as President`, `Vice President ${fullName(vp)} became President under the 25th Amendment.`, { personId: vp.id });
         this.vacate(vpOffice.id, 'Vice President succeeded to the presidency');
         return;
@@ -453,13 +509,13 @@ export class Universe {
       if (sOffice && st) {
         const successor = w.persons.get(st.personId)!;
         this.endTerm(sOffice.id, 'succeeded to the governorship');
-        this.startTerm(o.id, successor, `succeeded on the death of Governor ${fullName(departed)}`);
+        this.startTerm(o.id, successor, `succeeded ${on} Governor ${fullName(departed)}`);
         this.news('succession', `${fullName(successor)} becomes Governor of ${w.pack.states[o.stateIdx!]!.name}`, `${sOffice.title} ${fullName(successor)} succeeded to the governorship.`, { personId: successor.id });
         this.vacate(sOffice.id, 'officeholder succeeded to the governorship');
         return;
       }
     }
-    this.vacate(officeId, `death of ${fullName(departed)}`);
+    this.vacate(officeId, `${cause} of ${fullName(departed)}`);
   }
 
   /** Fill a vacancy by appointment or caucus election. */
@@ -488,6 +544,11 @@ export class Universe {
             return;
           }
         }
+        // A quarter of cabinet picks are sitting governors or members of Congress of the President's party.
+        if (o.kind === 'cabinet' && r.bernoulli(0.25)) {
+          const pool = w.offices.filter((x) => ['us_senator', 'us_representative', 'governor'].includes(x.kind) && w.current.get(x.id)?.partyId === party).map((x) => w.current.get(x.id)!);
+          if (pool.length && this.appointSitting(o, pool, r, how)) return;
+        }
         stateIdx = r.weighted(w.pack.states.map((_, s) => w.pop.stateVep[s]!));
         break;
       }
@@ -497,6 +558,11 @@ export class Universe {
         const lastParty = this.lastPartyOf(officeId);
         party = rule === 'appoint_same_party' && lastParty ? lastParty : govParty(o.stateIdx!); tier = 'A';
         how = 'appointed by the Governor; serves until a special election';
+        // Governors often appoint a member of the state's House delegation.
+        if (r.bernoulli(0.45)) {
+          const pool = w.offices.filter((x) => x.kind === 'us_representative' && x.stateIdx === o.stateIdx && w.current.get(x.id)?.partyId === party).map((x) => w.current.get(x.id)!);
+          if (pool.length && this.appointSitting(o, pool, r, how)) return;
+        }
         break;
       }
       case 'congress_leader': {
