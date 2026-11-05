@@ -143,6 +143,14 @@ CREATE INDEX economic_release_kind ON economic_release(kind, sim_time);
 CREATE TABLE approval_poll (poll_id INTEGER PRIMARY KEY, pollster_id INTEGER NOT NULL, subject TEXT NOT NULL, person_id INTEGER, field_start INTEGER NOT NULL,
   field_end INTEGER NOT NULL, published INTEGER NOT NULL, n INTEGER NOT NULL, approve REAL NOT NULL, disapprove REAL NOT NULL);
 CREATE INDEX approval_poll_end ON approval_poll(field_end);
+CREATE TABLE census (census_year INTEGER NOT NULL, state_idx INTEGER NOT NULL, population INTEGER NOT NULL, adults INTEGER NOT NULL,
+  seats INTEGER, priority_json TEXT, PRIMARY KEY (census_year, state_idx)) WITHOUT ROWID;
+CREATE TABLE district_plan (plan_id INTEGER PRIMARY KEY, kind TEXT NOT NULL, state_idx INTEGER NOT NULL, census_year INTEGER NOT NULL, first_year INTEGER NOT NULL,
+  adopted_time INTEGER NOT NULL, method TEXT NOT NULL, stats_json TEXT NOT NULL, assignment BLOB NOT NULL);
+CREATE INDEX district_plan_kind ON district_plan(kind, state_idx, first_year);
+CREATE TABLE district (kind TEXT NOT NULL, idx INTEGER NOT NULL, plan_id INTEGER NOT NULL, state_idx INTEGER NOT NULL, number INTEGER NOT NULL,
+  seats INTEGER NOT NULL, population INTEGER NOT NULL, PRIMARY KEY (kind, idx)) WITHOUT ROWID;
+CREATE TABLE office_abolished (office_id INTEGER PRIMARY KEY, last_year INTEGER NOT NULL, reason TEXT NOT NULL);
 `;
 
 export const MIGRATIONS: readonly Migration[] = [

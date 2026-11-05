@@ -167,7 +167,7 @@ export class Season {
       const st = c.state_idx !== null ? w.pack.states[c.state_idx]! : null;
       const primary = c.kind === 'primary' || c.kind === 'top_two' || c.kind === 'pres_primary';
       const cd = c.district_idx;
-      const geo = cd !== null && office === 'us_representative' ? `${st!.usps}-${w.pack.cds[cd]?.district ?? 0}` : st?.usps ?? 'US';
+      const geo = cd !== null && office === 'us_representative' ? `${st!.usps}-${w.districts.cds[cd]?.number ?? 0}` : st?.usps ?? 'US';
       if (c.kind === 'pres_state') continue; // presidential state races are keyed by year and state below
       out.push({
         key: `C:${c.contest_id}`, year, kind: primary ? (c.kind === 'pres_primary' ? 'nom_state' : 'primary') : 'general', label: c.label.replace(/^\d{4} /, ''), geo,
@@ -187,7 +187,7 @@ export class Season {
       for (const s of w.pack.states) {
         const contest = this.db.get<{ contest_id: number }>("SELECT contest_id FROM contest WHERE kind = 'pres_state' AND year = ? AND state_idx = ?", [year, s.idx]);
         out.push({ key: `PS:${year}:${s.usps}`, year, kind: 'pres_state', label: `${year} President — ${s.name}`, geo: s.usps, stateIdx: s.idx, cd: null, contestId: contest?.contest_id ?? null, office: 'president', party: 0, day: gDay, options, electionId: null,
-          ev: electoralVotes(s.usps, w.pack.cds.filter((x) => x.stateIdx === s.idx).length), campaign: `PRES:${year}` });
+          ev: electoralVotes(s.usps, w.districts.seats(s.idx, year)), campaign: `PRES:${year}` });
       }
     }
     // The generic congressional ballot in even years.
@@ -256,7 +256,7 @@ export class Season {
     const lean = this.leanIndex(year);
     let weights: number[] | undefined;
     if (byKey.has(`PRES:${year}`)) {
-      const ev = w.pack.states.map((s) => electoralVotes(s.usps, w.pack.cds.filter((x) => x.stateIdx === s.idx).length));
+      const ev = w.pack.states.map((s) => electoralVotes(s.usps, w.districts.seats(s.idx, year)));
       const fc = this.forecast?.out.races;
       const margin = w.pack.states.map((s) => fc?.find((x) => x.key === `PS:${year}:${s.usps}`)?.mean ?? lean.state[s.idx]!);
       weights = voterPower(ev, margin, w.pack.states.map(() => 6));
@@ -370,7 +370,7 @@ export class Season {
       const env = env0 && env0.level ? { ...env0, national: env0.level.national, classSwing: env0.level.classSwing, division: env0.level.division, state: env0.level.state } : env0;
       const offset = kind !== 'general' ? TURNOUT_OFFSET.primary + (year % 4 === 0 ? 0 : -0.2) : year % 4 === 0 ? TURNOUT_OFFSET.presidential : year % 2 === 0 ? TURNOUT_OFFSET.midterm : TURNOUT_OFFSET.offyear;
       const inputs = want.map((s) => {
-        const ctx = { seed: this.w.seed, electionKey: keyOf(s)!, pack: this.w.pack, pop: this.w.pop, electorate: this.w.electorate, env, tauE: E.ensureTurnout() + offset, ranges: E.ranges };
+        const ctx = { seed: this.w.seed, electionKey: keyOf(s)!, pack: this.w.pack, pop: this.w.pop, electorate: this.w.electorate, env, tauE: E.ensureTurnout() + offset, ranges: E.ranges, cdOf: this.w.districts.assignment('cd', year) };
         return { ...buildShard(ctx, s, kind, party, [], 0.45), measure: true };
       });
       const outs = await E.host.runner.run(inputs);
@@ -592,7 +592,7 @@ export class Season {
       const state = Array.from(D, (d, s) => (d + R[s]! > 0 ? (100 * (d - R[s]!)) / (d + R[s]!) - nat : 0));
       // Districts: the state's lean plus the district's true deviation within it (district results are not archived for President by district in every state yet).
       const pub = this.publicLean(year);
-      v = { state, cd: w.pack.cds.map((c, i) => state[c.stateIdx]! + (pub.cd[i]! - pub.state[c.stateIdx]!)) };
+      v = { state, cd: w.districts.cds.map((c, i) => state[c.stateIdx]! + (pub.cd[i]! - pub.state[c.stateIdx]!)) };
     } else v = this.publicLean(year);
     this.leanCache = { year, v };
     return v;
@@ -601,7 +601,7 @@ export class Season {
   private publicLean(year: number): { state: number[]; cd: number[] } {
     const w = this.w, L = w.lean;
     const nat = (100 * (2 * L.national.d - L.national.t)) / Math.max(1, L.national.t);
-    return publishedLean(w.seed, year, w.pack.states.map((_, s) => leanMargin(L.state, s)), w.pack.states.map((s) => s.division), w.pack.cds.map((_, i) => leanMargin(L.cd, i)), w.pack.cds.map((c) => c.stateIdx), nat);
+    return publishedLean(w.seed, year, w.pack.states.map((_, s) => leanMargin(L.state, s)), w.pack.states.map((s) => s.division), w.districts.cds.map((_, i) => leanMargin(L.cd, i)), w.districts.cds.map((c) => c.stateIdx), nat);
   }
 
   /** Forecast cadence: weekly from June, daily in the final 100 days, through Election Day morning. */

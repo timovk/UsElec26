@@ -64,7 +64,7 @@ export class Evolution {
     // Rounded to the stored precision (Float32) so the universe behaves identically before and after a reload.
     const raw = buLean(w.electorate, w.pack, w.pop);
     const bu = { dVotes: Float64Array.from(Float32Array.from(raw.dVotes)), votes: Float64Array.from(Float32Array.from(raw.votes)) };
-    w.lean = { bu, ...aggregateLean(bu, w.pack) };
+    w.lean = { bu, ...aggregateLean(bu, w.pack, w.districts) };
     // The record: a demographic and political summary of the year.
     const sum = demographySummary(w.pack, this.demo);
     const national = leanMargin({ dVotes: Float64Array.of(w.lean.national.d), votes: Float64Array.of(w.lean.national.t) }, 0);

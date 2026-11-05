@@ -41,6 +41,8 @@ export function modeLogits(usps: string): Float64Array {
 export interface ShardContext {
   seed: string; electionKey: string; pack: GeoPack; pop: Population; electorate: Electorate; env: Environment | null;
   tauE: number; ranges: StateRange[];
+  /** BU → congressional district for this election (the plan in effect); the 2016 plan when absent. */
+  cdOf?: Uint16Array;
 }
 
 let classCache: { key: unknown; classOf: Uint8Array } | null = null;
@@ -81,7 +83,7 @@ export function buildShard(ctx: ShardContext, stateIdx: number, kind: ShardInput
     seedKey: `${ctx.seed}|${ctx.electionKey}|${stateIdx}|${primaryParty}`, kind, primaryParty,
     crossover: primaryType === 'closed' ? 0.03 : primaryType === 'semi' ? 0.12 : 0.22,
     homeStateBonus: 0.1, homeCountyBonus: 0.22,
-    bus: { start: rg.buStart, count, county: pack.bu.county.slice(rg.buStart, rg.buEnd), cd: pack.bu.cd.slice(rg.buStart, rg.buEnd), rj: pack.bu.rj.slice(rg.buStart, rg.buEnd),
+    bus: { start: rg.buStart, count, county: pack.bu.county.slice(rg.buStart, rg.buEnd), cd: (ctx.cdOf ?? pack.bu.cd).slice(rg.buStart, rg.buEnd), rj: pack.bu.rj.slice(rg.buStart, rg.buEnd),
       vep: pop.vep.slice(rg.buStart, rg.buEnd), shift, turnout, marg },
     counties: { first: rg.countyFirst, mu, turnout: cTurn, joint },
     classOf: cls, sigma: Float64Array.from(e.params.sigma), tau,

@@ -81,7 +81,7 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
 /** Collect shard outputs into per-contest results (unit grain or county-part grain). */
 /** County and congressional district of a base unit: from the pack (engine) or from a shard's own columns (worker). */
 export interface BuGeo { county(bu: number): number; cd(bu: number): number }
-export const packGeo = (pack: GeoPack): BuGeo => ({ county: (bu) => pack.bu.county[bu]!, cd: (bu) => pack.bu.cd[bu]! });
+export const packGeo = (pack: GeoPack, cdOf: Uint16Array = pack.bu.cd): BuGeo => ({ county: (bu) => pack.bu.county[bu]!, cd: (bu) => cdOf[bu]! });
 export const shardGeo = (inp: ShardInput): BuGeo => ({ county: (bu) => inp.bus.county[bu - inp.bus.start]!, cd: (bu) => inp.bus.cd[bu - inp.bus.start]! });
 
 export function aggregate(geo: BuGeo, shards: { input: ShardInput; output: ShardOutput }[], contests: Map<number, { candidacyIds: number[]; grain: 'bu' | 'cpart' }>): Map<number, ContestResult> {

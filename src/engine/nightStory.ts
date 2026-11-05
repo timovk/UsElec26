@@ -20,9 +20,9 @@ export function raceShort(db: Db, w: World, r: NightRecord['races'][number]): st
   const st = w.pack.states[r.stateIdx]!;
   if (r.office === 'us_representative') {
     const cd = db.value<number>('SELECT district_idx FROM contest WHERE contest_id = ?', [r.contestId]);
-    return cd !== undefined && cd !== null ? cdCode(w.pack, cd) : st.usps;
+    return cd !== undefined && cd !== null ? cdCode({ states: w.pack.states, cds: w.districts.cds }, cd) : st.usps;
   }
-  return `${st.usps} ${OFF[r.office] ?? r.office}${r.cd >= 0 ? ` · ${cdCode(w.pack, r.cd)}` : ''}`;
+  return `${st.usps} ${OFF[r.office] ?? r.office}${r.cd >= 0 ? ` · ${cdCode({ states: w.pack.states, cds: w.districts.cds }, r.cd)}` : ''}`;
 }
 
 export function storyContext(db: Db, w: World, rec: Omit<NightRecord, 'story'>, eligibleByElection?: Map<number, number>): StoryContext {
@@ -54,7 +54,7 @@ export function storyContext(db: Db, w: World, rec: Omit<NightRecord, 'story'>, 
     const eligible = statewide && c ? (eligibleByElection?.get(c.election_id) ?? db.value<number>('SELECT eligible FROM election_turnout WHERE election_id = ? AND state_idx = ?', [c.election_id, r.stateIdx]) ?? 0) : 0;
     return {
       label: r.label.replace(/^\d{4} /, ''), short: raceShort(db, w, r),
-      district: r.office === 'us_representative' && c?.district_idx !== null && c?.district_idx !== undefined ? cdSpoken(w.pack, c.district_idx) : r.cd >= 0 ? cdSpoken(w.pack, r.cd) : undefined, office: r.office, state: st.usps, stateName: st.name, cd: r.cd, ev: r.ev,
+      district: r.office === 'us_representative' && c?.district_idx !== null && c?.district_idx !== undefined ? cdSpoken({ states: w.pack.states, cds: w.districts.cds }, c.district_idx) : r.cd >= 0 ? cdSpoken({ states: w.pack.states, cds: w.districts.cds }, r.cd) : undefined, office: r.office, state: st.usps, stateName: st.name, cd: r.cd, ev: r.ev,
       candidates, prevParty, lastWon, eligible, recount: COUNTING_RULES_2016[st.usps]?.recountAuto ?? 0,
     };
   });

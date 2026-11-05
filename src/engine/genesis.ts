@@ -14,6 +14,7 @@ import { EXECUTIVE_DEPARTMENTS, SENATE_CLASS_NEXT_ELECTION, STATES_2016 } from '
 import { NameGenerator, type NameData } from '../politicians/names';
 import { generatePerson, preSimCareer } from '../politicians/generate';
 import { aggregateLean, emptyPending, leanMargin, type World } from './world';
+import { Districts } from './districts';
 
 export interface GenesisInput { seed: string; name: string; pack: GeoPack; names: NameData }
 export type Progress = (step: string, fraction: number) => void;
@@ -38,7 +39,7 @@ export function genesis(input: GenesisInput, progress: Progress = () => {}): { w
   const world: World = {
     seed, name: input.name, startTime: SIM_START, time: SIM_START, pack, pop, electorate, lean,
     parties: BASE_PARTIES.map((p) => ({ ...p })), persons: new Map(), offices: [], officeById: new Map(), current: new Map(),
-    vacancies: new Map(), chambers: [], history: { env: {}, presidentTermNumber: 1 },
+    vacancies: new Map(), chambers: [], districts: new Districts(pack), history: { env: {}, presidentTermNumber: 1 },
     ids: { person: 1, term: 1, career: 1, news: 1, event: 1 }, pending: emptyPending(),
   };
   const careers: CareerEvent[] = [];

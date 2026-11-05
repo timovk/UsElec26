@@ -79,6 +79,12 @@ export class ElectionEngine {
   // ---- Calendar --------------------------------------------------------------------------------
 
   /** Term start of the office's next regular term after an election in `year`. */
+  /** The district a House seat is elected from in `year` (the plan in effect; specials before a new Congress use the old plan). */
+  districtFor(o: Office, year: number, special = false): number {
+    const D = this.w.districts, cur = D.cds[o.districtIdx!]!;
+    return D.districtNumbered('cd', o.stateIdx!, cur.number, year, special)?.idx ?? o.districtIdx!;
+  }
+
   termStart(o: Office, year: number): SimTime {
     if (o.kind === 'president' || o.kind === 'vice_president') return zonedToUtc(year + 1, 1, 20, 12, 0, ET);
     if (o.kind === 'us_senator' || o.kind === 'us_representative') return zonedToUtc(year + 1, 1, 3, 12, 0, ET);
@@ -96,7 +102,7 @@ export class ElectionEngine {
       let up = false;
       if (o.kind === 'president') up = year % 4 === 0;
       else if (o.kind === 'us_senator') up = ((year - SENATE_CLASS_NEXT_ELECTION[o.senateClass!]!) % 6 + 6) % 6 === 0;
-      else if (o.kind === 'us_representative') up = year % 2 === 0;
+      else if (o.kind === 'us_representative') up = year % 2 === 0 && !this.w.districts.isAbolished(o.id, year);
       else if (STATEWIDE.includes(o.kind)) {
         const inst = STATES_2016[this.w.pack.states[o.stateIdx!]!.usps];
         const g = inst?.governor; if (!g) continue;
@@ -252,9 +258,10 @@ export class ElectionEngine {
   }
   private prospects(party: number, margin: number): number { return 1 / (1 + Math.exp(-(party === PARTY_D ? margin : -margin) / 8)); }
 
-  private homeCountyIn(r: Rng, stateIdx: number, cd: number | null): number | null {
+  private homeCountyIn(r: Rng, stateIdx: number, cd: number | null, year: number): number | null {
     const rg = this.ranges[stateIdx]!; const bus: number[] = [], wts: number[] = [];
-    for (let b = rg.buStart; b < rg.buEnd; b++) { if (cd !== null && this.w.pack.bu.cd[b] !== cd) continue; const v = this.w.pop.vep[b]!; if (v > 0) { bus.push(b); wts.push(v); } }
+    const cdOf = this.w.districts.assignment('cd', year);
+    for (let b = rg.buStart; b < rg.buEnd; b++) { if (cd !== null && cdOf[b] !== cd) continue; const v = this.w.pop.vep[b]!; if (v > 0) { bus.push(b); wts.push(v); } }
     return bus.length ? this.w.pack.bu.county[bus[r.weighted(wts)]!]! : null;
   }
 
@@ -262,7 +269,7 @@ export class ElectionEngine {
     const bgs: [number, string, number][] = [[0.47, 'state legislator', 45], [0.4, 'mayor', 12], [0.32, 'county official', 13], [0.3, 'prosecutor', 7], [0.27, 'businessperson', 15], [0.22, 'veteran and community leader', 8]];
     const bg = bgs[r.weighted(bgs.map((b) => b[2]))]!;
     const since = year - 2 - r.int(10);
-    const person = this.h.newPerson(r, 'B', party, stateIdx, { homeCounty: this.homeCountyIn(r, stateIdx, cd), prominence, background: { tier: bg[0], text: `${bg[1][0]!.toUpperCase()}${bg[1].slice(1)} (${since}–${year})` } });
+    const person = this.h.newPerson(r, 'B', party, stateIdx, { homeCounty: this.homeCountyIn(r, stateIdx, cd, year), prominence, background: { tier: bg[0], text: `${bg[1][0]!.toUpperCase()}${bg[1].slice(1)} (${since}–${year})` } });
     return { person, quality: this.quality(person, bg[0]) };
   }
 
@@ -285,7 +292,7 @@ export class ElectionEngine {
       for (const race of races) {
         if (race.office.kind === 'president') continue;
         const o = race.office, r = this.rng('filing', year, o.id);
-        const cd = o.kind === 'us_representative' ? o.districtIdx : null;
+        const cd = o.kind === 'us_representative' ? this.districtFor(o, year, race.special) : null;
         const margin = cd !== null ? this.cdMargin(cd, year) : this.stateMargin(stateIdx, year);
         const method = rules.primaryType === 'jungle' ? 'jungle' : st.usps === 'GA' ? 'majority' : rules.primaryType === 'top_two' ? 'top_two_general' : 'plurality';
         const label = `${year}${race.special ? ' special' : ''} ${o.title.replace('U.S. Representative, ', 'U.S. House, ')}`;
@@ -480,7 +487,7 @@ export class ElectionEngine {
     this.h.commit(() => {
       for (const s of w.pack.states) {
         const gid = this.electionOf(year, 'general', s.idx); if (gid === null) continue;
-        const ev = electoralVotes(s.usps, w.pack.cds.filter((c) => c.stateIdx === s.idx).length);
+        const ev = electoralVotes(s.usps, w.districts.seats(s.idx, year));
         this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           [gid, presOffice.id, 'pres_state', null, s.idx, null, DISTRICT_EV_STATES.has(s.usps) ? 'district_ev' : 'plurality', `${year} President — ${s.name}`, 'set', null, null, null, null, null, ev, year]);
         const cid = Number(this.db.value('SELECT last_insert_rowid()'));
@@ -513,7 +520,8 @@ export class ElectionEngine {
   private async realize(key: string, groups: { stateIdx: number; kind: 'general' | 'primary' | 'allparty'; party: number; contests: { row: ContestRow; cands: { cand: CandidacyRow; person: Person }[]; officeKind: string }[]; turnout?: number }[], turnoutOffset: number, year: number, night?: { day: DayNumber }): Promise<Map<number, ContestResult>> {
     const tauE = this.ensureTurnout() + turnoutOffset;
     const env = this.state.env[String(year)] ? this.environmentFor(year) : null;
-    const ctx = { seed: this.w.seed, electionKey: key, pack: this.w.pack, pop: this.w.pop, electorate: this.w.electorate, env, tauE, ranges: this.ranges };
+    const cdOf = this.w.districts.assignment('cd', year, key.startsWith('special|'));
+    const ctx = { seed: this.w.seed, electionKey: key, pack: this.w.pack, pop: this.w.pop, electorate: this.w.electorate, env, tauE, ranges: this.ranges, cdOf };
     const kctx = { classCentroids: this.cls.centroids, platforms: this.w.electorate.params.platforms };
     this.h.progress('Preparing the electorate', 0);
     const inputs = groups.filter((g) => g.contests.length).map((g) => {
@@ -524,7 +532,8 @@ export class ElectionEngine {
         // Counted election: the job also builds this state's night (count plan, wire, survey, desk).
         const parts = buildParts(inp.bus.rj, inp.bus.cd);
         inp.parts = { of: parts.of, count: parts.count };
-        const races = nightRaces(this.w.pack, g.stateIdx, g.contests.map((c, i) => ({ contestIndex: i, office: c.officeKind, method: c.row.method, parties: c.cands.map((x) => x.cand.party_id), districtEv: c.row.method === 'district_ev' })));
+        const races = nightRaces(this.w.pack, g.stateIdx, g.contests.map((c, i) => ({ contestIndex: i, office: c.officeKind, method: c.row.method, parties: c.cands.map((x) => x.cand.party_id), districtEv: c.row.method === 'district_ev' })),
+          this.w.districts.districtsOf('cd', g.stateIdx, year).map((d) => d.idx));
         // The desks' priors: the last public forecast of each race (statewide two-party races), when one exists.
         for (const race of races) {
           const row = g.contests[race.contest]!.row;
@@ -549,7 +558,7 @@ export class ElectionEngine {
     const meta = new Map<number, { candidacyIds: number[]; grain: 'bu' | 'cpart' }>();
     for (const g of groups) for (const c of g.contests) meta.set(c.row.contest_id, { candidacyIds: c.cands.map((x) => x.cand.candidacy_id), grain: g.kind === 'general' ? 'bu' : 'cpart' });
     this.h.progress('Tallying results', 1);
-    const res = aggregate(packGeo(this.w.pack), inputs.map((input, i) => ({ input, output: outputs[i]! })), meta);
+    const res = aggregate(packGeo(this.w.pack, cdOf), inputs.map((input, i) => ({ input, output: outputs[i]! })), meta);
     // Blobs sealed in the compute workers (general shards): the engine only writes them.
     this.lastSealed = new Map(); this.lastSealedTurnout = new Map(); this.lastSealedRejected = new Map();
     outputs.forEach((o, i) => {
@@ -671,7 +680,7 @@ export class ElectionEngine {
     const row = this.db.get<ContestRow>('SELECT * FROM contest WHERE contest_id = ?', [contestId])!;
     const cands = this.cands(contestId);
     const ev = row.kind === 'pres_state' ? (cd >= 0 ? 1 : row.method === 'district_ev' ? 2 : row.ev ?? 0) : 0;
-    const label = cd >= 0 ? `${row.label} — ${cdCode(this.w.pack, cd)}` : row.label;
+    const label = cd >= 0 ? `${row.label} — ${cdCode({ states: this.w.pack.states, cds: this.w.districts.cds }, cd)}` : row.label;
     return { candidacyIds: cands.map((x) => x.cand.candidacy_id), parties: cands.map((x) => x.cand.party_id), office: this.officeKindOf(row), ev, label };
   }
 
@@ -865,13 +874,15 @@ export class ElectionEngine {
     if (!rows.length) return;
     const rec = await this.nightRecord(nightId);
     const pack = this.w.pack, now = this.w.time;
+    const yearOf = (c: ContestRow) => c.year;
     const certified = new Map<number, ContestResult>();
     const extra: (() => void)[] = [];
     // Contests are prepared concurrently; their writes are applied in contest order.
     const prepared = await Promise.all(rows.map(async (c) => {
       const out: (() => void)[] = [];
       const ids = this.cands(c.contest_id).map((x) => x.cand.candidacy_id);
-      const r = await certifiedFromCast(this.db, c.contest_id, ids, (b) => pack.bu.rj[b]!, (b) => pack.bu.county[b]!, (b) => pack.bu.cd[b]!);
+      const cdOf = this.w.districts.assignment('cd', yearOf(c), c.kind === 'special');
+      const r = await certifiedFromCast(this.db, c.contest_id, ids, (b) => pack.bu.rj[b]!, (b) => pack.bu.county[b]!, (b) => cdOf[b]!);
       if (!r) return null;
       if (rec) {
         const ri = rec.races.findIndex((x) => x.contestId === c.contest_id && x.cd < 0);
@@ -1048,7 +1059,7 @@ export class ElectionEngine {
       const roll = await readRollup(this.db, r.election_id, r.state_idx);
       const entry = roll?.contests.find((x) => x.id === r.contest_id);
       for (const [cd, v] of entry?.cds ?? []) {
-        if (this.w.pack.cds[cd]?.stateIdx !== r.state_idx) continue;
+        if (this.w.districts.cds[cd]?.stateIdx !== r.state_idx) continue;
         const best = v.slice(0, cands.length).map((x, j) => [x, j] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1])[0]![1];
         add(cands[best]!, 1);
       }
@@ -1144,16 +1155,17 @@ export class ElectionEngine {
     if (generalElectionDay(nextRegular) - today < 120 && this.state.plannedYears.includes(nextRegular)) return;
     let day = today + 95; while (weekday(day) !== 2) day++;
     if (nextGeneral - today < 160) day = nextGeneral;
+    const sy = daysToCivil(day).y, scd = this.districtFor(o, sy, true);
     this.h.commit(() => {
       const eid = this.insertElection(day, 'special', o.stateIdx, null, daysToCivil(day).y, `${daysToCivil(day).y} ${st.name} special election (${o.title})`);
       this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [eid, o.id, 'special', null, o.stateIdx, o.districtIdx, 'plurality', `${daysToCivil(day).y} special ${o.title.replace('U.S. Representative, ', 'U.S. House, ')}`, 'set', null, null, null, null, null, null, daysToCivil(day).y]);
+        [eid, o.id, 'special', null, o.stateIdx, scd, 'plurality', `${daysToCivil(day).y} special ${o.title.replace('U.S. Representative, ', 'U.S. House, ')}`, 'set', null, null, null, null, null, null, daysToCivil(day).y]);
       const cid = Number(this.db.value('SELECT last_insert_rowid()'));
       const r = this.rng('house-special', o.id, day);
       [PARTY_D, PARTY_R].forEach((party, i) => {
-        const pr = this.prospects(party, this.cdMargin(o.districtIdx!, daysToCivil(day).y));
+        const pr = this.prospects(party, this.cdMargin(scd, sy));
         if (pr < 0.08 && r.bernoulli(0.5)) return;
-        const c = this.newCandidate(r, party, o.stateIdx!, o.districtIdx, 0.1, daysToCivil(day).y);
+        const c = this.newCandidate(r, party, o.stateIdx!, scd, 0.1, sy);
         this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [cid, c.person.id, party, i, 0, null, 'running', c.quality]);
       });
       this.h.schedule(at(day, 6), 'special', { election: eid }, 6);

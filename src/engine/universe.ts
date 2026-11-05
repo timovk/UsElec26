@@ -22,6 +22,8 @@ import { loadRows, prepareStateBlobs, rawJsonBlob, readJsonState, writeChamberCo
 import { ElectionEngine, emptyElectionState, type ElectionHost, type ElectionState, type PersonOptions } from './elections';
 import { InlineRunner, type ShardRunner } from './computePool';
 import { Evolution, type StateBlob } from './evolution';
+import { Districts } from './districts';
+import { CensusEngine } from './census';
 import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from './economyEngine';
 import { SIM_START } from '../core/time';
 
@@ -52,11 +54,20 @@ export class Universe {
   private pendingBlobs: StateBlob[] = [];
   /** The economy and presidential approval. */
   readonly economy: EconomyEngine;
+  /** Census, apportionment and redistricting. */
+  readonly census: CensusEngine;
   private economyStateJson = '';
 
   private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null, electionState: ElectionState, economyState: EconomyEngineState) {
     const getRunner = () => this.runner;
     this.economy = new EconomyEngine({ world, db, news: (k, h, b, r, tm) => this.news(k, h, b, r, tm) }, economyState);
+    this.census = new CensusEngine({
+      world, db, evolution: () => this.evolution,
+      schedule: (t, k, d, p) => this.schedule(t, k, d, p), news: (k, h, b, r, tm) => this.news(k, h, b, r, tm),
+      commit: (extra) => this.commit(null, extra), progress: (st, f) => this.onProgress(st, f),
+      endTerm: (o, r) => { this.endTerm(o, r); },
+      officeAbolished: (o, y) => { world.districts.markAbolished(o, y); db.run('INSERT OR REPLACE INTO office_abolished VALUES (?,?,?)', [o, y, 'reapportionment']); },
+    });
     this.economyStateJson = JSON.stringify(economyState);
     const host: ElectionHost = {
       world, db, get runner() { return getRunner(); },
@@ -128,9 +139,10 @@ export class Universe {
       const pop = buildPopulation(pack);
       const electorate = rebuildElectorate(rows.params, rows.fields, pack, pop);
       const bu = { dVotes: Float64Array.from(rows.leanBu.d), votes: Float64Array.from(rows.leanBu.t) };
+      const districts = await Districts.load(db, pack);
       const world: World = {
         seed: rows.universe.seed, name: rows.universe.name, startTime: rows.universe.start_time, time: rows.universe.clock_time,
-        pack, pop, electorate, lean: { bu, ...aggregateLean(bu, pack) },
+        pack, pop, electorate, lean: { bu, ...aggregateLean(bu, pack, districts) }, districts,
         parties: BASE_PARTIES.map((p) => ({ ...p })), persons: new Map(rows.persons.map((p) => [p.id, p])), offices: rows.offices,
         officeById: new Map(rows.offices.map((o) => [o.id, o])), current: new Map(rows.current.map((t) => [t.officeId, t])),
         vacancies: new Map(rows.vacancies.map((v) => [v.officeId, v])), chambers: rows.chambers, history: rows.meta.history, ids: rows.meta.ids, pending: emptyPending(),
@@ -291,7 +303,11 @@ export class Universe {
     const d = ev.data as Record<string, number | string>;
     const E = this.elections, n = (k: string) => Number(d[k]);
     switch (ev.kind) {
-      case 'plan_year': await this.yearStart(n('year')); E.planYear(n('year')); return;
+      case 'plan_year': await this.yearStart(n('year')); this.census.planYear(n('year')); E.planYear(n('year')); return;
+      case 'census_day': this.census.censusDay(n('year')); return;
+      case 'apportionment': this.census.apportionment(n('year')); return;
+      case 'redistrict': await this.census.redistrict(n('census'), n('state')); return;
+      case 'new_congress_districts': this.census.newCongressDistricts(n('census'), n('firstYear')); return;
       case 'filing': E.filing(n('year'), n('state')); return;
       case 'pres_filing': E.presFiling(n('year')); return;
       case 'primary': await E.primary(n('election')); return;
