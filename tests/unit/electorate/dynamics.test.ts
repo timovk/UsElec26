@@ -8,7 +8,7 @@ import { makeFixturePack } from '../../fixtures/fixturePack';
 import { buildPopulation } from '../../../src/population/population';
 import { applyDemography, initialDemography, stepDemography } from '../../../src/population/evolution';
 import { generateElectorate, countyLean, dShare } from '../../../src/electorate/model';
-import { electorateAt, initialDynamics, stepElectorate } from '../../../src/electorate/dynamics';
+import { electorateAt, initialDynamics, nationalMargin, stepElectorate } from '../../../src/electorate/dynamics';
 import { N_COHORTS } from '../../../src/population/cohorts';
 
 describe('electorate dynamics', () => {
@@ -48,6 +48,22 @@ describe('electorate dynamics', () => {
     const gap = Math.hypot(...a.dyn.platforms.D.map((x, i) => x - a.dyn.platforms.R[i]!));
     expect(gap).toBeGreaterThanOrEqual(0.69);                 // the parties never merge
     for (const x of a.dyn.mu) expect(Number.isFinite(x)).toBe(true);
+  });
+  it('party competition: a lopsided electorate drifts back toward balance without swinging past it', () => {
+    // Start about ten points more Democratic than the generated electorate, with Democrats holding the White House throughout.
+    let dyn = initialDynamics(e0, 2016); const m0 = nationalMargin(dyn.mu, e0, base);
+    dyn = { ...dyn, mu: Float32Array.from(dyn.mu, (x) => x + 0.3) };
+    let demo = initialDemography(pack, base); const d0 = demo; let pop = base;
+    const L0 = nationalMargin(dyn.mu, e0, base), path: number[] = [L0];
+    for (let y = 2017; y <= 2040; y++) {
+      const s = stepDemography('C', pack, demo); demo = s.next; pop = applyDemography('C', pack, base, d0, demo);
+      dyn = stepElectorate('C', y, e0, dyn, pack, pop, base, { outParty: 2, outTerms: 1 + Math.floor((y - 2017) / 4), nominees: { D: null, R: null }, flows: s.flows });
+      path.push(nationalMargin(dyn.mu, e0, pop));
+    }
+    expect(L0 - m0).toBeGreaterThan(8);                        // the shift made it lopsided (about D+20 on the fixture)
+    const L24 = path[path.length - 1]!;
+    expect(L24).toBeLessThan(0.5 * L0);                        // most of the lead erodes in 24 years (D+19.6 → D+6.1)…
+    expect(Math.min(...path)).toBeGreaterThan(0);              // …without swinging to the other side
   });
   it('newly eligible voters start at the target and cohorts carry partisanship as they age', () => {
     let demo = initialDemography(pack, base); const s = stepDemography('T', pack, demo); demo = s.next;

@@ -76,6 +76,10 @@ Long-run partisanship is a slowly moving stock per (county, cohort):
   of the White House; the in-party at 0.004), activist pull toward the party's own coalition (0.016), the
   presidential nominee's imprint (0.03 in a nomination year) and noise (SD 0.02). They are kept at least 0.7 apart.
 - **Attachments** drift slowly and revert toward their founding values.
+- **Party competition** (the long-run guardrail): the trailing party recruits and rebrands, and a dominant
+  coalition frays. μ\* shifts against the national leader by 0.028 per point of the current neutral national
+  margin. The feedback is proportional, not cumulative, so a lopsided electorate erodes without swinging to
+  the other side: on the fixture a D+20 electorate falls to about D+6 in 24 years.
 - **μ relaxes toward μ\*** at age-band rates 0.12, 0.07, 0.045 and 0.03 a year (18–29 … 65+). Ageing carries μ
   into the next band, new adults start at the current μ\*, and in-migrants bring their group's national μ, half
   adapted to the destination.

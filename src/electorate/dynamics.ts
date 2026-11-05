@@ -10,15 +10,30 @@
  *   voters start at the current target with no legacy, and in-migrants bring their group's national
  *   partisanship and half-adapt to their new county.
  *
+ * - **Party competition** (the long-run guardrail): the trailing party recruits and rebrands, and a dominant
+ *   coalition frays. The partisanship target shifts against the national leader in proportion to its lead
+ *   (COMPETITION per point of margin), and voters follow at their usual, generational pace. Proportional, not
+ *   cumulative, so it damps a lopsided electorate without swinging it to the other side.
+ *
  * Realignment is therefore emergent: groups better represented by the other party drift, and generational
  * replacement accelerates it.
  */
+
+/** μ shift per point of national two-party margin (against the leader). */
+export const COMPETITION = 0.028;
+
+/** National two-party margin (points, D+) of an electorate state under neutral conditions (county level). */
+export function nationalMargin(mu: Float32Array, e: Electorate, pop: Population): number {
+  const L = countyLean(mu, e.tables, pop);
+  let d = 0, t = 0; for (let c = 0; c < pop.counties; c++) { d += L.dVotes[c]!; t += L.votes[c]!; }
+  return t > 0 ? 100 * (2 * d / t - 1) : 0;
+}
 import { Rng } from '../core/rng';
 import type { GeoPack } from '../geo/pack';
 import { N_COHORTS, cohortAge } from '../population/cohorts';
 import type { Population } from '../population/population';
 import type { DemographyFlows } from '../population/evolution';
-import { DIMS, buShift, targetMu, type Electorate, type ElectorateParams } from './model';
+import { DIMS, buShift, countyLean, targetMu, type Electorate, type ElectorateParams } from './model';
 
 export interface ElectorateDynamics {
   year: number;
@@ -89,8 +104,10 @@ export function stepElectorate(seed: string, year: number, e: Electorate, dyn: E
   if (dist < 0.7) { const f = (0.7 - dist) / 2 / (dist || 1); for (let d = 0; d < DIMS; d++) { next.D[d] = next.D[d]! + gap[d]! * f; next.R[d] = next.R[d]! - gap[d]! * f; } }
   // Attachments.
   const attach = dyn.attach.map((a, k) => a + 0.06 * (params.attach[k]! - a) + r.normal(0, 0.025));
-  // Partisanship.
+  // Partisanship, with the competition shift against the national leader.
   const target = targetMu(params, next, attach, e.fields, pack, pop, basePop);
+  const balance = -COMPETITION * nationalMargin(dyn.mu, e, pop);
+  for (let i = 0; i < target.length; i++) target[i] = target[i]! + balance;
   const C = pack.counties.length;
   const old = dyn.mu, mu = new Float32Array(old.length);
   // National cohort partisanship (in-migrants' origin), VEP-weighted.

@@ -99,6 +99,9 @@ export function longRunChecks(u: Universe, rows: YearRow[], o: CheckOptions): Ch
   add('House control changes', houseChanges >= Math.floor(span / 15), `${houseChanges} changes: ${houseMaj.map(PARTY).join('')}`);
   add('The House always has 435 members (or vacancies)', rows.every((r) => r.houseD + r.houseR <= 435) && Number(db.value("SELECT COUNT(*) FROM office o WHERE o.kind = 'us_representative' AND o.office_id NOT IN (SELECT office_id FROM office_abolished WHERE last_year < ?)", [o.to])) === 435,
     `${Number(db.value("SELECT COUNT(*) FROM office o WHERE o.kind = 'us_representative' AND o.office_id NOT IN (SELECT office_id FROM office_abolished WHERE last_year < ?)", [o.to]))} seats in effect`);
+  // No chamber beyond historical extremes (the records: 76 Democratic senators and 334 Democratic representatives, both 1937).
+  const maxSen = Math.max(...rows.map((r) => Math.max(r.senateD, r.senateR))), maxHouse = Math.max(...rows.map((r) => Math.max(r.houseD, r.houseR)));
+  add('No one-party majority beyond historical extremes (Senate ≤ 80, House ≤ 345)', maxSen <= 80 && maxHouse <= 345, `largest Senate majority ${maxSen}, largest House majority ${maxHouse}`);
   // The midterm penalty: the President's party loses House seats in most midterms.
   let midterms = 0, losses = 0; const mtDetail: string[] = [];
   for (let y = o.from; y < o.to; y++) {
