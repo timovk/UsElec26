@@ -151,6 +151,16 @@ CREATE INDEX district_plan_kind ON district_plan(kind, state_idx, first_year);
 CREATE TABLE district (kind TEXT NOT NULL, idx INTEGER NOT NULL, plan_id INTEGER NOT NULL, state_idx INTEGER NOT NULL, number INTEGER NOT NULL,
   seats INTEGER NOT NULL, population INTEGER NOT NULL, PRIMARY KEY (kind, idx)) WITHOUT ROWID;
 CREATE TABLE office_abolished (office_id INTEGER PRIMARY KEY, last_year INTEGER NOT NULL, reason TEXT NOT NULL);
+CREATE TABLE bill (bill_id INTEGER PRIMARY KEY, congress INTEGER NOT NULL, title TEXT NOT NULL, topic TEXT NOT NULL, introduced INTEGER NOT NULL, sponsor_party INTEGER NOT NULL,
+  position_json TEXT NOT NULL, salience REAL NOT NULL, reconciliation INTEGER NOT NULL, status TEXT NOT NULL, enacted_time INTEGER);
+CREATE INDEX bill_congress ON bill(congress);
+CREATE TABLE roll_call (roll_id INTEGER PRIMARY KEY, bill_id INTEGER NOT NULL, chamber TEXT NOT NULL, sim_time INTEGER NOT NULL, question TEXT NOT NULL,
+  yea INTEGER NOT NULL, nay INTEGER NOT NULL, passed INTEGER NOT NULL, votes BLOB NOT NULL);
+CREATE INDEX roll_call_bill ON roll_call(bill_id);
+CREATE TABLE congress_year (year INTEGER PRIMARY KEY, congress INTEGER NOT NULL, minor_laws INTEGER NOT NULL, major_laws INTEGER NOT NULL, vetoes INTEGER NOT NULL,
+  overrides INTEGER NOT NULL, summary_json TEXT NOT NULL);
+CREATE TABLE state_session (year INTEGER NOT NULL, state_idx INTEGER NOT NULL, laws INTEGER NOT NULL, vetoes INTEGER NOT NULL, overridden INTEGER NOT NULL,
+  budget_late INTEGER NOT NULL, unified INTEGER NOT NULL, PRIMARY KEY (year, state_idx)) WITHOUT ROWID;
 `;
 
 export const MIGRATIONS: readonly Migration[] = [

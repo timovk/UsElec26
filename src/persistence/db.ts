@@ -16,6 +16,10 @@ export interface Db {
   get<T = Row>(sql: string, params?: Params): T | undefined;
   value<T extends SqlValue = SqlValue>(sql: string, params?: Params): T | undefined;
   tx<T>(fn: () => T): T;
+  /** Open a transaction that spans asynchronous work (`tx` calls inside become savepoints); close with `end` or `abort`. */
+  begin(): void;
+  end(): void;
+  abort(): void;
   lastInsertRowid(): number;
   /** Prepared bulk insert: calls `bind` per row inside one statement. */
   insertMany(sql: string, rows: Iterable<BindingSpec>): void;
@@ -61,6 +65,13 @@ export class SqliteDb implements Db {
     catch (e) { try { this.db.exec('ROLLBACK'); } catch { /* already rolled back */ } throw e; }
     finally { this.depth--; }
   }
+
+  begin(): void {
+    if (this.depth > 0) throw new Error('begin: a transaction is already open');
+    this.depth++; this.db.exec('BEGIN IMMEDIATE');
+  }
+  end(): void { this.db.exec('COMMIT'); this.depth--; }
+  abort(): void { try { this.db.exec('ROLLBACK'); } catch { /* already rolled back */ } this.depth--; }
 
   lastInsertRowid(): number {
     return Number(this.sqlite3.capi.sqlite3_last_insert_rowid(this.db.pointer!));

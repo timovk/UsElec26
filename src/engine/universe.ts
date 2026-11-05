@@ -25,6 +25,7 @@ import { Evolution, type StateBlob } from './evolution';
 import { Districts } from './districts';
 import { CensusEngine } from './census';
 import { CareersEngine, emptyCareersState, type CareersState } from './careersEngine';
+import { GovernmentEngine, emptyGovernmentState, type GovernmentState } from './governmentEngine';
 import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from './economyEngine';
 import { SIM_START } from '../core/time';
 
@@ -60,9 +61,12 @@ export class Universe {
   /** Scandals, resignations, cabinet turnover, party switches and leadership elections. */
   readonly careers: CareersEngine;
   private careersStateJson = '';
+  /** Congress (major bills and roll calls), vetoes, and state legislative sessions. */
+  readonly government: GovernmentEngine;
+  private governmentStateJson = '';
   private economyStateJson = '';
 
-  private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null, electionState: ElectionState, economyState: EconomyEngineState, careersState: CareersState) {
+  private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null, electionState: ElectionState, economyState: EconomyEngineState, careersState: CareersState, governmentState: GovernmentState | null) {
     const getRunner = () => this.runner;
     this.economy = new EconomyEngine({ world, db, news: (k, h, b, r, tm) => this.news(k, h, b, r, tm) }, economyState);
     this.careers = new CareersEngine({
@@ -73,6 +77,9 @@ export class Universe {
       setParty: (person, party) => this.setParty(person, party),
     }, careersState);
     this.careersStateJson = JSON.stringify(careersState);
+    const gs = governmentState ?? emptyGovernmentState(world.electorate.params.platforms);
+    this.government = new GovernmentEngine({ world, db, news: (k, h, b, r, tm) => this.news(k, h, b, r, tm), shockPresident: (x) => this.economy.shock(x) }, gs);
+    this.governmentStateJson = JSON.stringify(gs);
     this.census = new CensusEngine({
       world, db, evolution: () => this.evolution,
       schedule: (t, k, d, p) => this.schedule(t, k, d, p), news: (k, h, b, r, tm) => this.news(k, h, b, r, tm),
@@ -132,7 +139,7 @@ export class Universe {
       });
       storage.flush(fileName, db);
     } catch (e) { db.close(); storage.remove(fileName); throw e; }
-    const u = new Universe(storage, fileName, db, world, names, emptyElectionState(), emptyEconomyEngineState(seed, pack.states.length), emptyCareersState());
+    const u = new Universe(storage, fileName, db, world, names, emptyElectionState(), emptyEconomyEngineState(seed, pack.states.length), emptyCareersState(), null);
     u.evolution = Evolution.fresh(world);
     u.queue = scheduledFromDb(db);
     for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
@@ -171,7 +178,8 @@ export class Universe {
       const es = await readJsonState<ElectionState>(db, 'elections.state');
       const ecs = await readJsonState<EconomyEngineState>(db, 'economy.state');
       const cas = await readJsonState<CareersState>(db, 'careers.state');
-      const u = new Universe(storage, fileName, db, world, names, es ?? emptyElectionState(), ecs ?? emptyEconomyEngineState(world.seed, pack.states.length), cas ?? emptyCareersState());
+      const gvs = await readJsonState<GovernmentState>(db, 'government.state');
+      const u = new Universe(storage, fileName, db, world, names, es ?? emptyElectionState(), ecs ?? emptyEconomyEngineState(world.seed, pack.states.length), cas ?? emptyCareersState(), gvs);
       u.evolution = evolution;
       u.queue = rows.scheduled;
       if (!es) { // Universe saved by Phase 1: plan the current year's elections from now on.
@@ -244,6 +252,8 @@ export class Universe {
     if (ecs !== this.economyStateJson) { blobs.push(rawJsonBlob('economy.state', this.economy.st)); this.economyStateJson = ecs; }
     const cas = JSON.stringify(this.careers.st);
     if (cas !== this.careersStateJson) { blobs.push(rawJsonBlob('careers.state', this.careers.st)); this.careersStateJson = cas; }
+    const gvs = JSON.stringify(this.government.st);
+    if (gvs !== this.governmentStateJson) { blobs.push(rawJsonBlob('government.state', this.government.st)); this.governmentStateJson = gvs; }
     const removedSet = new Set(this.removedEvents.splice(0));
     const addedAll = this.addedEvents.splice(0);
     const added = addedAll.filter((e) => !removedSet.has(e.id));          // created and consumed in this interval: never persisted
@@ -279,9 +289,18 @@ export class Universe {
   // ---- Processes -------------------------------------------------------------------------------
 
   private async dailyTick(day: number): Promise<void> {
+    // One transaction for the day's writes (the economy, careers, Congress, the campaign season).
+    this.db.begin();
+    try { await this.dailyWork(day); this.db.end(); } catch (e) { this.db.abort(); throw e; }
+  }
+
+  private async dailyWork(day: number): Promise<void> {
     const w = this.world;
     await this.economy.daily(day);
-    if (daysToCivil(day).d === 1) this.careers.monthly(day);
+    const cv = daysToCivil(day);
+    if (cv.d === 1) this.careers.monthly(day);
+    if (cv.d === 15) await this.government.monthly(day);
+    if (cv.m === 12 && cv.d === 31) this.government.yearEnd(cv.y);
     await this.elections.daily(day);
     const r = Rng.stream(w.seed, 'mortality', day);
     for (const p of w.persons.values()) { // Map iteration is insertion (id) order: deterministic
