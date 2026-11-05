@@ -71,6 +71,22 @@ Long-run partisanship is a slowly moving stock per (county, cohort):
   `σ_k ≈ 1.2–1.8` logits. **Groups are never homogeneous** (spec §4.4).
 - `γ_b` is the Base Unit's local deviation (neighbourhood effect, §4.3).
 
+**As implemented in Phase 6** (`electorate/dynamics.ts`, `population/evolution.ts`), one step each January 1:
+- **Platforms** move under vote seeking (the out-party toward the swing electorate at 0.015 + 0.012 × terms out
+  of the White House; the in-party at 0.004), activist pull toward the party's own coalition (0.016), the
+  presidential nominee's imprint (0.03 in a nomination year) and noise (SD 0.02). They are kept at least 0.7 apart.
+- **Attachments** drift slowly and revert toward their founding values.
+- **μ relaxes toward μ\*** at age-band rates 0.12, 0.07, 0.045 and 0.03 a year (18–29 … 65+). Ageing carries μ
+  into the next band, new adults start at the current μ\*, and in-migrants bring their group's national μ, half
+  adapted to the destination.
+- **Demography:** mortality by band (0.12%, 0.22%, 0.75%, 4.2% a year), ageing out of each band after its span,
+  new adults at about 1.7% of the electorate a year (slowly declining), naturalization of 0.28%, international
+  arrivals of 0.02%, and internal migration between counties driven by persistent county trends (persistence 0.93).
+  The race and education mix follows national trends, and the 18–29 college share trends up. The accounting
+  identities (stock = previous + entries − deaths ± migration) are unit-tested.
+- Partisanship and the group structure were also recalibrated: county fields are centred within states, and
+  the generator targets a realistic voter-level spread between groups (cohort leans 0.45–0.76 logits apart).
+
 ## 4.3 Geographic political culture (multiscale spatial fields)
 
 Nearby places correlate without becoming identical. The geographic field is a sum of scales, each a
@@ -456,6 +472,16 @@ party, scandal and redistricting. Appointments (cabinet, judgeships, Senate vaca
 relationships plus ideology and qualification. Party switching is a rare event that requires sustained
 ideological mismatch with the party and a hostile primary environment.
 
+**As implemented in Phase 6** (`careers/model.ts`), monthly hazards:
+- **Scandal:** 0.00045 × scrutiny (President 2.2 … secretary of state 0.5) × (0.3 + 2.2 (1 − integrity)²).
+  Severity is u^1.6 scaled by integrity. Resignation over a scandal of severity above 0.35 decays over about
+  four months.
+- **Other exits:** 0.045% a month for elected officials (rising after 70); cabinet secretaries 1/32 a month.
+- **Party switches:** only when an officeholder is more than 0.35 closer to the other platform; at most 0.07% a
+  month.
+- **Retirement at filing** adds 0.8% a year of tenure beyond 12 years, 35% × the scandal's lingering weight, and
+  1.2% per point of a district that became hostile.
+
 ## 4.12 Economy and approval
 
 - **National macro (monthly):** a two-state Markov regime (expansion/recession; mean expansion
@@ -469,6 +495,22 @@ ideological mismatch with the party and a hostile primary environment.
   `Σ_τ w_τ · logistic(a · s_pres · ẑ_g + econ_perception_τ + events + honeymoon/decay)`, where
   economic perception is filtered by partisanship (opposition partisans perceive the economy as worse). Approval
   polls measure it with noise.
+
+**As implemented in Phase 6** (`economy/macro.ts`, `engine/economyEngine.ts`, `electorate/measure.ts`):
+- Monthly. An expansion ends with probability 0.85% + 0.004% × its age in months; a recession ends with
+  probability 3% in its first four months and 11% after. GDP growth is AR(1) toward 3.4% early in a recovery,
+  2.1% later, or −3.4% in recession, with shock SD 0.9. Unemployment follows Okun (−0.05 × (g − 2)) with drift to
+  a slowly moving natural rate. Inflation is AR(1) toward 2% with a Phillips term and rare supply shocks.
+  States follow with their own cyclical sensitivity. The January 2016 start is 1.6% growth, 4.9% unemployment and
+  1.4% inflation.
+- **Releases** (Public Record): the jobs report on the first Friday, CPI on the second Wednesday, the GDP advance
+  estimate on the last Thursday of January, April, July and October. They feed the news, the published
+  fundamentals of the forecast and the Government page.
+- **Approval** per voter type is logistic(1.7 ẑ + 0.4 · perceived + standing + honeymoon − 0.35), where
+  perceived = econ index + 0.45 tanh(ẑ) (partisan filtering) and standing is an AR process moved by events
+  (scandals, laws, vetoes, overrides). Its effect on elections is `sign × (0.035 × econ index + 0.6 × standing)`
+  on the national environment. Fifteen national pollsters publish approval polls (house effects, design
+  effects, sampling error).
 
 ## 4.13 Race projection statistics (election night)
 

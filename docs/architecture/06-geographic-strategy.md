@@ -147,3 +147,32 @@ boroughs, census areas and unorganized areas are present with the correct legal 
 - **Historical integrity:** each map layer is bound to a `boundary_version`. Rendering an election uses the
   geometry of the version recorded on that election. Simulated plans' geometry is produced by dissolving BU
   topology (`topojson.merge`) when the plan is enacted, and stored once.
+
+## 6.8 Versioned district plans (implemented in Phase 6)
+
+- **Plans are versioned, never edited.** Each kind of district (`cd`, `sldu`, `sldl`) has one global table: the
+  2016 pack's districts keep their indices, and every adopted plan appends its districts (`district`,
+  `district_plan` tables). A plan stores its BU assignment for one state (a compressed `Uint16` array) and the
+  first election year it applies to. `Districts.assignment(kind, year, special)` gives the BU → district map
+  for any year. Specials held before a new Congress convenes use the old plan.
+- **Offices keep seat numbers.** A seat (say, "District 7") is elected from whatever district has that number in
+  the plan in effect. Seats lost in reapportionment are abolished after their last election (`office_abolished`);
+  seats gained are new offices. Old contests reference the district they were held in, so the archive and maps
+  of earlier years stay exactly as they were.
+- **Algorithm** (`geo/redistrict.ts`, neutral, no partisan data):
+  1. Recursive population bisection at 16 angles. Both straight and county-respecting cuts are tried, scored by
+     inertia (compactness) + a county-split penalty + 25 × population left on the wrong side.
+  2. Contiguity repair on the BU graph (k = 8 nearest neighbours within the same or adjacent counties, components
+     joined). Only fragments under 35% of the ideal population are merged.
+  3. Rebalancing: boundary BUs move from over- to under-populated neighbours, minimising squared deviation and
+     never disconnecting a district, searching among the worst district's members.
+
+  On the real geography: worst deviation 0.57%, every district contiguous, 326 county splits across 43
+  multi-district states (the real 2016 plans split 409), and mean compactness 0.87 (the 2016 plans: 0.81). All
+  plans take about 19 s.
+- **Legislative plans** are drawn the same way, within ±5%. Where state law nests house districts in senate
+  districts (AK, IL, IA, MN, MT, NV, OR, WY two per senate district; OH, WI three), the house plan is drawn by
+  splitting each senate district.
+- **Rendering:** the national map still draws the 2016 district shapes (its House layer says when new plans are
+  in effect). The Government page draws any plan from its base units.
+

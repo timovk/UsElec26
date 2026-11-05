@@ -147,6 +147,33 @@ Ballots are cast over weeks (mail and early voting), not in an instant:
 - Government stays **subordinate** to elections. It runs at monthly or session granularity, with major
   bills (≈5–30 per Congress) simulated explicitly and the rest summarized as aggregate productivity.
 
+**As implemented in Phase 6** (`engine/governmentEngine.ts`, `government/congress.ts`, `engine/careersEngine.ts`,
+`engine/legislatures.ts`, `engine/census.ts`):
+- **Congress** meets monthly on the 15th (August recess). In a given month it takes up a major bill with
+  probability 0.55 under unified control, 0.40 divided and 0.15 in the autumn of an election year. A bill moves
+  policy from the status quo `q` toward the majority's platform. A member's utility is
+  `2.2 · (‖x − q‖² − ‖x − b‖²) + pressure + constituency`, with pressure +1.6 for the sponsoring party and −1.7
+  for the other, and the vote is logistic(2.2u). The House passes by majority. The Senate needs 60 for cloture,
+  except one reconciliation bill a year under unified control (simple majority; the Vice President breaks
+  ties). The President signs a same-party bill, or one that improves on `q` from their position. Overrides need
+  two-thirds in each chamber. Enacted laws move `q` 55% of the way to the bill and nudge presidential standing.
+  Every roll call is stored, with each member's vote.
+- **State government:** each December 31, every state's session is summarized (laws, vetoes, overrides, a
+  late budget under divided government).
+- **Careers between elections** (monthly): scandals (hazard by office scrutiny and integrity), scandal
+  resignations, other mid-term exits (health, private sector), cabinet turnover (mean tenure about 2.7 years), rare
+  party switches. A new President brings a new cabinet. Party conferences choose leaders when each Congress
+  or legislature convenes. Retirement at filing adds tenure, scandal and a hostile new district. Ambitious
+  officeholders run for higher office (the ladder: state legislature → House → Senate or governor).
+- **State legislatures:** all 7,383 seats in 99 chambers are offices held by people. They are elected on each
+  state's schedule (two- and four-year terms, odd-year states, and all senate seats after redistricting where
+  the state does that), with one nominee per party (no primaries yet). A vacancy is filled at the next regular
+  election. Control changes are news.
+- **Census and districts:** the census on April 1 of each year ending in 0, Huntington–Hill apportionment on
+  December 31, redistricting September–November of the following year, new plans for the elections two years
+  after the census, and the new districts take office on January 3 of the year after that. Plans are versioned:
+  older contests keep their districts forever (see [06-geographic-strategy.md](06-geographic-strategy.md) §6.8).
+
 ## 3.8 Parties and the two-party guardrail
 
 - Each party has a **platform** vector in the latent issue space (§4.1), an organizational strength score per

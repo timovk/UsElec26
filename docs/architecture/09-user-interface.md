@@ -27,6 +27,16 @@
 
 ## 9.2 Screens
 
+**Government** (Phase 6, `ui/screens/Government.tsx`) has five tabs:
+- **Approval & economy:** the published approval average and every poll, and the jobs, inflation and GDP
+  releases. Monthly simulation truth (approval by party, recessions) sits in a collapsed, labelled section.
+- **Congress:** composition, the yearly record, and every major bill with its roll calls by party.
+- **State legislatures:** control of all 99 chambers, trifectas and the last session of each state.
+- **Census & apportionment:** populations, seats gained and lost, the 435th seat and the next in line, the
+  changing electorate, and every congressional plan with its statistics.
+- **District maps:** any state's House, state senate or state house plan in any year it was in effect, drawn
+  from base units and coloured by district, holder or lean.
+
 | Screen | Purpose | Key content |
 |---|---|---|
 | **Hub** | Universes | Save slots with size and last export; New Universe (one click; optional seed and name; advanced options hidden); Import/Export/Back up; storage status |

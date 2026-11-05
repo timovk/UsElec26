@@ -149,6 +149,23 @@ CREATE TABLE approval      (office_id INTEGER, as_of INTEGER, approve REAL, disa
 All IDs are integer surrogate keys assigned in deterministic order. Official identifiers (FIPS, GEOIDs) are
 kept in `code`/`bg_geoid`.
 
+**Schema V5 (Phase 6, as implemented; `persistence/schema.ts`):**
+
+| Table | Holds |
+|---|---|
+| `demography_year`, `electorate_year` | January 1 of each year: the demographic summary and flows; platforms, national lean and state leans |
+| `economy_month` | Monthly truth (regime, growth, unemployment, inflation, state unemployment) and approval truth by party |
+| `economic_release`, `approval_poll` | The Public Record: released figures and published approval polls |
+| `census` | Population and apportioned seats per state per census, with priority values |
+| `district_plan`, `district` | Versioned plans (BU assignment blob, first year, statistics) and their districts, appended to each kind's table |
+| `office_abolished` | Seats lost in reapportionment and the last year each was elected |
+| `bill`, `roll_call` | Major bills (position, salience, status) and every roll call with each member's vote (a compressed bundle of person ids) |
+| `congress_year`, `state_session` | Yearly summaries of Congress and of each state's legislative session |
+
+Evolving state lives in `state_blob` rows: `demography.state` (county × band stocks and trends),
+`electorate.dynamics` (platforms, attachments, μ), `lean.bu` (Float32, so a reload behaves identically),
+`economy.state`, `careers.state` and `government.state`.
+
 ## 5.4 Persistence behaviour
 
 | Concern | Mechanism |
