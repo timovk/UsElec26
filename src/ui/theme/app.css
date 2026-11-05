@@ -41,7 +41,8 @@ main.screen { overflow: auto; padding: 22px 26px 26px; min-width: 0; }
 .grid { display: grid; gap: 16px; }
 .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (max-width: 1100px) { .cols-2, .cols-3 { grid-template-columns: 1fr; } }
+.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .cols-2, .cols-3 { grid-template-columns: 1fr; } .cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .card { background: var(--bg-1); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 16px 18px; min-width: 0; }
 .card h2 { font: 700 18px/1.1 var(--font-display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }

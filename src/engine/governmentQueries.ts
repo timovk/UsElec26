@@ -73,7 +73,8 @@ const billRow = (b: BillRow, rolls: { chamber: string; yea: number; nay: number;
 });
 
 function congress(u: Universe, which?: number): CongressDto {
-  const w = u.world, current = congressNumber(daysToCivil(today(u)).y);
+  // A Congress convenes on January 3 of odd years: before that, the previous one is still sitting.
+  const w = u.world, c0 = daysToCivil(today(u)), current = congressNumber(c0.y % 2 === 1 && c0.m === 1 && c0.d < 3 ? c0.y - 1 : c0.y);
   const congresses = [...new Set([current, ...u.db.all<{ congress: number }>('SELECT DISTINCT congress FROM bill').map((r) => r.congress), ...u.db.all<{ congress: number }>('SELECT DISTINCT congress FROM congress_year').map((r) => r.congress)])].sort((a, b) => b - a);
   const c = which ?? current;
   const rows = u.db.all<BillRow>('SELECT bill_id, congress, title, topic, introduced, sponsor_party, status, enacted_time, salience, reconciliation FROM bill WHERE congress = ? AND introduced <= ? ORDER BY introduced', [c, w.time]);
