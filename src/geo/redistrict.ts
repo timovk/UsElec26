@@ -147,8 +147,60 @@ function bisect(r: PlanRegion, g: Graph, items: number[], ds: number[], sizes: n
     consider(byCounty, cutAt(byCounty));
   }
   const b = best!;
-  bisect(r, g, b.order.slice(0, b.cut), left, sizes, out);
-  bisect(r, g, b.order.slice(b.cut), right, sizes, out);
+  const [L, R] = settle(r, g, b.order, b.cut, target);
+  bisect(r, g, L, left, sizes, out);
+  bisect(r, g, R, right, sizes, out);
+}
+
+/**
+ * Make both sides of a cut connected while keeping the split on target: stranded pieces of each side (BUs
+ * outside its largest connected piece) cross to the other side, then the cut is re-balanced along the same
+ * ordering (moving the BUs nearest the cut), and again, a few times. Without this a cut through a bay or a
+ * mountain range strands pieces that later repairs hand to a neighbour, unbalancing whole regions.
+ */
+function settle(r: PlanRegion, g: Graph, order: number[], cut: number, target: number): [number[], number[]] {
+  const n = g.off.length - 1;
+  if (!MARK || MARK.length < n) { MARK = new Int32Array(n); SEEN = new Int32Array(n); }
+  const rank = new Map<number, number>(); order.forEach((i, k) => rank.set(i, k));
+  let L = order.slice(0, cut), R = order.slice(cut);
+  const strays = (side: number[]): Set<number> => {
+    const tag = ++STAMP; for (const i of side) MARK![i] = tag;
+    const seen = ++STAMP; let best: number[] = []; const all: number[][] = [];
+    for (const s0 of side) {
+      if (SEEN![s0] === seen) continue;
+      const comp = [s0]; SEEN![s0] = seen; let w = 0;
+      for (let k = 0; k < comp.length; k++) { const i = comp[k]!; w += r.pop[i]! + 1; for (let p = g.off[i]!; p < g.off[i + 1]!; p++) { const j = g.nbr[p]!; if (MARK![j] === tag && SEEN![j] !== seen) { SEEN![j] = seen; comp.push(j); } } }
+      (comp as number[] & { w?: number }).w = w; all.push(comp);
+      if (!best.length || w > (best as number[] & { w?: number }).w!) best = comp;
+    }
+    const out = new Set<number>(); for (const c of all) if (c !== best) for (const i of c) out.add(i);
+    return out;
+  };
+  const byRank = (a: number, b2: number) => rank.get(a)! - rank.get(b2)!;
+  for (let it = 0; it < 6; it++) {
+    const sl = strays(L), sr = strays(R);
+    if (!sl.size && !sr.size) break;
+    L = L.filter((i) => !sl.has(i)).concat([...sr]).sort(byRank);
+    R = R.filter((i) => !sr.has(i)).concat([...sl]).sort(byRank);
+    // Re-balance: BUs on the boundary with the other side (nearest the cut first; never the pieces just moved,
+    // which would strand them again) cross until the left side is closest to its target.
+    const moved = new Set<number>([...sl, ...sr]);
+    let pl = 0; for (const i of L) pl += r.pop[i]!;
+    const shift = (from: number[], to: number[], need: (x: number) => boolean, fromEnd: boolean): void => {
+      const tagTo = ++STAMP; for (const i of to) MARK![i] = tagTo;
+      const edge = (i: number) => { for (let p = g.off[i]!; p < g.off[i + 1]!; p++) if (MARK![g.nbr[p]!] === tagTo) return true; return false; };
+      const cands = from.filter((i) => !moved.has(i) && edge(i)).sort(byRank);
+      if (fromEnd) cands.reverse();
+      const out = new Set<number>();
+      for (const i of cands) { if (!need(r.pop[i]!)) break; out.add(i); pl += fromEnd ? -r.pop[i]! : r.pop[i]!; }
+      if (!out.size) return;
+      const keep = from.filter((i) => !out.has(i)); from.length = 0; from.push(...keep);
+      to.push(...out); to.sort(byRank);
+    };
+    if (pl > target) shift(L, R, (x) => pl - x / 2 > target, true);
+    else shift(R, L, (x) => pl + x / 2 < target, false);
+  }
+  return [L, R];
 }
 
 type Graph = { off: Int32Array; nbr: Int32Array };
@@ -210,7 +262,10 @@ function repair(r: PlanRegion, g: { off: Int32Array; nbr: Int32Array }, district
         const touch = new Map<number, number>();
         for (let i = 0; i < n; i++) if (comp.id[i] === c) for (let p = g.off[i]!; p < g.off[i + 1]!; p++) { const e = district[g.nbr[p]!]!; if (e !== d && sameParent(i, g.nbr[p]!)) touch.set(e, (touch.get(e) ?? 0) + 1); }
         if (!touch.size) continue;
-        const to = [...touch].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]![0];
+        // The touching district with the most room (the largest deficit) takes the fragment, so repairing
+        // contiguity does not drain one part of the state into another; ties go to the longest contact.
+        const room = (e: number) => (pop[e]! - ideal[e]!) / ideal[e]!;
+        const to = [...touch].sort((a, b) => room(a[0]) - room(b[0]) || b[1] - a[1] || a[0] - b[0])[0]![0];
         for (let i = 0; i < n; i++) if (comp.id[i] === c) { district[i] = to; pop[d]! -= r.pop[i]!; pop[to]! += r.pop[i]!; }
         changed = true;
       }
@@ -237,9 +292,26 @@ function repair(r: PlanRegion, g: { off: Int32Array; nbr: Int32Array }, district
     return reached === m.size - 1;
   };
   const move = (i: number, to: number) => { const from = district[i]!; members[from]!.delete(i); members[to]!.add(i); district[i] = to; pop[from]! -= r.pop[i]!; pop[to]! += r.pop[i]!; moves++; };
+  // When taking a BU would cut a district in two (a bridge), the BU can go together with the smaller piece
+  // it cuts off: the piece is connected to the receiving district through the BU. Returns that piece
+  // (including the BU), or null when the remainder would not be the larger part.
+  const cutPiece = (d: number, skip: number): number[] | null => {
+    const st = ++stamp; seen[skip] = st; let best: number[] = []; const all: number[][] = [];
+    for (const s0 of members[d]!) {
+      if (seen[s0] === st) continue;
+      const comp = [s0]; seen[s0] = st;
+      for (let k = 0; k < comp.length; k++) { const i = comp[k]!; for (let p = g.off[i]!; p < g.off[i + 1]!; p++) { const j = g.nbr[p]!; if (seen[j] !== st && district[j] === d) { seen[j] = st; comp.push(j); } } }
+      all.push(comp); if (comp.length > best.length) best = comp;
+    }
+    const piece = [skip]; for (const c of all) if (c !== best) piece.push(...c);
+    return piece.length < best.length ? piece : null;
+  };
   const stuck = new Set<number>();
-  for (let iter = 0; iter < 60 * D + 2000; iter++) {
-    let worst = -1, wv = tol;
+  // Districts act from a quarter of the tolerance: surplus then flows through districts that are already
+  // within tolerance toward a deficit several districts away (a block of districts all short together).
+  const work = tol / 4;
+  for (let iter = 0; iter < 120 * D + 4000; iter++) {
+    let worst = -1, wv = work;
     for (let d = 0; d < D; d++) { if (stuck.has(d)) continue; const v = Math.abs(dev(d)); if (v > wv) { wv = v; worst = d; } }
     if (worst < 0) break;
     const over = dev(worst) > 0;
@@ -261,6 +333,15 @@ function repair(r: PlanRegion, g: { off: Int32Array; nbr: Int32Array }, district
       if (tried.has(c.i)) continue; tried.add(c.i);
       if (tried.size > 40) break;
       if (connectedWithout(c.from, c.i)) { move(c.i, c.to); moved = true; break; }
+    }
+    // No single BU can move without splitting its district: move a bridge BU with the small piece it cuts off,
+    // when that still improves the balance (and stays inside the same enclosing district when nested).
+    if (!moved) for (const c of cands) {
+      const piece = cutPiece(c.from, c.i); if (!piece || !piece.every((i) => sameParent(i, c.i))) continue;
+      let x = 0; for (const i of piece) x += r.pop[i]!;
+      if (moveGain(c.from, c.to, x) <= 1e-14) continue;
+      for (const i of piece) move(i, c.to);
+      moved = true; break;
     }
     if (!moved) { stuck.add(worst); if (stuck.size >= D) break; } else stuck.clear();
   }

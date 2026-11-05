@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
+import { continuityNumbers } from '../../../src/engine/census';
 import { buGraph, drawPlan, planStats, type PlanRegion } from '../../../src/geo/redistrict';
 import { loadGeoPack, SEMANTIC_FILES } from '../../../src/geo/pack';
 import { unitsPerMeter } from '../../../src/engine/census';
@@ -41,6 +42,17 @@ describe('baseline redistricting', () => {
     const lower = drawPlan(r, { sizes: new Array(8).fill(1), tolerance: 0.03, nest: { within: upper.district, parentOf: [0, 0, 1, 1, 2, 2, 3, 3] } }, g);
     for (let i = 0; i < r.x.length; i++) expect(Math.floor(lower.district[i]! / 2)).toBe(upper.district[i]);
     expect(lower.stats.maxDeviation).toBeLessThan(0.05);
+  });
+  it('numbers a new plan after the old districts its people come from', () => {
+    // Old districts 1,1,2,2,3,3; the new plan's local districts 2,2,0,0,1,1 continue them.
+    const pop = Float64Array.from([1, 1, 1, 1, 1, 1]);
+    expect(continuityNumbers(Int32Array.from([1, 1, 2, 2, 3, 3]), Int32Array.from([2, 2, 0, 0, 1, 1]), pop, [1, 2, 3], [1, 1, 1], [0, 1, 2])).toEqual([2, 3, 1]);
+    // A state that loses a seat: old 1..4 into new 1..3. District 4's people mostly join new district 0, which
+    // continues old 1 (more of its people), so seat 4 is the one that ends; the rest keep their numbers.
+    const oldN = Int32Array.from([1, 1, 1, 4, 2, 2, 3, 3]), nd = Int32Array.from([0, 0, 0, 0, 1, 1, 2, 2]);
+    expect(continuityNumbers(oldN, nd, Float64Array.from([1, 1, 1, 1, 1, 1, 1, 1]), [1, 2, 3], [1, 1, 1], [0, 1, 2])).toEqual([1, 2, 3]);
+    // A state that gains a seat: the new district with no predecessor takes the new number.
+    expect(continuityNumbers(Int32Array.from([1, 1, 2, 2, -1]), Int32Array.from([1, 1, 0, 0, 2]), Float64Array.from([1, 1, 1, 1, 1]), [1, 2, 3], [1, 1, 1], [0, 1, 2])).toEqual([2, 1, 3]);
   });
   it('is deterministic', () => {
     const a = drawPlan(r, { sizes: new Array(5).fill(1), tolerance: 0.005 }, g), b = drawPlan(r, { sizes: new Array(5).fill(1), tolerance: 0.005 }, g);

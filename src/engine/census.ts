@@ -16,6 +16,7 @@ import { fullName, type Office, type Person } from '../institutions/model';
 import type { Db } from '../persistence/db';
 import { demographySummary } from '../population/evolution';
 import { huntingtonHill, type DistrictKind } from './districts';
+import { NONE16 } from '../geo/pack';
 import type { Evolution } from './evolution';
 import { aggregateLean, type World } from './world';
 
@@ -31,6 +32,24 @@ interface Host {
 
 const ET = 'America/New_York';
 /** House districts per senate district where 2016 law nests them. */
+/**
+ * Number a new plan's districts after the old plan: each old number goes to the new district holding most of
+ * that old district's people (greedy by shared population, within districts of the same seat count), so a
+ * member's seat follows their constituents. Districts left over take the remaining numbers in geographic order.
+ * Returns the number of each new district.
+ */
+export function continuityNumbers(oldNumber: Int32Array, district: Int32Array, pop: Float64Array, numbers: number[], sizes: number[], geoOrder: number[]): number[] {
+  const D = numbers.length, overlap = new Map<string, number>();
+  for (let i = 0; i < district.length; i++) { const o = oldNumber[i]!; if (o < 0) continue; const k = `${district[i]}|${o}`; overlap.set(k, (overlap.get(k) ?? 0) + pop[i]! + 1e-9); }
+  const sizeOf = new Map(numbers.map((x, j) => [x, sizes[j]!]));
+  const pairs = [...overlap].map(([k, v]) => { const [d, o] = k.split('|').map(Number) as [number, number]; return { d, o, v }; })
+    .filter((p) => sizeOf.has(p.o) && sizeOf.get(p.o) === sizes[p.d]).sort((a, b) => b.v - a.v || a.d - b.d || a.o - b.o);
+  const out = new Array<number>(D).fill(-1), used = new Set<number>();
+  for (const p of pairs) if (out[p.d] === -1 && !used.has(p.o)) { out[p.d] = p.o; used.add(p.o); }
+  for (const d of geoOrder) if (out[d] === -1) { const k = numbers.findIndex((x, j) => !used.has(x) && sizes[j] === sizes[d]); if (k >= 0) { out[d] = numbers[k]!; used.add(numbers[k]!); } }
+  return out;
+}
+
 const NESTED: Record<string, number> = { AK: 2, IL: 2, IA: 2, MN: 2, MT: 2, NV: 2, OR: 2, WY: 2, OH: 3, WI: 3 };
 const SPELL = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
@@ -113,7 +132,11 @@ export class CensusEngine {
     // Number districts north to south, then west to east (the usual convention, roughly): by centroid.
     const cen = numbers.map((_, d) => { let x = 0, y = 0, p = 0; for (let i = 0; i < n; i++) if (res.district[i] === d) { x += r.x[i]! * (pop[i]! + 1); y += r.y[i]! * (pop[i]! + 1); p += pop[i]! + 1; } return { d, x: x / p, y: y / p }; });
     const order = [...cen].sort((a, b) => Math.round(a.y / 25) - Math.round(b.y / 25) || a.x - b.x).map((c) => c.d);
-    const renum = new Int32Array(seats); order.forEach((d, i) => { renum[d] = i; });
+    // Seat numbers follow constituents: the old plan's numbers go to the new districts that continue them.
+    const prev = w.districts.assignment('cd', census + 1), table = w.districts.cds;
+    const oldNumber = Int32Array.from({ length: n }, (_, i) => { const k = prev[b0 + i]!; return k === NONE16 || !table[k] ? -1 : table[k]!.number; });
+    const seatNumber = seats === 1 ? [numbers[0]!] : continuityNumbers(oldNumber, res.district, pop, numbers, new Array<number>(seats).fill(1), order);
+    const renum = new Int32Array(seats); seatNumber.forEach((num, d) => { renum[d] = numbers.indexOf(num); });
     const local = Int32Array.from(res.district, (d) => renum[d]!);
     const pops = new Array<number>(seats).fill(0); for (let i = 0; i < n; i++) pops[local[i]!]! += pop[i]!;
     const planId = (this.h.db.value<number>('SELECT MAX(plan_id) FROM district_plan') ?? 0) + 1;
@@ -171,13 +194,12 @@ export class CensusEngine {
       const res = drawPlan(r, { sizes, tolerance: 0.04, ...(nestOk ? { nest: { within: upperLocal!, parentOf: numbers.map((_, i) => Math.floor(i / nest!)) } } : {}) }, graph);
       // Number north to south, west to east (within each senate district when nested).
       const cen = numbers.map((_, d) => { let x = 0, y = 0, p = 0; for (let i = 0; i < n; i++) if (res.district[i] === d) { x += r.x[i]! * (pop[i]! + 1); y += r.y[i]! * (pop[i]! + 1); p += pop[i]! + 1; } return { d, x: x / p, y: y / p }; });
-      // Numbers keep their seat counts: within each size, numbers go to districts in geographic order.
+      // Numbers keep their seat counts and follow constituents (the old district each new one continues);
+      // the rest go in geographic order within each size.
       const geo = nestOk ? cen.map((c) => c.d) : [...cen].sort((a, b) => Math.round(a.y / 25) - Math.round(b.y / 25) || a.x - b.x).map((c) => c.d);
-      const numberOf = new Array<number>(numbers.length);
-      for (const size of [...new Set(sizes)]) {
-        const ds = geo.filter((d) => sizes[d] === size), ns = numbers.filter((_, k) => sizes[k] === size);
-        ds.forEach((d, i) => { numberOf[d] = ns[i]!; });
-      }
+      const prev = w.districts.assignment(sld, census + 1);
+      const oldNumber = Int32Array.from({ length: n }, (_, i) => { const k = prev[b0 + i]!; return k === NONE16 || !table[k] ? -1 : table[k]!.number; });
+      const numberOf = continuityNumbers(oldNumber, res.district, pop, numbers, sizes, geo);
       // Local index j ↔ numbers[j] (and its seats sizes[j]), as the offices expect.
       const toLocal = new Int32Array(numbers.length); for (let d = 0; d < numbers.length; d++) toLocal[d] = numbers.indexOf(numberOf[d]!);
       const local = Int32Array.from(res.district, (d) => toLocal[d]!);
@@ -189,7 +211,6 @@ export class CensusEngine {
       if (kind === 'state_senator') { upperLocal = local; upperCount = numbers.length; }
       text += ` ${ch.name}: ${numbers.length} districts, largest deviation ${(100 * res.stats.maxDeviation).toFixed(1)}%${nestOk ? ', nested' : ''}.`;
     }
-    void b0;
     return text;
   }
 
