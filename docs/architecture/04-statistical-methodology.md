@@ -524,7 +524,7 @@ ideological mismatch with the party and a hostile primary environment.
 - **Approval** per voter type is logistic(1.7 ẑ + 0.4 · perceived + standing + honeymoon − 0.35), where
   perceived = econ index + 0.45 tanh(ẑ) (partisan filtering) and standing is an AR process moved by events
   (scandals, laws, vetoes, overrides). Its effect on elections is `sign × (0.035 × econ index + 0.6 × standing)`
-  on the national environment. Fifteen national pollsters publish approval polls (house effects, design
+  on the national environment. Nine national pollsters publish approval polls (house effects, design
   effects, sampling error).
 
 ## 4.13 Race projection statistics (election night)

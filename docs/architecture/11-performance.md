@@ -85,6 +85,28 @@ from January to Election Day are expected on a Chromebook. Mitigations, in order
 3. incremental forecast inputs;
 4. fewer draws before the final 100 days.
 
+### Measured in Phase 6 (see [../phase-6-report.md](../phase-6-report.md) §5.5)
+
+| Measurement | Value |
+|---|---|
+| Chromium, January 1 → the 2016 ballot lock (unloaded CI runner) | 91 s (Phase 5: 77 s on this server) |
+| Chromium, auditing the 2016 archive | 151 s (it re-checks about 5,000 legislative contests) |
+| Node, real geography, a presidential year | 152 s (2016) → 331 s (2040) |
+| Node, real geography, an odd year | 30 s (2017) → 83 s (2039) |
+| Redistricting (all congressional and legislative plans), once a decade | about 100–140 s |
+| September 2036 before and after the contest indexes (schema 6) | 75 s → 8.6 s |
+| Universe database on the real geography | about 16–18 MB per simulated year (431 MB by 2041) |
+
+Phase 6 is over budget in both time and storage. The main causes are about 6,000 state legislative contests every
+even year and a history that grows: tracked people rise from 8,800 to 80,000 by 2041.
+
+Levers, in order:
+1. certify and archive legislative contests in bulk;
+2. run forecasts and poll fieldwork in the compute workers;
+3. cache per-day contest lookups;
+4. keep fewer full records for never-elected legislative candidates;
+5. compact per-contest archives for legislative seats.
+
 ## 11.3 Likely bottlenecks and mitigations
 
 | Bottleneck | Mitigation |
