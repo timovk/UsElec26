@@ -31,9 +31,11 @@ test('simulate the 2016 cycle and inspect results from the nation down to a coun
   expect(evs.reduce((a, b) => a + b, 0)).toBe(538);
   await page.screenshot({ path: 'test-results/e2e-results.png' });
 
-  // Archive audit: every 2016 election passes.
+  // Archive audit: every 2016 election passes (since Phase 6 it also re-checks about 5,000 state legislative contests).
+  const ta = Date.now();
   await page.getByRole('button', { name: 'Audit the 2016 archive' }).click();
-  await expect(page.getByText(/All \d+ elections passed/)).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/All \d+ elections passed/)).toBeVisible({ timeout: 300_000 });
+  console.log(`2016 archive audit in Chromium: ${Date.now() - ta} ms`);
 
   // A contest page, then one of its counties.
   await page.locator('table.data tbody tr').first().click();
