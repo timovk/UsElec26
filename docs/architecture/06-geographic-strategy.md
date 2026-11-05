@@ -162,14 +162,26 @@ boroughs, census areas and unorganized areas are present with the correct legal 
 - **Algorithm** (`geo/redistrict.ts`, neutral, no partisan data):
   1. Recursive population bisection at 16 angles. Both straight and county-respecting cuts are tried, scored by
      inertia (compactness) + a county-split penalty + 25 × population left on the wrong side.
-  2. Contiguity repair on the BU graph (k = 8 nearest neighbours within the same or adjacent counties, components
-     joined). Only fragments under 35% of the ideal population are merged.
-  3. Rebalancing: boundary BUs move from over- to under-populated neighbours, minimising squared deviation and
-     never disconnecting a district, searching among the worst district's members.
+  2. Each chosen cut is **settled**. Pieces of either side that are not connected to the rest of their side cross
+     over; the cut is then re-balanced with boundary BUs (never the pieces just moved), a few times. A cut through
+     a bay or a mountain range would otherwise strand pieces that later repairs hand to a neighbour, unbalancing
+     whole regions.
+  3. Contiguity repair on the BU graph (k = 8 nearest neighbours within the same or adjacent counties, components
+     joined). Fragments under 35% of the ideal population go to the touching district with the most room.
+  4. Rebalancing: boundary BUs move from over- to under-populated neighbours, minimising squared deviation, never
+     disconnecting a district. Where every boundary BU is a bridge, a BU moves together with the small piece it
+     cuts off. Districts act from a quarter of the tolerance, so surplus flows through balanced districts to a
+     deficit several districts away.
 
-  On the real geography: worst deviation 0.57%, every district contiguous, 326 county splits across 43
-  multi-district states (the real 2016 plans split 409), and mean compactness 0.87 (the 2016 plans: 0.81). All
-  plans take about 19 s.
+  On the real geography with 2010 populations: worst deviation 0.43%, every district contiguous, 341 county splits
+  across 43 multi-district states (the real 2016 plans split 409), and mean compactness 0.87 (the 2016 plans:
+  0.81). All plans take about 20 s. On populations evolved to 2041, California's 54 and 57 districts come out
+  within 0.12% and 0.34%.
+- **Seat numbers follow constituents.** Each old district number goes to the new district holding most of that
+  district's people (greedy by shared population, within districts of the same seat count). Districts left over
+  take the remaining numbers in geographic order. A member's seat therefore continues where their voters are, and
+  a state that loses seats ends the seats nobody continues. Their members run in the new district holding most of
+  their old one.
 - **Legislative plans** are drawn the same way, targeting ±4% of equal population per seat. Multi-member
   districts keep their seat counts (a two-seat district is drawn at twice the population). Where state law nests house districts in senate
   districts (AK, IL, IA, MN, MT, NV, OR, WY two per senate district; OH, WI three), the house plan is drawn by

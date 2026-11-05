@@ -144,7 +144,9 @@ export class CensusEngine {
     const adopted = await w.districts.adopt(kind, stateIdx, census, firstYear, w.time, local, numbers, new Array<number>(seats).fill(1), pops, stats, planId);
     // Offices: a seat for every district number; seats beyond the new count are eliminated with the outgoing Congress.
     const houseChamber = w.chambers.find((c) => c.kind === 'us_house')!;
-    const existing = w.offices.filter((o) => o.kind === 'us_representative' && o.stateIdx === stateIdx);
+    // Seats still in being: a seat abolished after an earlier census does not count, so a number the state
+    // regains later gets a new office (otherwise the regained seat would never be elected).
+    const existing = w.offices.filter((o) => o.kind === 'us_representative' && o.stateIdx === stateIdx && !w.districts.isAbolished(o.id, firstYear));
     const numberOf = (o: Office) => w.districts.cds[o.districtIdx!]!.number;
     const newOffices: Office[] = [];
     for (const d of adopted.districts) {
