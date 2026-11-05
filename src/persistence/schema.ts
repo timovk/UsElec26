@@ -134,11 +134,17 @@ CREATE TABLE convention_ballot (year INTEGER NOT NULL, party_id INTEGER NOT NULL
   PRIMARY KEY (year, party_id, ballot, person_id)) WITHOUT ROWID;
 `;
 
+const V5 = `
+CREATE TABLE demography_year (year INTEGER PRIMARY KEY, summary_json TEXT NOT NULL);
+CREATE TABLE electorate_year (year INTEGER PRIMARY KEY, platforms_json TEXT NOT NULL, national_lean REAL NOT NULL, summary_json TEXT NOT NULL);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, description: 'Phase 1 foundational universe schema', up: (db) => db.exec(V1) },
   { version: 2, description: 'Phase 2 elections, contests, candidacies and the results archive', up: (db) => db.exec(V2) },
   { version: 3, description: 'Phase 3 election nights (sealed count records) and certified rollups', up: (db) => db.exec(V3) },
   { version: 4, description: 'Phase 5 polls, averages, forecasts, campaigns, endorsements, debates and delegates', up: (db) => db.exec(V4) },
+  { version: 5, description: 'Phase 6 political evolution: demography, the evolving electorate, economy, careers, Congress, census and districts', up: (db) => db.exec(V5) },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

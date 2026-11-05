@@ -173,6 +173,12 @@ function smoothOnGraph(values: Float64Array, adj: readonly (readonly number[])[]
   }
 }
 
+function centreWithinStates(v: Float64Array, pack: GeoPack, pop: Population): void {
+  const S = pack.states.length, sum = new Float64Array(S), w = new Float64Array(S);
+  for (const c of pack.counties) { const x = pop.countyVep[c.idx]! || 1; sum[c.stateIdx]! += x * v[c.idx]!; w[c.stateIdx]! += x; }
+  for (const c of pack.counties) v[c.idx] = v[c.idx]! - (w[c.stateIdx]! > 0 ? sum[c.stateIdx]! / w[c.stateIdx]! : 0);
+}
+
 function standardize(v: Float64Array): void {
   let m = 0; for (const x of v) m += x; m /= v.length || 1;
   let s = 0; for (const x of v) s += (x - m) ** 2; s = Math.sqrt(s / (v.length || 1)) || 1;
@@ -197,9 +203,11 @@ export function drawFields(seed: string, attempt: number, pack: GeoPack, pop: Po
   const C = pack.counties.length;
   const co = Float64Array.from({ length: C }, () => r.normal());
   smoothOnGraph(co, pack.countyAdjacency, r.intRange(3, 7), r.range(0.55, 0.8));
-  standardize(co);
   const iid = Float64Array.from({ length: C }, () => r.normal());
-  standardize(iid);
+  // County fields describe variation *within* states: centred on each state's (VEP-weighted) mean, so states
+  // differ through the regional fields, place covariates and group composition, not through county noise.
+  centreWithinStates(co, pack, pop); standardize(co);
+  centreWithinStates(iid, pack, pop); standardize(iid);
   // Base Unit field: neighbourhood (tract) + block-group components, centred within county by VEP.
   const bu = new Float32Array(pop.bu);
   for (const county of pack.counties) {
@@ -230,7 +238,7 @@ function countyStandardized(values: Float32Array, weights: Float64Array): Float6
   return Float64Array.from(values, (x) => (x - m) / sd);
 }
 
-function components(p: ReturnType<typeof drawParams>, f: ElectorateFields, pack: GeoPack, pop: Population): Components {
+function components(p: ReturnType<typeof drawParams>, f: ElectorateFields, pack: GeoPack, pop: Population, centrePop: Population = pop): Components {
   const C = pack.counties.length;
   const dvec = p.platforms.D.map((d, i) => d - p.platforms.R[i]!);
   const group = new Float64Array(C * N_COHORTS);
@@ -246,7 +254,7 @@ function components(p: ReturnType<typeof drawParams>, f: ElectorateFields, pack:
     const div = pack.states[pack.counties[c]!.stateIdx]!.division;
     for (let k = 0; k < N_COHORTS; k++) {
       const v = byDiv[div * N_COHORTS + k]!; group[c * N_COHORTS + k] = v;
-      const w = pop.countyVep[c]! * pop.countyJoint[c * N_COHORTS + k]!; gm += w * v; gw += w;
+      const w = centrePop.countyVep[c]! * centrePop.countyJoint[c * N_COHORTS + k]!; gm += w * v; gw += w;
     }
   }
   gm /= gw || 1;
@@ -280,6 +288,19 @@ function composeMu(comp: Components, sc: Scales, C: number, out: Float32Array): 
     const base = sc.intercept + sc.sRegion * (comp.geoDiv[c]! + comp.geoState[c]!) + sc.sCounty * comp.geoCounty[c]! + sc.sIid * comp.geoIid[c]! + sc.sCov * comp.cov[c]!;
     for (let k = 0; k < N_COHORTS; k++) out[c * N_COHORTS + k] = base + sc.sGroup * comp.group[c * N_COHORTS + k]!;
   }
+}
+
+/**
+ * The long-run partisanship the electorate is moving toward (μ*, §4.2) for given platforms and attachments and
+ * the current population. The group term is centred with the base population's weights, so changes in who
+ * lives where (and in each group's size) move the national balance, while the parties' positions reshape
+ * which groups lean which way.
+ */
+export function targetMu(params: ElectorateParams, platforms: { D: number[]; R: number[] }, attach: number[], fields: ElectorateFields, pack: GeoPack, pop: Population, basePop: Population): Float32Array {
+  const comp = components({ ...params, platforms, attach }, fields, pack, pop, basePop);
+  const out = new Float32Array(pack.counties.length * N_COHORTS);
+  composeMu(comp, params, pack.counties.length, out);
+  return out;
 }
 
 // ---- Lean ---------------------------------------------------------------------------------------
@@ -343,7 +364,7 @@ export function buLean(e: Electorate, pack: GeoPack, pop: Population): Lean {
 }
 
 // ---- Calibration ----------------------------------------------------------------------------------
-export interface CalibrationTargets { national: number; stateSd: number; countySd: number }
+export interface CalibrationTargets { national: number; stateSd: number; countySd: number; /** SD of the group (coalition) term across voters, logits; absent in universes created before Phase 6. */ groupSd?: number }
 export interface CalibrationStats {
   national: number; stateSd: number; countySd: number; lopsidedCounties: number; closeStates: number; moransI: number;
 }
@@ -396,6 +417,8 @@ export function generateElectorate(seed: string, pack: GeoPack, pop: Population,
   const tr = Rng.stream(seed, 'electorate', 'targets');
   const targets: CalibrationTargets = {
     national: Math.min(54.5, Math.max(45.5, tr.normal(50, 2.2))), stateSd: tr.range(11.5, 17.5), countySd: tr.range(24, 31),
+    // Coalitions: how far groups' partisanship differs (typical groups split between 55/45 and 80/20, §4.1).
+    groupSd: tr.range(0.5, 0.8),
   };
   const C = pack.counties.length;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -407,8 +430,14 @@ export function generateElectorate(seed: string, pack: GeoPack, pop: Population,
     const sdGroup = weightedSd(comp.group, pop.countyVep, N_COHORTS) || 1;
     const sdRegion = weightedSd(Float64Array.from({ length: C }, (_, c) => comp.geoDiv[c]! + comp.geoState[c]!), pop.countyVep) || 1;
     const sdCov = weightedSd(comp.cov, pop.countyVep) || 1;
+    // The group term's spread across voters (all county × cohort cells): its scale is set by its own target.
+    let gw = 0, gm = 0; for (let c = 0; c < C; c++) for (let k = 0; k < N_COHORTS; k++) { const w = pop.countyVep[c]! * pop.countyJoint[c * N_COHORTS + k]!; gw += w; gm += w * comp.group[c * N_COHORTS + k]!; }
+    gm /= gw || 1;
+    let gv = 0; for (let c = 0; c < C; c++) for (let k = 0; k < N_COHORTS; k++) { const w = pop.countyVep[c]! * pop.countyJoint[c * N_COHORTS + k]!; gv += w * (comp.group[c * N_COHORTS + k]! - gm) ** 2; }
+    const sdGroupVoter = Math.sqrt(gv / (gw || 1)) || 1;
+    void sdGroup;
     const sc: Scales = {
-      sGroup: 1.4 * base.weights.group / sdGroup, sCov: 1.4 * base.weights.cov / sdCov,
+      sGroup: targets.groupSd! / sdGroupVoter, sCov: 1.4 * base.weights.cov / sdCov,
       sRegion: 1.4 * base.weights.geo * 0.55 / sdRegion, sCounty: 1.4 * base.weights.geo * 0.8, sIid: 1.4 * base.weights.geo * ar.range(0.2, 0.45), intercept: 0,
     };
     const mu = new Float32Array(C * N_COHORTS);
@@ -417,7 +446,13 @@ export function generateElectorate(seed: string, pack: GeoPack, pop: Population,
     // Two damped controls: "between" scales structure that differs between states (coalition
     // composition, place covariates, regional fields) toward the state-spread target; "within" scales
     // within-state geography (county fields) toward the county-spread target.
-    const between = (f: number) => { sc.sGroup *= f; sc.sCov *= f; sc.sRegion *= f; };
+    // "Between" scales the state-level geography (regional fields, place covariates). Group structure keeps its
+    // own target unless the state spread cannot be reached otherwise.
+    const sRegion0 = sc.sRegion;
+    const between = (f: number) => {
+      if (f < 1 && sc.sRegion < 0.15 * sRegion0) { sc.sGroup *= Math.max(f, 0.9); return; }
+      sc.sCov *= f; sc.sRegion *= f;
+    };
     const within = (f: number) => { sc.sCounty *= f; sc.sIid *= f; };
     const clampF = (f: number) => Math.min(2, Math.max(0.5, f));
     const fitIntercept = (st: CalibrationStats): CalibrationStats => {
