@@ -41,7 +41,8 @@ export type Query =
   | { kind: 'electorate' }
   | ArchiveQuery
   | NightQuery
-  | SeasonQuery;
+  | SeasonQuery
+  | GovernmentQuery;
 
 // ---- Phase 5: campaigns, polls, forecasts, primaries -------------------------------------------------
 export type SeasonQuery =
@@ -246,6 +247,8 @@ export interface ElectorateSummary {
   targets: Record<string, number>; achieved: Record<string, number>; ranges: Record<string, readonly [number, number]>;
   attempt: number; platforms: { D: number[]; R: number[] }; axes: string[];
   cohortLean: { label: string; margin: number; share: number }[];
+  /** Phase 6: January 1 of each simulated year — party platforms, the national lean and the spread of state leans. */
+  history: { year: number; platforms: { D: number[]; R: number[] }; national: number; stateSd: number }[];
 }
 
 export interface DiagnosticsResult { name: string; value: number; unit: string; note: string }
@@ -311,4 +314,51 @@ export interface YearSummary {
   turnout: { ballots: number; eligible: number } | null;
   /** Electoral votes are the decision desk's projections (the count is still in progress). */
   projected: boolean;
+}
+
+// ---- Phase 6: the economy and approval, Congress, legislatures, census and districts ----------------------
+export type GovernmentQuery =
+  | { kind: 'economy' }
+  | { kind: 'congress'; congress?: number }
+  | { kind: 'bill'; id: number }
+  | { kind: 'legislatures' }
+  | { kind: 'census' }
+  | { kind: 'districtMap'; state: number; plan: 'cd' | 'sldu' | 'sldl'; year: number };
+
+export interface EconomyDto {
+  /** Published figures only (releases), by period. */
+  releases: { time: number; kind: string; period: string; value: number }[];
+  /** Approval polls and a smoothed average (published). */
+  approvalPolls: { day: number; pollster: string; approve: number; disapprove: number; n: number }[];
+  approvalAverage: { day: number; approve: number }[];
+  president: { name: string; party: number; since: number } | null;
+  /** Monthly truth (simulation), labelled as such in the UI: approval by party, the economy's regime. */
+  truth: { month: number; approve: number; copartisans: number; opponents: number; recession: boolean; unemployment: number; gdp: number; inflation: number }[];
+}
+export interface BillRowDto { id: number; congress: number; title: string; topic: string; introduced: number; sponsorParty: number; status: string; enacted: number | null; house: string | null; senate: string | null }
+export interface CongressDto {
+  congress: number; congresses: number[]; bills: BillRowDto[];
+  years: { year: number; congress: number; minor: number; major: number; vetoes: number; overrides: number; unified: boolean; houseMajority: number; senateMajority: number }[];
+  chambers: { name: string; seats: number; composition: { party: number; seats: number }[] }[];
+}
+export interface BillDto extends BillRowDto {
+  salience: number; reconciliation: boolean;
+  rollCalls: { chamber: string; time: number; question: string; yea: number; nay: number; passed: boolean; byParty: { party: number; yea: number; nay: number }[] }[];
+}
+export interface LegislaturesDto {
+  states: { stateIdx: number; usps: string; name: string; governorParty: number | null;
+    chambers: { name: string; kind: string; seats: number; composition: { party: number; seats: number }[]; majority: number | null }[];
+    trifecta: number | null; session: { year: number; laws: number; vetoes: number; budgetLate: boolean } | null }[];
+  totals: { dChambers: number; rChambers: number; split: number; dTrifectas: number; rTrifectas: number; dLegislators: number; rLegislators: number; others: number };
+}
+export interface CensusDto {
+  censuses: { year: number; total: number; states: { stateIdx: number; usps: string; name: string; population: number; seats: number | null; change: number | null }[]; lastSeat: string | null; nextInLine: string | null }[];
+  demography: { year: number; adults: number; total: number; age65: number; white: number; hispanic: number; college: number }[];
+  plans: { planId: number; kind: string; stateIdx: number; usps: string; firstYear: number; districts: number; maxDeviation: number; countiesSplit: number; contiguous: boolean }[];
+}
+export interface DistrictMapDto {
+  state: number; plan: string; year: number; planLabel: string;
+  /** BU centroids in the basemap projection (y down), √(land area) in the same units, and the district (local index into `districts`). */
+  x: number[]; y: number[]; side: number[]; district: number[];
+  districts: { idx: number; label: string; population: number; holderParty: number | null; lean: number }[];
 }

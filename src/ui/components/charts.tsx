@@ -3,7 +3,7 @@
  * threshold, and the "snake" of states by margin. One y-axis each, 2 px lines, recessive grid, hover readouts.
  */
 import { useMemo, useRef, useState } from 'react';
-import { formatDay } from '../../core/time';
+import { civilToDays, daysToCivil, formatDay } from '../../core/time';
 
 /** Categorical colours for candidates of one party (validated for the dark surface; always labelled directly). */
 export const CANDIDATE_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
@@ -29,7 +29,8 @@ export function TimeChart({ series, dots = [], height = 220, yLabel, zero = fals
   const H = height;
   const X = (x: number) => L + ((x - x0) / (x1 - x0)) * (W - L - R), Y = (y: number) => T + ((y1 - y) / (y1 - y0)) * (H - T - B);
   const ticks = niceTicks(y0, y1, 5);
-  const xt = niceDays(x0, x1);
+  const xt = niceDays(x0, x1), multiYear = x1 - x0 > 730;
+  const xLabel = (d: number) => (multiYear ? String(daysToCivil(d).y) : short(d));
   const path = (pts: { x: number; y: number }[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join('');
   const band = (pts: Series['points']) => {
     const b = pts.filter((p) => p.lo !== undefined && p.hi !== undefined);
@@ -42,7 +43,7 @@ export function TimeChart({ series, dots = [], height = 220, yLabel, zero = fals
       <svg ref={ref} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={yLabel ?? 'Chart'}
         onMouseMove={(e) => { const r = ref.current!.getBoundingClientRect(); const px = ((e.clientX - r.left) / r.width) * W; setHx(x0 + ((px - L) / (W - L - R)) * (x1 - x0)); }} onMouseLeave={() => setHx(null)}>
         {ticks.map((t) => <g key={t}><line x1={L} x2={W - R} y1={Y(t)} y2={Y(t)} stroke="var(--line-soft)" strokeWidth={t === 0 && zero ? 1.5 : 1} /><text x={L - 6} y={Y(t) + 4} textAnchor="end" className="an-ax">{fmt(t)}</text></g>)}
-        {xt.map((d) => <text key={d} x={X(d)} y={H - 8} textAnchor="middle" className="an-ax">{short(d)}</text>)}
+        {xt.map((d) => <text key={d} x={X(d)} y={H - 8} textAnchor="middle" className="an-ax">{xLabel(d)}</text>)}
         {markers.map((m, i) => <g key={i}><line x1={X(m.x)} x2={X(m.x)} y1={T} y2={H - B} stroke="var(--line)" strokeDasharray="3 3" /><text x={X(m.x) + 3} y={T + 10} className="an-ax">{m.label}</text></g>)}
         {series.map((s) => { const b = band(s.points); return b ? <path key={`b${s.key}`} d={b} fill={s.color} opacity={0.16} /> : null; })}
         {dots.map((d, i) => <circle key={i} cx={X(d.x)} cy={Y(d.y)} r={d.r ?? 3} fill={d.color} opacity={0.45}><title>{d.title}</title></circle>)}
@@ -51,7 +52,7 @@ export function TimeChart({ series, dots = [], height = 220, yLabel, zero = fals
         {hx !== null && <line x1={X(Math.max(x0, Math.min(x1, hx)))} x2={X(Math.max(x0, Math.min(x1, hx)))} y1={T} y2={H - B} stroke="var(--text-2)" />}
         {hx !== null && series.map((s) => { const p = near(s); return p ? <circle key={`h${s.key}`} cx={X(p.x)} cy={Y(p.y)} r={4} fill={s.color} stroke="var(--bg-1)" strokeWidth={2} /> : null; })}
       </svg>
-      <div className="tiny muted chart-readout">{hx !== null ? <>{short(Math.round(hx))}: {series.map((s) => { const p = near(s); return p ? <span key={s.key} style={{ marginRight: 10 }}><span className="party-dot" style={{ background: s.color }} /> {s.label} {fmt(p.y)}{p.lo !== undefined ? ` (${fmt(p.lo)}–${fmt(p.hi!)})` : ''}</span> : null; })}</> : yLabel}</div>
+      <div className="tiny muted chart-readout">{hx !== null ? <>{multiYear ? formatDay(Math.round(hx)) : short(Math.round(hx))}: {series.map((s) => { const p = near(s); return p ? <span key={s.key} style={{ marginRight: 10 }}><span className="party-dot" style={{ background: s.color }} /> {s.label} {fmt(p.y)}{p.lo !== undefined ? ` (${fmt(p.lo)}–${fmt(p.hi!)})` : ''}</span> : null; })}</> : yLabel}</div>
     </div>
   );
 }
@@ -106,6 +107,12 @@ function niceTicks(a: number, b: number, n: number): number[] {
   return out;
 }
 function niceDays(a: number, b: number): number[] {
+  // Over more than two years: January 1 of every year (or every few years), labelled by year.
+  if (b - a > 730) {
+    const y0 = daysToCivil(a).y + 1, y1 = daysToCivil(b).y, k = Math.max(1, Math.ceil((y1 - y0 + 1) / 9));
+    const out: number[] = []; for (let y = y0; y <= y1; y += k) out.push(civilToDays(y, 1, 1));
+    return out;
+  }
   const span = b - a, step = span > 300 ? 60 : span > 120 ? 30 : span > 50 ? 14 : 7;
   const out: number[] = []; for (let v = a; v <= b; v += step) out.push(Math.round(v));
   return out;

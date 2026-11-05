@@ -17,6 +17,7 @@ import { ArchiveScreen, CountyScreen } from '../screens/CountyScreen';
 import { ElectionNight } from '../screens/ElectionNight';
 import { PollsScreen } from '../screens/Polls';
 import { PrimariesScreen } from '../screens/Primaries';
+import { GovernmentScreen } from '../screens/Government';
 
 const NAV: { id: string; label: string; ico: string; needsUniverse?: boolean }[] = [
   { id: 'hub', label: 'Universes', ico: '◎' },
@@ -28,6 +29,7 @@ const NAV: { id: string; label: string; ico: string; needsUniverse?: boolean }[]
   { id: 'primaries', label: 'Primaries', ico: '⚑', needsUniverse: true },
   { id: 'results', label: 'Results', ico: '▦', needsUniverse: true },
   { id: 'archive', label: 'Archive', ico: '⌛', needsUniverse: true },
+  { id: 'government', label: 'Government', ico: '§', needsUniverse: true },
   { id: 'people', label: 'People', ico: '☰', needsUniverse: true },
   { id: 'electorate', label: 'Electorate', ico: '◆', needsUniverse: true },
 ];
@@ -50,7 +52,7 @@ export function App({ updateAvailable, applyUpdate }: { updateAvailable: boolean
   if (fatal) return <div className="modal-back"><div className="modal"><h2 className="screen-title">Cannot start</h2><p>{fatal}</p><button className="btn" onClick={() => location.reload()}>Retry</button></div></div>;
   if (booting) return <div className="modal-back"><div className="modal"><div className="kicker">Election Night: America</div><p>Starting the simulation engine…</p></div></div>;
 
-  const needsUniverse = ['desk', 'map', 'people', 'electorate', 'results', 'contest', 'county', 'archive', 'night', 'analyst', 'polls', 'primaries'].includes(route.screen);
+  const needsUniverse = ['desk', 'map', 'people', 'electorate', 'results', 'contest', 'county', 'archive', 'night', 'analyst', 'polls', 'primaries', 'government'].includes(route.screen);
   const screen = (() => {
     if (needsUniverse && !active) return <Hub />; // never query without an open universe
     switch (route.screen) {
@@ -66,6 +68,7 @@ export function App({ updateAvailable, applyUpdate }: { updateAvailable: boolean
       case 'archive': return <ArchiveScreen stateIdx={route.params[0] !== undefined ? Number(route.params[0]) : undefined} />;
       case 'people': return route.params[0] ? <PersonScreen id={Number(route.params[0])} /> : <People />;
       case 'electorate': return <ElectorateScreen />;
+      case 'government': return <GovernmentScreen tab={route.params[0]} args={route.params.slice(1)} />;
       case 'settings': return <Settings />;
       default: return <Hub />;
     }

@@ -45,6 +45,22 @@ test('create, explore, persist across reload, export and re-import a universe', 
   await page.locator('table.data tbody tr').first().click();
   await expect(page.getByRole('heading', { name: 'Offices', exact: true })).toBeVisible();
 
+  // Government: approval and the economy, the state legislatures, the census and a district map.
+  await page.getByRole('link', { name: 'Government' }).click();
+  await expect(page.getByRole('heading', { name: 'Presidential approval' })).toBeVisible();
+  await page.getByRole('tab', { name: 'State legislatures' }).click();
+  await expect(page.getByRole('heading', { name: 'By state' })).toBeVisible();
+  await expect(page.locator('table.data tbody tr')).toHaveCount(50);
+  await page.getByRole('tab', { name: 'Congress' }).click();
+  await expect(page.getByRole('heading', { name: /The 114th Congress/ })).toBeVisible();
+  await page.getByRole('tab', { name: 'Census & apportionment' }).click();
+  await expect(page.getByText(/first census of this universe is taken on April 1, 2020/)).toBeVisible();
+  await page.getByRole('tab', { name: 'District maps' }).click();
+  await expect(page.getByRole('img', { name: /District map, 53 districts/ })).toBeVisible();
+  await page.getByRole('button', { name: 'State house' }).click();
+  await expect(page.getByRole('heading', { name: /State house districts \(80\)/ })).toBeVisible();
+  await page.screenshot({ path: 'test-results/government-districts.png' });
+
   // Persistence: reload the page; the universe is still there with the advanced date.
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Universes', exact: true })).toBeVisible();

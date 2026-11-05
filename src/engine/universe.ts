@@ -143,6 +143,7 @@ export class Universe {
     } catch (e) { db.close(); storage.remove(fileName); throw e; }
     const u = new Universe(storage, fileName, db, world, names, emptyElectionState(), emptyEconomyEngineState(seed, pack.states.length), emptyCareersState(), null);
     u.evolution = Evolution.fresh(world);
+    db.tx(() => u.evolution.recordBaseline(db));
     u.queue = scheduledFromDb(db);
     await u.ensureLegislatures();
     for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);

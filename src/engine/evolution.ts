@@ -46,6 +46,19 @@ export class Evolution {
     return ev;
   }
 
+  /** The record of a year: a demographic and political summary (January 1). */
+  private record(year: number, flows: DemographyFlows | null, db: Db): ReturnType<typeof demographySummary> {
+    const w = this.w;
+    const sum = demographySummary(w.pack, this.demo);
+    const national = leanMargin({ dVotes: Float64Array.of(w.lean.national.d), votes: Float64Array.of(w.lean.national.t) }, 0);
+    db.run('INSERT OR REPLACE INTO demography_year VALUES (?,?)', [year, JSON.stringify({ ...sum, state: sum.state.map((x) => ({ adults: Math.round(x.adults), total: Math.round(x.total) })), flows: flows ? { deaths: Math.round(flows.deaths), entrants: Math.round(flows.entrants), migration: Math.round(flows.migration) } : null })]);
+    db.run('INSERT OR REPLACE INTO electorate_year VALUES (?,?,?,?)', [year, JSON.stringify(this.dyn.platforms), national, JSON.stringify({ attach: this.dyn.attach.map((x) => Math.round(1000 * x) / 1000), stateLean: w.pack.states.map((_, s) => Math.round(10 * leanMargin(w.lean.state, s)) / 10) })]);
+    return sum;
+  }
+
+  /** At founding: the 2016 starting point, so every series begins in the first year. */
+  recordBaseline(db: Db): void { this.record(BASE_YEAR, null, db); }
+
   /**
    * Bring the universe to January 1 of `year`: one demographic and electoral step per year since the state's
    * year. Returns the state blobs to save and a summary for the news.
@@ -65,11 +78,7 @@ export class Evolution {
     const raw = buLean(w.electorate, w.pack, w.pop);
     const bu = { dVotes: Float64Array.from(Float32Array.from(raw.dVotes)), votes: Float64Array.from(Float32Array.from(raw.votes)) };
     w.lean = { bu, ...aggregateLean(bu, w.pack, w.districts) };
-    // The record: a demographic and political summary of the year.
-    const sum = demographySummary(w.pack, this.demo);
-    const national = leanMargin({ dVotes: Float64Array.of(w.lean.national.d), votes: Float64Array.of(w.lean.national.t) }, 0);
-    db.run('INSERT OR REPLACE INTO demography_year VALUES (?,?)', [year, JSON.stringify({ ...sum, state: sum.state.map((x) => ({ adults: Math.round(x.adults), total: Math.round(x.total) })), flows: flows ? { deaths: Math.round(flows.deaths), entrants: Math.round(flows.entrants), migration: Math.round(flows.migration) } : null })]);
-    db.run('INSERT OR REPLACE INTO electorate_year VALUES (?,?,?,?)', [year, JSON.stringify(this.dyn.platforms), national, JSON.stringify({ attach: this.dyn.attach.map((x) => Math.round(1000 * x) / 1000), stateLean: w.pack.states.map((_, s) => Math.round(10 * leanMargin(w.lean.state, s)) / 10) })]);
+    const sum = this.record(year, flows, db);
     const d = this.demo;
     const blobs: StateBlob[] = [
       { key: 'demography.state', codec: 'bundle', payload: await encodeBundle({ age: d.age, race: d.race, college: d.college, total: d.total, trend: d.trend, divTrend: d.divTrend }, { year: d.year }) },

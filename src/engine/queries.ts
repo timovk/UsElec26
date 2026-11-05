@@ -9,6 +9,7 @@ import type { Universe } from './universe';
 import { runArchiveQuery } from './archiveQueries';
 import { runNightQuery } from './nightQueries';
 import { runSeasonQuery } from './seasonQueries';
+import { runGovernmentQuery } from './governmentQueries';
 import type {
   CalendarEntry, ChamberDto, DeskSummary, ElectorateSummary, EntityDetail, GeoMeta, MapLayerDto, NewsDto, OfficeHolderDto, PersonDetail, PersonRef, PersonRow, Query,
 } from './protocol';
@@ -18,6 +19,7 @@ export function runQuery(u: Universe, q: Query): unknown {
     case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
     case 'nights': case 'nightMeta': case 'nightPayload': case 'nightContext': case 'nightBaseline': case 'nightSurvey': case 'nightCalls': return runNightQuery(u, q);
     case 'seasonYears': case 'seasonOverview': case 'seasonRace': case 'pollList': case 'pollster': case 'forecastRun': case 'forecastCalibration': case 'primaries': return runSeasonQuery(u, q);
+    case 'economy': case 'congress': case 'bill': case 'legislatures': case 'census': case 'districtMap': return runGovernmentQuery(u, q);
     case 'desk': return desk(u);
     case 'geoMeta': return geoMeta(u);
     case 'mapLayer': return mapLayer(u, q.layer, q.metric);
@@ -102,7 +104,7 @@ function mapLayer(u: Universe, layer: MapDtoLayer, metric: MapLayerDto['metric']
   if (metric === 'lean') {
     const l = layer === 'state' ? w.lean.state : layer === 'county' ? w.lean.county : w.lean.cd;
     for (let i = 0; i < n; i++) values[i] = l.votes[i]! > 0 ? Math.round(leanMargin(l, i) * 10) / 10 : null;
-    return { layer, metric, values, legend: 'Underlying two-party lean (D+ / R+ points)', provenance: 'simulationTruth' };
+    return { layer, metric, values, legend: `Underlying two-party lean (D+ / R+ points)${newPlanNote(u, layer)}`, provenance: 'simulationTruth' };
   }
   const stateOf = (i: number) => (layer === 'state' ? i : layer === 'county' ? w.pack.counties[i]!.stateIdx : w.pack.cds[i]!.stateIdx);
   if (metric === 'governor') {
@@ -128,7 +130,7 @@ function mapLayer(u: Universe, layer: MapDtoLayer, metric: MapLayerDto['metric']
   } else {
     w.pack.states.forEach((s) => { const ps = w.pack.cds.filter((c) => c.stateIdx === s.idx).map((c) => cdParty[c.idx] ?? 0); values[s.idx] = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null; });
   }
-  return { layer, metric, values, legend: 'U.S. House: share of the electorate represented by each party', provenance: 'publicRecord' };
+  return { layer, metric, values, legend: `U.S. House: share of the electorate represented by each party${newPlanNote(u, layer)}`, provenance: 'publicRecord' };
 }
 type MapDtoLayer = MapLayerDto['layer'];
 
@@ -181,11 +183,14 @@ function people(u: Universe, q: Extract<Query, { kind: 'people' }>): { total: nu
   const s = q.search?.trim().toLowerCase();
   const rows: PersonRow[] = [];
   const officeKinds = q.office ? new Set(q.office.split(',')) : null;
-  const holders = new Map<number, Office>();
-  for (const t of u.world.current.values()) { const o = u.world.officeById.get(t.officeId)!; const prev = holders.get(t.personId); if (!prev || o.rank < prev.rank) holders.set(t.personId, o); }
+  const holders = new Map<number, Office>(), matching = new Set<number>();
+  for (const t of u.world.current.values()) {
+    const o = u.world.officeById.get(t.officeId)!; const prev = holders.get(t.personId); if (!prev || o.rank < prev.rank) holders.set(t.personId, o);
+    if (officeKinds?.has(o.kind)) matching.add(t.personId);
+  }
   for (const p of u.world.persons.values()) {
     const o = holders.get(p.id) ?? null;
-    if (officeKinds && !(o && [...u.world.current.values()].some((t) => t.personId === p.id && officeKinds.has(u.world.officeById.get(t.officeId)!.kind)))) continue;
+    if (officeKinds && !matching.has(p.id)) continue;
     if (q.party && p.partyId !== q.party) continue;
     if (q.state !== undefined && p.homeState !== q.state) continue;
     const name = fullName(p);
@@ -239,6 +244,14 @@ function calendar(u: Universe): CalendarEntry[] {
   });
 }
 
+/** The district layer draws the 2016 shapes: once new plans are in effect, the legend says so. */
+function newPlanNote(u: Universe, layer: string): string {
+  if (layer !== 'cd') return '';
+  const n = Number(u.db.value("SELECT COUNT(*) FROM district_plan WHERE kind = 'cd' AND first_year <= ?", [daysToCivilYear(u)]));
+  return n ? ` · drawn on the 2016 districts (seats by number); ${n} state${n === 1 ? ' has' : 's have'} new plans — see Government › District maps` : '';
+}
+const daysToCivilYear = (u: Universe) => Number(isoDay(today(u)).slice(0, 4));
+
 function electorate(u: Universe): ElectorateSummary {
   const e = u.world.electorate; const pop = u.world.pop;
   const cell = new Float64Array(2);
@@ -251,5 +264,10 @@ function electorate(u: Universe): ElectorateSummary {
   const total = nat.reduce((a, b) => a + b, 0);
   const cohortLean = Array.from({ length: N_COHORTS }, (_, k) => ({ label: cohortLabel(k), margin: t[k]! > 0 ? 100 * (2 * d[k]! / t[k]! - 1) : 0, share: nat[k]! / total }))
     .sort((a, b) => b.share - a.share);
-  return { targets: { ...e.params.targets }, achieved: { ...e.params.achieved }, ranges: { ...TARGET_RANGES }, attempt: e.params.attempt, platforms: e.params.platforms, axes: [...ISSUE_AXES], cohortLean };
+  const history = u.db.all<{ year: number; platforms_json: string; national_lean: number; summary_json: string }>('SELECT year, platforms_json, national_lean, summary_json FROM electorate_year ORDER BY year').map((r) => {
+    const sm = JSON.parse(r.summary_json) as { stateLean?: number[] };
+    const sl = sm.stateLean ?? [], mean = sl.reduce((a, b) => a + b, 0) / Math.max(1, sl.length);
+    return { year: r.year, platforms: JSON.parse(r.platforms_json) as { D: number[]; R: number[] }, national: r.national_lean, stateSd: Math.sqrt(sl.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, sl.length)) };
+  });
+  return { targets: { ...e.params.targets }, achieved: { ...e.params.achieved }, ranges: { ...TARGET_RANGES }, attempt: e.params.attempt, platforms: e.params.platforms, axes: [...ISSUE_AXES], cohortLean, history };
 }

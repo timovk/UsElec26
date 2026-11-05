@@ -123,7 +123,7 @@ export function Desk() {
             </div>
           ))}
           {cal?.length === 0 && <p className="muted small">No elections scheduled yet — the calendar for each year is set on January 1.</p>}
-          <p className="tiny muted">Dates and offices follow federal law and each state's 2016 election code. State legislative elections arrive in Phase 6; local elections in Phase 7.</p>
+          <p className="tiny muted">Dates and offices follow federal law and each state's 2016 election code. State legislative seats are elected on each state's schedule; local elections arrive in Phase 7. Congress, the economy, the census and district maps are on the <a href="#/government">Government</a> page.</p>
         </section>
         <section className="card">
           <h2>News</h2>
