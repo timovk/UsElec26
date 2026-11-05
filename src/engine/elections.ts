@@ -12,7 +12,7 @@ import { SENATE_CLASS_NEXT_ELECTION, STATES_2016 } from '../rules/states2016';
 import { DISTRICT_EV_STATES, ELECTION_RULES_2016, ELECTORS_MEET, electoralVotes, ruleDay } from '../rules/elections2016';
 import { cohortClasses } from '../electorate/kernel';
 import { buildShard, stateRanges, type StateRange } from '../electorate/shards';
-import { TURNOUT_OFFSET, calibrateTurnout, drawEnvironment, stepEnvironment, type Environment } from '../electorate/environment';
+import { TURNOUT_OFFSET, calibrateTurnout, drawEnvironment, setEnvironmentEconomy, stepEnvironment, type Environment } from '../electorate/environment';
 import { certifiedFromCast, prepareContest, prepareDerived, prepareRejected, prepareRollup, prepareTurnout, readRollup, writeContest, writeTotalsRevision, K, totalsOf, type ContestResult } from '../archive/results';
 import { crc32 } from '../core/codec';
 import type { ShardRunner } from './computePool';
@@ -43,6 +43,10 @@ export interface ElectionHost {
   vacate(officeId: number, reason: string, resolution?: string): void;
   commit(extra?: () => void): void;
   progress(step: string, fraction: number): void;
+  /** The economy and the President's standing at the ballot box today (logit, D+); null before Phase 6 state exists. */
+  voteTerm(): number | null;
+  /** Public fundamentals for forecasts: the approval average and released economic figures. */
+  publicFundamentals(day: DayNumber): { approval: number | null; unemployment: number | null; unempChange: number | null; gdp: number | null };
 }
 
 /** Persistent election-engine state (stored as a state blob). */
@@ -169,7 +173,11 @@ export class ElectionEngine {
   async daily(day: DayNumber): Promise<void> {
     const year = daysToCivil(day).y;
     const env = this.state.env[String(year)];
-    if (env) stepEnvironment(this.w.seed, env, day);
+    if (env) {
+      stepEnvironment(this.w.seed, env, day);
+      const vt = this.h.voteTerm();
+      if (vt !== null && env.level) setEnvironmentEconomy(env, vt);
+    }
     if (year % 4 === 0 && this.state.plannedYears.includes(year)) this.nomination.daily(year, day);
     await this.season.daily(day);
   }
@@ -181,8 +189,10 @@ export class ElectionEngine {
     const presTerm = this.w.current.get(this.w.offices.find((o) => o.kind === 'president')!.id);
     const presParty = presTerm?.partyId ?? PARTY_D;
     const termsHeld = this.partyWhiteHouseTerms(presParty);
-    const env = drawEnvironment(this.w.seed, year, this.w.pack, prev, { presParty, termsHeld, midterm: year % 4 === 2 });
+    const vt = this.h.voteTerm();
+    const env = drawEnvironment(this.w.seed, year, this.w.pack, prev, { presParty, termsHeld, midterm: year % 4 === 2, economy: vt !== null });
     stepEnvironment(this.w.seed, env, easternDay(this.w.time));
+    if (vt !== null) setEnvironmentEconomy(env, vt);
     this.state.env[key] = env;
     return env;
   }

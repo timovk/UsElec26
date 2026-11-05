@@ -277,3 +277,35 @@ export function publishedLean(seed: string, year: number, state: readonly number
   const cds = cd.map((m, i) => m - national + (st[cdState[i]!]! - (state[cdState[i]!]! - national)) + r.normal(0, 3.5));
   return { state: st, cd: cds };
 }
+
+/**
+ * Presidential approval among eligible voters (the truth an approval poll measures). Each voter's approval
+ * depends on partisanship relative to the President's party, on the economy as that voter perceives it
+ * (co-partisans see it more kindly, opponents more harshly), on the President's standing (events, scandals,
+ * legislative record) and a post-inauguration honeymoon. Integrated over the within-cell spread of
+ * partisanship. `presSign` is +1 for a Democratic President, −1 for a Republican. Returns shares (0–1).
+ */
+export function approvalShare(e: Pick<import('./model').Electorate, 'mu' | 'params'>, pop: { counties: number; countyVep: Float64Array; countyJoint: Float32Array }, presSign: number,
+  x: { econ: number; standing: number; honeymoon: number }): { approve: number; copartisans: number; opponents: number } {
+  const GH = APPROVAL_GH;
+  let a = 0, w = 0, ca = 0, cw = 0, oa = 0, ow = 0;
+  for (let c = 0; c < pop.counties; c++) {
+    const v = pop.countyVep[c]!; if (v <= 0) continue;
+    for (let k = 0; k < N_COHORTS; k++) {
+      const wk = v * pop.countyJoint[c * N_COHORTS + k]!; if (wk <= 0) continue;
+      const mu = e.mu[c * N_COHORTS + k]!, sg = e.params.sigma[k]!;
+      let p = 0, pc = 0, wc = 0;
+      for (let q = 0; q < GH.x.length; q++) {
+        const z = presSign * (mu + sg * GH.x[q]!);              // positive: leans toward the President's party
+        const perceived = x.econ + 0.45 * dtanh(z);
+        const pa = dlogistic(1.7 * z + 0.4 * perceived + x.standing + x.honeymoon - 0.35);
+        p += GH.w[q]! * pa;
+        if (z > 0) { pc += GH.w[q]! * pa; wc += GH.w[q]!; }
+      }
+      a += wk * p; w += wk;
+      ca += wk * pc; cw += wk * wc; oa += wk * (p - pc); ow += wk * (1 - wc);
+    }
+  }
+  return { approve: w > 0 ? a / w : 0.5, copartisans: cw > 0 ? ca / cw : 0.5, opponents: ow > 0 ? oa / ow : 0.5 };
+}
+const APPROVAL_GH = gaussHermite(8);

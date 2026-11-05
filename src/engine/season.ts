@@ -621,7 +621,14 @@ export class Season {
     const presParty = w.current.get(presOffice.id)?.partyId ?? PARTY_D;
     const sign = presParty === PARTY_D ? 1 : -1;
     const terms = this.db.all<{ party_id: number }>('SELECT party_id FROM office_term WHERE office_id = ? ORDER BY start_time DESC LIMIT 2', [presOffice.id]);
-    const fundamentals = { mean: sign * ((year % 4 === 2 ? -4 : 0) + (year % 4 === 0 && terms.length === 2 && terms.every((t) => t.party_id === presParty) ? -2 : 0)), sd: 5 };
+    // Fundamentals from the Public Record: the midterm and third-term penalties, the President's approval
+    // average, and released economic figures (growth and the change in unemployment over a year).
+    const pub = this.E.host.publicFundamentals(day);
+    let fm = (year % 4 === 2 ? -4 : 0) + (year % 4 === 0 && terms.length === 2 && terms.every((t) => t.party_id === presParty) ? -2 : 0);
+    if (pub.approval !== null) fm += 0.2 * (pub.approval - 47);
+    if (pub.gdp !== null) fm += 0.5 * Math.max(-4, Math.min(4, pub.gdp - 2));
+    if (pub.unempChange !== null) fm -= 1.2 * Math.max(-2, Math.min(4, pub.unempChange));
+    const fundamentals = { mean: sign * fm, sd: pub.approval !== null ? 4.5 : 5 };
     const natRace = this.averages.get(`PN:${year}`) ?? this.averages.get(`GB:${year}`);
     const fr: ForecastRace[] = [];
     const lastPollOf = new Map<string, number>();

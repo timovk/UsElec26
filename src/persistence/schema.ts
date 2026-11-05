@@ -137,6 +137,12 @@ CREATE TABLE convention_ballot (year INTEGER NOT NULL, party_id INTEGER NOT NULL
 const V5 = `
 CREATE TABLE demography_year (year INTEGER PRIMARY KEY, summary_json TEXT NOT NULL);
 CREATE TABLE electorate_year (year INTEGER PRIMARY KEY, platforms_json TEXT NOT NULL, national_lean REAL NOT NULL, summary_json TEXT NOT NULL);
+CREATE TABLE economy_month (month INTEGER PRIMARY KEY, truth_json TEXT NOT NULL, approval_json TEXT NOT NULL);
+CREATE TABLE economic_release (release_id INTEGER PRIMARY KEY, sim_time INTEGER NOT NULL, kind TEXT NOT NULL, period TEXT NOT NULL, value REAL NOT NULL, previous REAL);
+CREATE INDEX economic_release_kind ON economic_release(kind, sim_time);
+CREATE TABLE approval_poll (poll_id INTEGER PRIMARY KEY, pollster_id INTEGER NOT NULL, subject TEXT NOT NULL, person_id INTEGER, field_start INTEGER NOT NULL,
+  field_end INTEGER NOT NULL, published INTEGER NOT NULL, n INTEGER NOT NULL, approve REAL NOT NULL, disapprove REAL NOT NULL);
+CREATE INDEX approval_poll_end ON approval_poll(field_end);
 `;
 
 export const MIGRATIONS: readonly Migration[] = [

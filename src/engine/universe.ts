@@ -22,6 +22,7 @@ import { loadRows, prepareStateBlobs, rawJsonBlob, readJsonState, writeChamberCo
 import { ElectionEngine, emptyElectionState, type ElectionHost, type ElectionState, type PersonOptions } from './elections';
 import { InlineRunner, type ShardRunner } from './computePool';
 import { Evolution, type StateBlob } from './evolution';
+import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from './economyEngine';
 import { SIM_START } from '../core/time';
 
 const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
@@ -49,9 +50,14 @@ export class Universe {
   evolution!: Evolution;
   /** Compressed state blobs prepared outside a transaction, written by the next commit. */
   private pendingBlobs: StateBlob[] = [];
+  /** The economy and presidential approval. */
+  readonly economy: EconomyEngine;
+  private economyStateJson = '';
 
-  private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null, electionState: ElectionState) {
+  private constructor(readonly storage: Storage, readonly fileName: string, readonly db: Db, readonly world: World, private readonly nameData: NameData | null, electionState: ElectionState, economyState: EconomyEngineState) {
     const getRunner = () => this.runner;
+    this.economy = new EconomyEngine({ world, db, news: (k, h, b, r, tm) => this.news(k, h, b, r, tm) }, economyState);
+    this.economyStateJson = JSON.stringify(economyState);
     const host: ElectionHost = {
       world, db, get runner() { return getRunner(); },
       schedule: (t, k, d, p) => this.schedule(t, k, d, p), news: (k, h, b, r, tm) => this.news(k, h, b, r, tm),
@@ -59,6 +65,8 @@ export class Universe {
       startTerm: (o, p, a, pr) => this.startTerm(o, p, a, pr), endTerm: (o, r) => this.endTerm(o, r),
       succession: (o, p) => this.succession(o, p), vacate: (o, r, res) => this.vacate(o, r, res),
       commit: (extra) => this.commit(null, extra), progress: (st, f) => this.onProgress(st, f),
+      voteTerm: () => this.economy.voteTerm(),
+      publicFundamentals: (day) => ({ approval: this.economy.publishedApproval(day), ...this.economy.publishedEconomy(day) }),
     };
     this.elections = new ElectionEngine(host, electionState);
     this.electionStateJson = JSON.stringify(electionState);
@@ -100,7 +108,7 @@ export class Universe {
       });
       storage.flush(fileName, db);
     } catch (e) { db.close(); storage.remove(fileName); throw e; }
-    const u = new Universe(storage, fileName, db, world, names, emptyElectionState());
+    const u = new Universe(storage, fileName, db, world, names, emptyElectionState(), emptyEconomyEngineState(seed, pack.states.length));
     u.evolution = Evolution.fresh(world);
     u.queue = scheduledFromDb(db);
     for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
@@ -136,7 +144,8 @@ export class Universe {
       }
       const evolution = await Evolution.load(db, world);
       const es = await readJsonState<ElectionState>(db, 'elections.state');
-      const u = new Universe(storage, fileName, db, world, names, es ?? emptyElectionState());
+      const ecs = await readJsonState<EconomyEngineState>(db, 'economy.state');
+      const u = new Universe(storage, fileName, db, world, names, es ?? emptyElectionState(), ecs ?? emptyEconomyEngineState(world.seed, pack.states.length));
       u.evolution = evolution;
       u.queue = rows.scheduled;
       if (!es) { // Universe saved by Phase 1: plan the current year's elections from now on.
@@ -205,6 +214,8 @@ export class Universe {
     const blobs = [rawJsonBlob('world.meta', { history: w.history, ids: w.ids })];
     const es = JSON.stringify(this.elections.state);
     if (es !== this.electionStateJson) { blobs.push(rawJsonBlob('elections.state', this.elections.state)); this.electionStateJson = es; }
+    const ecs = JSON.stringify(this.economy.st);
+    if (ecs !== this.economyStateJson) { blobs.push(rawJsonBlob('economy.state', this.economy.st)); this.economyStateJson = ecs; }
     const removedSet = new Set(this.removedEvents.splice(0));
     const addedAll = this.addedEvents.splice(0);
     const added = addedAll.filter((e) => !removedSet.has(e.id));          // created and consumed in this interval: never persisted
@@ -241,6 +252,7 @@ export class Universe {
 
   private async dailyTick(day: number): Promise<void> {
     const w = this.world;
+    await this.economy.daily(day);
     await this.elections.daily(day);
     const r = Rng.stream(w.seed, 'mortality', day);
     for (const p of w.persons.values()) { // Map iteration is insertion (id) order: deterministic

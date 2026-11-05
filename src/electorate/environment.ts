@@ -32,6 +32,8 @@ export interface Environment {
    * as of `day` (an Eastern day number). Absent on environments saved before Phase 5 (they stay static).
    */
   level?: { national: number; classSwing: number[]; division: number[]; state: number[] };
+  /** The economy and the President's standing as felt at the ballot box today (logit, D+; Phase 6). */
+  econ?: number;
   dev?: { national: number; classSwing: number[]; division: number[]; state: number[] };
   day?: number;
 }
@@ -49,12 +51,14 @@ const ar = (prev: number | undefined, rho: number, sd: number, r: Rng) => (prev 
  * so trends carry over. `presParty` is the party holding the White House, `termsHeld` how many consecutive
  * terms it has held it, `midterm` whether this is a midterm year.
  */
-export function drawEnvironment(seed: string, year: number, pack: GeoPack, prev: Environment | null, ctx: { presParty: number; termsHeld: number; midterm: boolean }): Environment {
+export function drawEnvironment(seed: string, year: number, pack: GeoPack, prev: Environment | null, ctx: { presParty: number; termsHeld: number; midterm: boolean; economy?: boolean }): Environment {
   const r = Rng.stream(seed, 'environment', year);
   const sign = ctx.presParty === 1 ? 1 : -1; // shifts that hurt the President's party
   const timeForChange = ctx.termsHeld >= 2 ? -0.05 * sign : 0;
   const midterm = ctx.midterm ? -0.11 * sign : 0;
-  const economyStub = r.normal(0, 0.05) * sign; // labelled stub until the economy model (Phase 6)
+  // Before Phase 6 a random stub stood for the economy; with the economy model its effect enters daily (`econ`).
+  const stub = r.normal(0, 0.05) * sign;
+  const economyStub = ctx.economy ? 0 : stub;
   // Persistence across cycles works on the previous cycle's levels (its final daily deviation is not carried).
   const pl = prev?.level;
   const random = ar(prev?.fundamentals.random, 0.3, LEVEL_SD.random, r);
@@ -85,10 +89,16 @@ const civilDayOf = (year: number) => civilToDays(year, 1, 1);
 
 function applyDev(env: Environment): void {
   const l = env.level!, d = env.dev!;
-  env.national = l.national + d.national;
+  env.national = l.national + d.national + (env.econ ?? 0);
   env.classSwing = l.classSwing.map((x, i) => x + d.classSwing[i]!);
   env.division = l.division.map((x, i) => x + d.division[i]!);
   env.state = l.state.map((x, i) => x + d.state[i]!);
+}
+
+/** Set today's economic term (logit, D+) and re-apply the current values. */
+export function setEnvironmentEconomy(env: Environment, econ: number): void {
+  env.econ = econ;
+  if (env.level && env.dev) applyDev(env);
 }
 
 /**
