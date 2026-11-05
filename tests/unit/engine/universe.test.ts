@@ -67,9 +67,9 @@ describe('Universe lifecycle', () => {
     expect(news.some((n) => n.kind === 'inauguration')).toBe(true); // LA/MS January 2016
     const deaths = news.filter((n) => n.kind === 'death').length;
     expect(deaths).toBeGreaterThan(0);
-    // Everyone the universe tracks can die: since Phase 6 that includes about 7,400 state legislators and
-    // their challengers. U.S. mortality at these ages is about 1% a year; allow well under that.
-    expect(deaths).toBeLessThan(0.01 * 4 * u.world.persons.size);
+    // Deaths in the news: officeholders and former officeholders (about 9,000 people, including 7,400 state
+    // legislators). U.S. mortality at these ages is about 1% a year; allow well under that.
+    expect(deaths).toBeLessThan(0.01 * 4 * 9500);
     const rep = integrityReport(u.db);
     expect(rep.checks.filter((c) => !c.ok)).toEqual([]);
   }, 900_000);

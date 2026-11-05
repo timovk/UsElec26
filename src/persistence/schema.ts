@@ -163,12 +163,20 @@ CREATE TABLE state_session (year INTEGER NOT NULL, state_idx INTEGER NOT NULL, l
   budget_late INTEGER NOT NULL, unified INTEGER NOT NULL, PRIMARY KEY (year, state_idx)) WITHOUT ROWID;
 `;
 
+/** Contests are looked up by year, kind and state and by the contest they feed, across a history that grows by
+ * about 6,000 contests every even year (state legislatures): without these, each lookup scans the whole table. */
+const V6 = `
+CREATE INDEX IF NOT EXISTS contest_year_kind ON contest(year, kind, state_idx);
+CREATE INDEX IF NOT EXISTS contest_next ON contest(next_contest);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, description: 'Phase 1 foundational universe schema', up: (db) => db.exec(V1) },
   { version: 2, description: 'Phase 2 elections, contests, candidacies and the results archive', up: (db) => db.exec(V2) },
   { version: 3, description: 'Phase 3 election nights (sealed count records) and certified rollups', up: (db) => db.exec(V3) },
   { version: 4, description: 'Phase 5 polls, averages, forecasts, campaigns, endorsements, debates and delegates', up: (db) => db.exec(V4) },
   { version: 5, description: 'Phase 6 political evolution: demography, the evolving electorate, economy, careers, Congress, census and districts', up: (db) => db.exec(V5) },
+  { version: 6, description: 'Phase 6 indexes for long histories: contests by year, kind and state, and by the contest they feed', up: (db) => db.exec(V6) },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

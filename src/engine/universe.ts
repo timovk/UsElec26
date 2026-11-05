@@ -546,8 +546,15 @@ export class Universe {
     const held = this.termsOf(p.id);
     const age = ageOn(p.birthDay, day);
     const title = held.length ? w.officeById.get(held[0]!.officeId)!.title : null;
-    this.news('death', `${title ? `${title} ` : ''}${fullName(p)} dies at ${age}`,
-      `${fullName(p)} (${this.partyAbbrev(p.partyId)}) died at age ${age}.${title ? ` The death leaves the office of ${title} vacant.` : ''}`, { personId: p.id });
+    // The news reports the deaths of officeholders and former officeholders, not of every candidate who ever ran
+    // (since Phase 6 that is tens of thousands of people, mostly state legislative challengers).
+    const last = title ? undefined : this.db.get<{ kind: string; title: string; state_idx: number | null }>('SELECT o.kind, o.title, o.state_idx FROM office_term t JOIN office o ON o.office_id = t.office_id WHERE t.person_id = ? ORDER BY t.start_time DESC LIMIT 1', [p.id]);
+    const stateName = last?.state_idx !== null && last?.state_idx !== undefined ? w.pack.states[last.state_idx]?.name : undefined;
+    const former = !last ? null : last.kind === 'state_senator' ? `${stateName} state senator` : last.kind === 'state_representative' ? `${stateName} state representative` : last.kind === 'us_representative' ? 'U.S. Representative' : last.title;
+    if (title || former) {
+      this.news('death', title ? `${title} ${fullName(p)} dies at ${age}` : `${fullName(p)}, former ${former}, dies at ${age}`,
+        `${fullName(p)} (${this.partyAbbrev(p.partyId)}) died at age ${age}.${title ? ` The death leaves the office of ${title} vacant.` : ''}`, { personId: p.id });
+    }
     w.pending.careers.push({ id: w.ids.career++, personId: p.id, yearFrom: daysToCivil(day).y, yearTo: null, simTime: w.time, kind: 'death', text: `Died in office at age ${age}`.replace(' in office', held.length ? ' in office' : ''), provenance: SIMULATED });
     for (const t of held) { this.endTerm(t.officeId, 'died'); this.succession(t.officeId, p); }
   }

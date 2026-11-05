@@ -170,7 +170,8 @@ boroughs, census areas and unorganized areas are present with the correct legal 
   On the real geography: worst deviation 0.57%, every district contiguous, 326 county splits across 43
   multi-district states (the real 2016 plans split 409), and mean compactness 0.87 (the 2016 plans: 0.81). All
   plans take about 19 s.
-- **Legislative plans** are drawn the same way, within ±5%. Where state law nests house districts in senate
+- **Legislative plans** are drawn the same way, targeting ±4% of equal population per seat. Multi-member
+  districts keep their seat counts (a two-seat district is drawn at twice the population). Where state law nests house districts in senate
   districts (AK, IL, IA, MN, MT, NV, OR, WY two per senate district; OH, WI three), the house plan is drawn by
   splitting each senate district.
 - **Rendering:** the national map still draws the 2016 district shapes (its House layer says when new plans are
