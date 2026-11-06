@@ -164,7 +164,9 @@ Ballots are cast over weeks (mail and early voting), not in an instant:
   January 1, 2016 baseline plus changes enacted in the universe, each with an effective date (the next January 1).
   An election follows the law in force on its day; changes never apply to elections already held. The session
   may adopt ranked-choice voting (for party primaries and for Congress or every office but President), repeal it,
-  or switch among open, semi-closed and closed primaries. Adoption has a small base rate (0.3% per state-year),
+  or switch among open, semi-closed and closed primaries. A top-two state adopts it as a top-four primary with a
+  ranked general (a ranked count of two candidates would change nothing); repealing a top-four primary restores
+  the primary system it replaced. Louisiana's November all-candidate ballot is not changed. Adoption has a small base rate (0.3% per state-year),
   rises after "spoiler" outcomes (a winner below 50% while a minor candidate took more than the margin), and
   rises again when the harmed party controls the state. Repeal is likeliest after ranked ballots overturned a
   first-round leader whose party now governs. Nothing from the real world after 2016 is imported. Ballot

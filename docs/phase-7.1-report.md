@@ -23,7 +23,9 @@ history, a "historical reforms" option is easy to add; see §8.
    - every change enacted in your universe, with the date it takes effect.
 2. **Watch laws change.** Each state's December session may:
    - adopt ranked-choice voting, for party primaries and for Congress or for every office but President;
-   - repeal it;
+   - in a top-two state (California, Washington), adopt it the Alaska way instead: a top-four primary and a
+     ranked general for every office but President, since ranking only two candidates would change nothing;
+   - repeal it (repealing a top-four primary restores the primary system it replaced);
    - switch between open, semi-closed and closed primaries.
 
    A change takes effect the next January 1 and never applies to elections already held. Adoption is rare, but
@@ -39,7 +41,8 @@ history, a "historical reforms" option is easy to add; see §8.
      gets a "Ranked-choice count" alert and status instead of a projection. The ranked-choice tabulation is
      published with the state's certification, and the contest page then shows every round.
 4. **Top-four primaries.** A state that adopts them puts every candidate on one primary ballot; the top four
-   advance to a ranked-choice general (the mechanism Alaska uses in the real world).
+   advance to a ranked-choice general (the mechanism Alaska uses in the real world). In 7.1 this is how a top-two
+   state adopts ranked-choice voting.
 5. **Nonpartisan ballots.** No party label appears on the ballot, so voters judge the candidates' ideology
    directly rather than by party. In the 2016 baseline this applies to Nebraska's legislature. Phase 7.2
    (judges) and 7.6–7.7 (county, city and school offices) will use it widely.
@@ -176,9 +179,15 @@ to the count itself.
   runoff.
 - **On election night desks do not project the ranked-choice outcome.** The count is of first choices; the
   tabulation is published at certification.
-- **Legislatures cannot yet adopt top-two or top-four primaries, nonpartisan ballots or voting-method changes**
-  (all-mail, early voting). Top-two and top-four will mostly come by ballot initiative (7.3); the others need
-  their own reform models.
+- **Legislatures cannot yet adopt top-two primaries, nonpartisan ballots or voting-method changes** (all-mail,
+  early voting), nor a top-four primary except as a top-two state's way of adopting ranked-choice voting. These
+  will mostly come by ballot initiative (7.3); the voting-method changes need their own reform model.
+- **Top-two states adopt ranked-choice voting only at the base rate, or after a presidential spoiler.** Their
+  generals have two candidates, so they cannot have a spoiler race; a top-two "lockout" (two candidates of one
+  party in November) is not yet a trigger.
+- **Universes run before the top-two fix** keep any change already made there: a top-two state that "adopted"
+  ranked-choice voting under the first 7.1 rule keeps a two-candidate ranked general (the same as plurality)
+  until it repeals it. New sessions follow the fixed rule.
 - **No legislative primaries yet** (as in Phase 6). So Nebraska's real nonpartisan top-two primary is not
   modelled: its general has one nominee per party, without party labels.
 - **The reform model is sparse and not calibrated against real data.** It is a plausible rate of change, not a
@@ -190,7 +199,11 @@ to the count itself.
 - `a696aa6` Roadmap: Phase 7 split into sub-phases 7.1–7.8.
 - `04a3513` Phase 7.1: election law over time, RCV, top-four primaries, nonpartisan ballots, reform sessions, UI
   and tests.
-- This commit: engine version 0.7.1; docs (architecture 03, 04, 05, 08 and 10, README); this report.
+- `68613b5`, `acf117f`: engine version 0.7.1; docs (architecture 03, 04, 05, 08 and 10, README); this report;
+  CI results.
+- Top-two fix (after review): a top-two state that adopts ranked-choice voting switches to a top-four primary
+  with a ranked general; repealing a top-four primary restores the previous primary system (top-four states could
+  not repeal before). The session's decision is now a separate, tested function (`decideElectionLaw`).
 
 ## 9. Next: Phase 7.2 — Statewide down-ballot offices and state courts (awaiting your approval)
 
