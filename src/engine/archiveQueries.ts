@@ -78,7 +78,9 @@ async function elections(u: Universe, year?: number): Promise<ElectionListItem[]
     contests: contests.filter((c) => c.election_id === e.election_id).map((c) => {
       const t = tops.get(c.contest_id);
       const winId = c.status === 'counting' ? projected.get(c.contest_id) ?? null : c.winner_candidacy;
-      const win = winId !== null ? candidates(u, c.contest_id).find((x) => x.candidacyId === winId) ?? null : null;
+      let win = winId !== null ? candidates(u, c.contest_id).find((x) => x.candidacyId === winId) ?? null : null;
+      // A retention vote: the outcome, named for the judge (Phase 7.2).
+      if (win && c.kind === 'retention') win = win.party === 0 ? { ...win, name: `${win.name}: not retained` } : { ...win, name: `${win.name}: retained` };
       const status = c.status === 'counting' ? (winId !== null ? 'projected' : 'counting') : c.status;
       // Facets: did the seat change party, and did an incumbent running lose?
       const held = c.office_id !== null && e.held_time !== null ? u.db.value<number>('SELECT party_id FROM office_term WHERE office_id = ? AND start_time <= ? AND (end_time IS NULL OR end_time > ?) ORDER BY start_time DESC LIMIT 1', [c.office_id, e.held_time, e.held_time]) ?? null : null;
@@ -100,6 +102,11 @@ async function contest(u: Universe, id: number): Promise<ContestDetail | null> {
   const live = vr === 'live' ? await liveContest(u, id) : null;
   const rv = vr === 'live' ? 0 : vr;
   const cands = candidates(u, id, live);
+  // A retention vote (Phase 7.2): the two options are "yes" (keep the judge) and "no".
+  if (c.kind === 'retention' && cands.length === 2) {
+    const judge = cands.find((x) => x.party !== 0) ?? cands[0]!;
+    for (const x of cands) { if (x === judge) x.name = `Yes: retain ${judge.name}`; else { x.name = 'No'; x.party = 0; } }
+  }
   const order = u.db.all<{ candidacy_id: number }>('SELECT candidacy_id FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [id]).map((r) => r.candidacy_id);
   const turnout = live ? { ballots: live.ballots, undervotes: live.undervotes, eligible: u.db.value<number>('SELECT eligible FROM contest_turnout WHERE contest_id = ? AND rev = 0', [id]) ?? 0 }
     : u.db.get<{ ballots: number; undervotes: number; eligible: number }>('SELECT ballots, undervotes, eligible FROM contest_turnout WHERE contest_id = ? AND rev = ?', [id, rv]);
@@ -148,7 +155,8 @@ async function contest(u: Universe, id: number): Promise<ContestDetail | null> {
   return {
     id, label: c.label, kind: c.kind, method: c.method, status: c.status, office: office?.title ?? null, officeKind: office?.kind ?? null,
     stateUsps: c.state_idx !== null ? w.pack.states[c.state_idx]!.usps : null, stateIdx: c.state_idx,
-    districtLabel: cd ? `${w.pack.states[cd.stateIdx]!.usps}-${cd.number === 0 ? 'AL' : String(cd.number).padStart(2, '0')}` : null,
+    districtLabel: cd ? `${w.pack.states[cd.stateIdx]!.usps}-${cd.number === 0 ? 'AL' : String(cd.number).padStart(2, '0')}` : office?.seat?.district ? `District ${office.seat.district}` : null,
+    retention: c.kind === 'retention' ? { threshold: Number(c.method.slice('retention_'.length)) || 0.5, retained: c.winner_candidacy === null ? null : c.winner_candidacy === cands.find((x) => x.party !== 0)?.candidacyId } : null,
     date: formatDay(e.day, true), electionLabel: e.label, candidates: cands, ballots: turnout?.ballots ?? null, undervotes: turnout?.undervotes ?? null, eligible: turnout?.eligible ?? null,
     ev: c.ev, seal: rev?.sha256 ?? null, revisionKind: live ? 'counting' : rev?.kind ?? null, parent: c.parent_contest, next: c.next_contest, grain: blob?.grain ?? (live ? 'live' : rv > 0 ? 'bu' : null),
     counties, modes,

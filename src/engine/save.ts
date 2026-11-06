@@ -130,6 +130,11 @@ export async function loadRows(db: Db): Promise<LoadedRows> {
     id: r.office_id as number, kind: r.kind as Office['kind'], title: r.title as string, stateIdx: r.state_idx as number | null, districtIdx: r.district_idx as number | null,
     senateClass: r.senate_class as number | null, chamberId: r.chamber_id as number | null, dept: r.dept as string | null, rank: r.rank as number,
   }));
+  // Seats of down-ballot offices, boards and courts (schema 8).
+  const byId = new Map(offices.map((o) => [o.id, o]));
+  for (const r of db.all<{ office_id: number; body: string; seat: number; district: number; cycle_year: number; term_years: number }>('SELECT * FROM office_seat')) {
+    const o = byId.get(r.office_id); if (o) o.seat = { body: r.body, number: r.seat, district: r.district, cycle: r.cycle_year, termYears: r.term_years };
+  }
   const current: Term[] = db.all<Record<string, unknown>>('SELECT * FROM office_term WHERE end_time IS NULL ORDER BY term_id').map((r) => ({
     id: r.term_id as number, officeId: r.office_id as number, personId: r.person_id as number, partyId: r.party_id as number | null, start: r.start_time as number,
     end: null, acquired: r.acquired as string, endReason: null, provenance: r.provenance as string,

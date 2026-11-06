@@ -28,11 +28,12 @@ import { CensusEngine } from './census';
 import { CareersEngine, emptyCareersState, type CareersState } from './careersEngine';
 import { GovernmentEngine, emptyGovernmentState, type GovernmentState } from './governmentEngine';
 import { materializeLegislatures } from './legislatures';
+import { courtsMonthly, courtsYearStart, fillSeat, materializeDownballot, seatVacancyResolution, type CourtHost } from './downballot';
 import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from './economyEngine';
 import { SIM_START } from '../core/time';
 
 const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
-export const ENGINE_VERSION = '0.7.1';
+export const ENGINE_VERSION = '0.7.2';
 /** How often (wall time) a long advance commits its batched writes to storage. */
 const COMMIT_INTERVAL_MS = 10000;
 
@@ -149,6 +150,7 @@ export class Universe {
     db.tx(() => u.evolution.recordBaseline(db));
     u.queue = scheduledFromDb(db);
     await u.ensureLegislatures();
+    u.ensureDownballot();
     for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
     return u;
   }
@@ -195,7 +197,7 @@ export class Universe {
       }
       for (const r of db.all<{ office_id: number; party_id: number }>('SELECT office_id, party_id FROM office_term t WHERE party_id IS NOT NULL AND term_id = (SELECT term_id FROM office_term x WHERE x.office_id = t.office_id ORDER BY start_time DESC, term_id DESC LIMIT 1)')) u.lastParty.set(r.office_id, r.party_id);
       for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
-      if (names) await u.ensureLegislatures();
+      if (names) { await u.ensureLegislatures(); u.ensureDownballot(); }
       return u;
     } catch (e) { db.close(); throw e; }
   }
@@ -279,7 +281,10 @@ export class Universe {
     const addedIds = new Set(addedAll.map((e) => e.id));
     const removed = [...removedSet].filter((id) => !addedIds.has(id));
     this.db.tx(() => {
-      for (const o of this.pendingOffices.splice(0)) this.db.run('INSERT INTO office VALUES (?,?,?,?,?,?,?,?,?)', [o.id, o.kind, o.title, o.stateIdx, o.districtIdx, o.senateClass, o.chamberId, o.dept, o.rank]);
+      for (const o of this.pendingOffices.splice(0)) {
+        this.db.run('INSERT INTO office VALUES (?,?,?,?,?,?,?,?,?)', [o.id, o.kind, o.title, o.stateIdx, o.districtIdx, o.senateClass, o.chamberId, o.dept, o.rank]);
+        if (o.seat) this.db.run('INSERT INTO office_seat VALUES (?,?,?,?,?,?)', [o.id, o.seat.body, o.seat.number, o.seat.district, o.seat.cycle, o.seat.termYears]);
+      }
       writePending(this.db, w);
       this.elections.season.flush();
       this.elections.season.invalidate();
@@ -325,7 +330,7 @@ export class Universe {
     const w = this.world;
     await this.economy.daily(day);
     const cv = daysToCivil(day);
-    if (cv.d === 1) this.careers.monthly(day);
+    if (cv.d === 1) { this.careers.monthly(day); courtsMonthly(this.courtHost, day); }
     if (cv.d === 15) await this.government.monthly(day);
     if (cv.m === 12 && cv.d === 31) this.government.yearEnd(cv.y);
     await this.elections.daily(day);
@@ -371,6 +376,35 @@ export class Universe {
     });
     if (!n) return;
     for (const ch of w.chambers) if (ch.kind === 'state_upper' || ch.kind === 'state_lower') { const first = w.offices.find((o) => o.chamberId === ch.id && (o.kind === 'state_senator' || o.kind === 'state_representative')); if (first) this.markChamber(first.id); }
+    this.commit(null);
+  }
+
+  /** Appointments, retirements and reappointments to down-ballot seats and the state courts. */
+  private get courtHost(): CourtHost {
+    return {
+      world: this.world, newPerson: (r, tier, party, st, opts) => this.newPerson(r, tier, party, st, opts), startTerm: (id, p, a) => this.startTerm(id, p, a),
+      endTerm: (id, reason) => this.endTerm(id, reason), vacate: (id, reason, res) => this.vacate(id, reason, res),
+      news: (k, h, b, refs) => this.news(k, h, b, refs), deferSql: (q, p) => { this.pendingSql.push([q, p]); },
+      career: (id, kind, text) => this.world.pending.careers.push({ id: this.world.ids.career++, personId: id, yearFrom: daysToCivil(easternDay(this.world.time)).y, yearTo: null, simTime: this.world.time, kind, text, provenance: SIMULATED }),
+    };
+  }
+
+  /**
+   * Down-ballot offices, elected boards and state courts (Phase 7.2): created once — at founding, or when a
+   * universe saved before Phase 7.2 is first opened.
+   */
+  ensureDownballot(): void {
+    const w = this.world;
+    const n = materializeDownballot({
+      world: w, newPerson: (r, tier, party, st, opts) => this.newPerson(r, tier, party, st, opts), addOffice: (o) => this.addOffice(o),
+      installTerm: (officeId, person, start, acquired) => {
+        const t: Term = { id: w.ids.term++, officeId, personId: person.id, partyId: person.partyId, start, end: null, acquired, endReason: null,
+          provenance: w.time > SIM_START + 10 ? 'created when the universe gained down-ballot offices and state courts (Phase 7.2)' : PRE_SIM };
+        w.current.set(officeId, t); w.pending.terms.push(t); return t;
+      },
+    });
+    if (!n) return;
+    for (const t of w.current.values()) if (t.partyId !== null) this.lastParty.set(t.officeId, t.partyId);
     this.commit(null);
   }
 
@@ -430,7 +464,7 @@ export class Universe {
     switch (ev.kind) {
       case 'plan_year': {
         const y = n('year');
-        await this.yearStart(y); this.census.planYear(y);
+        await this.yearStart(y); this.census.planYear(y); courtsYearStart(this.courtHost, y);
         if (y % 2 === 1) this.schedule(zonedToUtc(y, 1, 3, 13, 0, 'America/New_York'), 'new_congress', { year: y }, 3);
         if (y > 2016) this.schedule(zonedToUtc(y, 1, 21, 12, 0, 'America/New_York'), 'new_legislatures', { year: y }, 3);
         E.planYear(y); return;
@@ -442,6 +476,9 @@ export class Universe {
       case 'redistrict': await this.census.redistrict(n('census'), n('state')); return;
       case 'new_congress_districts': this.census.newCongressDistricts(n('census'), n('firstYear')); return;
       case 'filing': E.filing(n('year'), n('state')); return;
+      case 'spring_filing': E.springFiling(n('year'), n('state'), n('election'), n('primary')); return;
+      case 'spring': await E.spring(n('election')); return;
+      case 'seat_vacate': E.seatVacate(n('office'), String(d.reason ?? 'term ended')); return;
       case 'pres_filing': E.presFiling(n('year')); return;
       case 'primary': await E.primary(n('election')); return;
       case 'pres_nomination': await E.presNomination(n('election')); return;
@@ -535,8 +572,8 @@ export class Universe {
     const res = resolution ?? this.vacancyResolution(o);
     const v = { officeId, since: this.world.time, reason, resolution: res };
     this.world.vacancies.set(officeId, v); this.world.pending.vacanciesSet.push(v);
-    const delay = { president: 0, vice_president: 45, cabinet: 40, us_senator: 12, us_representative: -1, governor: 0, lt_governor: 30, attorney_general: 30,
-      secretary_of_state: 30, congress_leader: 10, state_leg_leader: 10, state_senator: 30, state_representative: 30 }[o.kind];
+    const delay = ({ president: 0, vice_president: 45, cabinet: 40, us_senator: 12, us_representative: -1, governor: 0, lt_governor: 30, attorney_general: 30,
+      secretary_of_state: 30, congress_leader: 10, state_leg_leader: 10, state_senator: 30, state_representative: 30, justice: 60, appellate_judge: 50 } as Record<string, number>)[o.kind] ?? 30;
     if (o.kind === 'us_representative') { this.elections.houseSpecial(officeId); return; }
     if (o.kind === 'us_senator') this.elections.senateSpecialNeeded(officeId, reason);
     if (o.kind === 'us_senator' && STATES_2016[this.world.pack.states[o.stateIdx!]!.usps]?.senateVacancy === 'special_only') return;
@@ -554,7 +591,7 @@ export class Universe {
       case 'cabinet': return 'Presidential nomination and Senate confirmation';
       case 'congress_leader': case 'state_leg_leader': return 'Election by the party caucus';
       case 'state_senator': case 'state_representative': return 'Interim appointment; the seat is filled at the next regular election';
-      default: return 'Appointment by the Governor';
+      default: return o.seat ? seatVacancyResolution(this.world, o) : 'Appointment by the Governor';
     }
   }
 
@@ -622,6 +659,7 @@ export class Universe {
     const presParty = presTerm?.partyId ?? PARTY_D;
     const govParty = (s: number) => { const g = w.offices.find((x) => x.kind === 'governor' && x.stateIdx === s); return (g && w.current.get(g.id)?.partyId) || PARTY_D; };
     const r = Rng.stream(w.seed, 'fill', officeId, w.time);
+    if (o.seat) { fillSeat(this.courtHost, o, r); return; }
     let party = presParty, tier: Person['tier'] = 'B', stateIdx = o.stateIdx ?? 0, how: string;
     switch (o.kind) {
       case 'vice_president': case 'cabinet': {

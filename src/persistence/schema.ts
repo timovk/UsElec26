@@ -185,6 +185,18 @@ CREATE INDEX rcv_round_contest ON rcv_round(contest_id, rev, round);
 ALTER TABLE contest ADD COLUMN nonpartisan INTEGER NOT NULL DEFAULT 0;
 `;
 
+/**
+ * Phase 7.2: seats of down-ballot offices, elected boards and state courts. `office_seat` names the body (its key
+ * in rules/downballot2016), the seat number, the district it is elected from (1-based; 0 statewide) and its cycle:
+ * an election year (on appointed courts, the year a term ends) and the term length. The cycle moves when an
+ * appointee's first election falls in a different year.
+ */
+const V8 = `
+CREATE TABLE office_seat (office_id INTEGER PRIMARY KEY, body TEXT NOT NULL, seat INTEGER NOT NULL, district INTEGER NOT NULL,
+  cycle_year INTEGER NOT NULL, term_years INTEGER NOT NULL);
+CREATE INDEX office_seat_body ON office_seat(body);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, description: 'Phase 1 foundational universe schema', up: (db) => db.exec(V1) },
   { version: 2, description: 'Phase 2 elections, contests, candidacies and the results archive', up: (db) => db.exec(V2) },
@@ -193,6 +205,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 5, description: 'Phase 6 political evolution: demography, the evolving electorate, economy, careers, Congress, census and districts', up: (db) => db.exec(V5) },
   { version: 6, description: 'Phase 6 indexes for long histories: contests by year, kind and state, and by the contest they feed', up: (db) => db.exec(V6) },
   { version: 7, description: 'Phase 7.1 election law over time, ranked-choice rounds and nonpartisan ballots', up: (db) => db.exec(V7) },
+  { version: 8, description: 'Phase 7.2 seats of down-ballot offices, boards and state courts', up: (db) => db.exec(V8) },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -1,4 +1,5 @@
 /** Read-only queries over the universe (never mutate). Every number comes from simulation state. */
+import { OFFICE_LABEL } from '../institutions/offices';
 import { ageOn, easternDay, formatDay, isoDay } from '../core/time';
 import { fullName, PARTY_D, PARTY_R, type Office, type Person } from '../institutions/model';
 import { NONE16 } from '../geo/pack';
@@ -19,7 +20,7 @@ export function runQuery(u: Universe, q: Query): unknown {
     case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
     case 'nights': case 'nightMeta': case 'nightPayload': case 'nightContext': case 'nightBaseline': case 'nightSurvey': case 'nightCalls': return runNightQuery(u, q);
     case 'seasonYears': case 'seasonOverview': case 'seasonRace': case 'pollList': case 'pollster': case 'forecastRun': case 'forecastCalibration': case 'primaries': return runSeasonQuery(u, q);
-    case 'economy': case 'congress': case 'bill': case 'legislatures': case 'census': case 'districtMap': case 'electionLaw': return runGovernmentQuery(u, q);
+    case 'economy': case 'congress': case 'bill': case 'legislatures': case 'census': case 'districtMap': case 'electionLaw': case 'stateOffices': return runGovernmentQuery(u, q);
     case 'desk': return desk(u);
     case 'geoMeta': return geoMeta(u);
     case 'mapLayer': return mapLayer(u, q.layer, q.metric);
@@ -139,7 +140,7 @@ function entity(u: Universe, layer: MapDtoLayer, idx: number): EntityDetail {
   const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
   const lean = (l: { dVotes: Float64Array; votes: Float64Array }, i: number) => { const m = leanMargin(l, i); return `${m >= 0 ? 'D' : 'R'}+${Math.abs(m).toFixed(1)}`; };
   const officialsOf = (stateIdx: number, cds: number[]): OfficeHolderDto[] => w.offices
-    .filter((o) => (o.stateIdx === stateIdx && ['us_senator', 'governor', 'lt_governor', 'attorney_general', 'secretary_of_state'].includes(o.kind)) || (o.kind === 'us_representative' && cds.includes(o.districtIdx!)))
+    .filter((o) => (o.stateIdx === stateIdx && ['us_senator', 'governor', 'lt_governor', 'attorney_general', 'secretary_of_state', 'treasurer', 'auditor', 'superintendent', 'insurance_commissioner', 'agriculture_commissioner', 'labor_commissioner', 'land_commissioner', 'other_statewide'].includes(o.kind)) || (o.kind === 'us_representative' && cds.includes(o.districtIdx!)))
     .sort((a, b) => a.rank - b.rank).map((o) => holder(u, o));
   if (layer === 'state') {
     const s = w.pack.states[idx]!;
@@ -235,10 +236,10 @@ function calendar(u: Universe): CalendarEntry[] {
   const today = easternDay(u.world.time);
   const rows = u.db.all<{ day: number; kind: string; n: number; states: number }>(
     "SELECT day, kind, COUNT(*) n, COUNT(DISTINCT state_idx) states FROM election WHERE status = 'scheduled' AND day >= ? GROUP BY day, kind ORDER BY day LIMIT 40", [today]);
-  const label = (k: string, _n: number) => ({ general: 'General election', primary: 'Primary elections', primary_runoff: 'Primary runoffs', general_runoff: 'Runoff elections', pres_nomination: 'Presidential nominating primaries', special: 'Special election' } as Record<string, string>)[k] ?? k;
+  const label = (k: string, _n: number) => ({ general: 'General election', primary: 'Primary elections', primary_runoff: 'Primary runoffs', general_runoff: 'Runoff elections', pres_nomination: 'Presidential nominating primaries', special: 'Special election', spring: 'Spring election', spring_primary: 'Spring primary' } as Record<string, string>)[k] ?? k;
   return rows.map((r) => {
     const contests = u.db.all<{ kind: string; n: number }>("SELECT o.kind, COUNT(*) n FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id WHERE e.day = ? AND e.kind = ? GROUP BY o.kind", [r.day, r.kind]);
-    const nice: Record<string, string> = { president: 'President', us_senator: 'U.S. Senate', us_representative: 'U.S. House', governor: 'Governor', lt_governor: 'Lieutenant Governor', attorney_general: 'Attorney General', secretary_of_state: 'Secretary of State' };
+    const nice: Record<string, string> = { ...OFFICE_LABEL, lt_governor: 'Lieutenant Governor', state_senator: 'State Senate', state_representative: 'State House' };
     return { date: isoDay(r.day), dayNumber: r.day, label: `${label(r.kind, r.n)}${r.kind === 'general' ? ` (${r.states} states)` : r.states > 1 ? ` (${r.states} states)` : ''}`,
       contests: contests.filter((c) => c.kind).map((c) => ({ label: nice[c.kind] ?? c.kind, count: c.n })), status: r.kind === 'general' ? 'Scheduled' : 'Scheduled' };
   });

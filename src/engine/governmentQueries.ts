@@ -4,13 +4,15 @@
  * legislatures, the census and apportionment, and district plans. Read-only.
  */
 import { decodeBundle } from '../core/codec';
-import { daysToCivil, easternDay, formatDay } from '../core/time';
+import { ageOn, daysToCivil, easternDay, formatDay } from '../core/time';
 import { NONE16 } from '../geo/pack';
 import { fullName, PARTY_D, PARTY_R, type Office } from '../institutions/model';
 import type { DistrictKind } from './districts';
 import { sldLean } from './legislatures';
 import { unitsPerMeter } from './census';
-import type { BillDto, BillRowDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GovernmentQuery, LegislaturesDto } from './protocol';
+import type { BillDto, BillRowDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GovernmentQuery, LegislaturesDto, StateOfficesDto } from './protocol';
+import { DOWNBALLOT_2016, bodyName, elected, seatUp, type BodyDef } from '../rules/downballot2016';
+import { appointerText, legislatureName, seatBody } from './downballot';
 import { describeLaw } from '../rules/electionLaw';
 import type { Universe } from './universe';
 import { leanMargin } from './world';
@@ -25,6 +27,7 @@ export async function runGovernmentQuery(u: Universe, q: GovernmentQuery): Promi
     case 'census': return census(u);
     case 'districtMap': return districtMap(u, q.state, q.plan, q.year);
     case 'electionLaw': return electionLaw(u);
+    case 'stateOffices': return stateOffices(u, q.state);
   }
 }
 
@@ -218,4 +221,52 @@ function electionLaw(u: Universe): ElectionLawDto {
     changes: [...changes].reverse().map((c) => ({ stateIdx: c.stateIdx, usps: w.pack.states[c.stateIdx]!.usps, name: w.pack.states[c.stateIdx]!.name, enacted: c.enacted,
       effective: formatDay(c.effective, true), source: c.source, summary: c.summary, inForce: c.effective <= day })),
   };
+}
+
+/** How a body's members are chosen, in words. */
+export function selectionText(b: BodyDef, usps: string): string {
+  const leg = legislatureName(usps);
+  switch (b.selection) {
+    case 'partisan': return b.noPrimary ? 'Partisan elections (nominees chosen by party convention)' : 'Partisan elections';
+    case 'party_np': return 'Party nominees on a ballot without party labels';
+    case 'nonpartisan': return b.spring ? 'Nonpartisan elections in the spring' : b.np === 'majority' ? 'Nonpartisan elections (a majority on primary day wins outright)' : b.np === 'final' ? 'Nonpartisan elections, decided on primary day' : b.np === 'runoff' ? 'Nonpartisan elections (a runoff without a majority)' : 'Nonpartisan elections';
+    case 'retention': return `Appointed by ${appointerText(b, leg)}; then yes/no retention elections${b.retention && b.retention !== 0.5 ? ` (${Math.round(100 * b.retention)}% yes needed)` : ''}`;
+    case 'partisan_retention': return `Partisan election to a first term; retention elections after (${Math.round(100 * (b.retention ?? 0.5))}% yes needed)`;
+    case 'appointed': return `Appointed by ${appointerText(b, leg)}`;
+    case 'legislature': return `Elected by the ${leg}`;
+  }
+}
+
+function stateOffices(u: Universe, state?: number): StateOfficesDto {
+  const w = u.world, day = today(u), year = daysToCivil(day).y;
+  const stateIdx = state ?? w.pack.states.find((s) => s.usps === 'TX')?.idx ?? 0;
+  const st = w.pack.states[stateIdx]!;
+  const groupOf = (b: BodyDef): 'executive' | 'boards' | 'courts' => (b.kind === 'justice' || b.kind === 'appellate_judge' ? 'courts' : b.seats > 1 || b.kind === 'commissioner' || b.kind === 'education_board' || b.kind === 'regent' ? 'boards' : 'executive');
+  const comp = (offs: { party: number | null }[]) => { const m = new Map<number, number>(); for (const x of offs) m.set(x.party ?? 0, (m.get(x.party ?? 0) ?? 0) + 1); return [...m].map(([party, seats]) => ({ party, seats })).sort((a, b) => b.seats - a.seats || a.party - b.party); };
+  const nextUp = (o: { seat?: { cycle: number; termYears: number } }, b: BodyDef): string | null => {
+    if (!o.seat || o.seat.termYears <= 0) return b.retireAt ? `serves to age ${b.retireAt}` : 'life tenure';
+    for (let y = year; y < year + 16; y++) if (seatUp(o.seat.cycle, o.seat.termYears, y)) return elected(b) ? `${y}` : `term ends ${y}`;
+    return null;
+  };
+  const bodies = (DOWNBALLOT_2016[st.usps] ?? []).map((b) => {
+    const offs = w.offices.filter((o) => o.stateIdx === stateIdx && o.seat?.body === b.key && seatBody(w, o) === b);
+    const members = offs.map((o) => {
+      const t = w.current.get(o.id), p = t ? w.persons.get(t.personId) : undefined;
+      const seat = b.seats === 1 ? '' : `${b.districts ? (o.seat!.district ? `District ${o.seat!.district}` : 'At large') : `Seat ${o.seat!.number}`}${b.districts && (b.perDistrict?.some((n) => n > 1)) ? `, seat ${o.seat!.number}` : ''}`;
+      return { officeId: o.id, title: o.title, seat, personId: p?.id ?? null, name: p ? fullName(p) : null, party: t?.partyId ?? null, since: t?.start ?? null, acquired: t?.acquired ?? null, next: nextUp(o, b), age: p ? ageOn(p.birthDay, day) : null };
+    });
+    const notes: string[] = [];
+    if (b.termYears > 0) notes.push(`${b.termYears}-year terms`);
+    if (b.retireAt) notes.push(`mandatory retirement at ${b.retireAt}`);
+    if (b.districts) notes.push(`${b.districts} districts${b.atLarge ? ` and ${b.atLarge} at large` : ''} (drawn by the simulation)`);
+    if (b.spring) notes.push('elected in April');
+    return { key: b.key, name: bodyName(b, st.name), group: groupOf(b), selection: selectionText(b, st.usps), seats: b.seats, termYears: b.termYears, notes, composition: comp(members), members };
+  });
+  const summary = w.pack.states.map((s) => {
+    const defs = DOWNBALLOT_2016[s.usps] ?? [];
+    const sc = defs.find((b) => b.key === 'supreme');
+    const seats = (pred: (b: BodyDef) => boolean) => comp(w.offices.filter((o) => o.stateIdx === s.idx && o.seat && pred(seatBody(w, o)!)).map((o) => ({ party: w.current.get(o.id)?.partyId ?? null })));
+    return { stateIdx: s.idx, usps: s.usps, name: s.name, court: seats((b) => b.kind === 'justice'), courtSelection: sc ? selectionText(sc, s.usps) : '—', executive: seats((b) => groupOf(b) === 'executive') };
+  }).filter((x) => x.court.length || x.executive.length);
+  return { stateIdx, states: w.pack.states.filter((s) => DOWNBALLOT_2016[s.usps]?.length).map((s) => ({ stateIdx: s.idx, usps: s.usps, name: s.name })), bodies, summary };
 }

@@ -19,12 +19,12 @@ import { Analyst } from '../night/Analyst';
 
 const STATUS_LABEL = ['Polls open', 'Too early to call', 'Too close to call', 'Projected', 'Projection withdrawn', 'Runoff projected'];
 const SHORT_STATUS = ['Polls open', 'Too early', 'Too close', 'Projected', 'Withdrawn', 'Runoff'];
-const OFFICES: { id: string; label: string }[] = [{ id: 'president', label: 'President' }, { id: 'us_senator', label: 'Senate' }, { id: 'governor', label: 'Governor' }, { id: 'us_representative', label: 'House' }, { id: 'other', label: 'Other statewide' }];
+const OFFICES: { id: string; label: string }[] = [{ id: 'president', label: 'President' }, { id: 'us_senator', label: 'Senate' }, { id: 'governor', label: 'Governor' }, { id: 'us_representative', label: 'House' }, { id: 'other', label: 'Other statewide' }, { id: 'justice', label: 'Supreme courts' }];
 const PALE: Record<number, string> = { 1: '#7ea3ea', 2: '#ec8a96', 3: '#e9c867', 4: '#7cc59a', 5: '#b3b7c2' };
 const VIEWS = [{ id: 'broadcast', label: 'Broadcast' }, { id: 'desk', label: 'Desk' }, { id: 'analyst', label: 'Analyst' }] as const;
 type View = typeof VIEWS[number]['id'];
 
-const ofOffice = (o: string) => (o === 'other' ? (x: NightMetaDto['races'][number]) => !['president', 'us_senator', 'governor', 'us_representative'].includes(x.office) : (x: NightMetaDto['races'][number]) => x.office === o);
+const ofOffice = (o: string) => (o === 'other' ? (x: NightMetaDto['races'][number]) => !['president', 'us_senator', 'governor', 'us_representative', 'justice'].includes(x.office) : (x: NightMetaDto['races'][number]) => x.office === o);
 
 const NO_NIGHT_NOTE = 'General elections, special elections and general runoffs are counted on election night. Primaries are still decided when their polls close (their nights arrive with Phase 5).';
 

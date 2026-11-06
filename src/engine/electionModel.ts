@@ -20,16 +20,25 @@ export interface CandidacyRow { candidacy_id: number; contest_id: number; person
 export function officeWeight(kind: string): number {
   return ({ president: 1, us_senator: 0.95, us_representative: 0.9, governor: 0.75, lt_governor: 0.85, attorney_general: 0.85, secretary_of_state: 0.85 } as Record<string, number>)[kind] ?? 0.85;
 }
-/** Undervote propensity by office (logit of abstaining relative to voting). */
+/** Undervote propensity by office (logit of abstaining relative to voting). Down-ballot races lose more voters (Phase 7.2). */
 export function officeAbstain(kind: string): number {
-  return ({ president: -4.2, us_senator: -3.5, us_representative: -3.0, governor: -3.7, lt_governor: -2.4, attorney_general: -2.3, secretary_of_state: -2.3 } as Record<string, number>)[kind] ?? -2.5;
+  return ({ president: -4.2, us_senator: -3.5, us_representative: -3.0, governor: -3.7, lt_governor: -2.4, attorney_general: -2.3, secretary_of_state: -2.3,
+    treasurer: -2.6, auditor: -2.5, superintendent: -2.5, insurance_commissioner: -2.4, agriculture_commissioner: -2.4, labor_commissioner: -2.3, land_commissioner: -2.4,
+    other_statewide: -2.2, commissioner: -2.1, education_board: -1.9, regent: -1.8, justice: -2.1, appellate_judge: -1.9 } as Record<string, number>)[kind] ?? -2.5;
 }
-const INCUMBENCY: Record<string, number> = { president: 0.08, us_senator: 0.15, us_representative: 0.22, governor: 0.12, lt_governor: 0.12, attorney_general: 0.14, secretary_of_state: 0.14 };
+const INCUMBENCY: Record<string, number> = { president: 0.08, us_senator: 0.15, us_representative: 0.22, governor: 0.12, lt_governor: 0.12, attorney_general: 0.14, secretary_of_state: 0.14,
+  treasurer: 0.14, auditor: 0.14, superintendent: 0.14, insurance_commissioner: 0.14, agriculture_commissioner: 0.15, labor_commissioner: 0.14, land_commissioner: 0.14,
+  other_statewide: 0.14, commissioner: 0.12, education_board: 0.12, regent: 0.12, justice: 0.22, appellate_judge: 0.22 };
 
 const TIER: Partial<Record<OfficeKind, number>> = {
   president: 1, vice_president: 0.92, governor: 0.86, us_senator: 0.86, cabinet: 0.7, lt_governor: 0.64, attorney_general: 0.64,
   secretary_of_state: 0.6, us_representative: 0.62, state_leg_leader: 0.5, congress_leader: 0.62,
+  treasurer: 0.55, auditor: 0.52, superintendent: 0.5, insurance_commissioner: 0.5, agriculture_commissioner: 0.5, labor_commissioner: 0.46, land_commissioner: 0.5,
+  other_statewide: 0.44, commissioner: 0.45, education_board: 0.36, regent: 0.36, justice: 0.62, appellate_judge: 0.52,
 };
+
+/** Retention elections (Phase 7.2): the yes vote's baseline appeal, and how much distance from the judge's views costs it. */
+const RETAIN_BASE = 0.85, RETAIN_FIT = 0.1;
 
 /** Candidate quality in [0,1]: experience (highest office held now or background) plus campaign skills. */
 export function candidateQuality(p: Person, heldKinds: OfficeKind[], backgroundTier: number): number {
@@ -55,6 +64,14 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
   // A nonpartisan ballot (Phase 7.1) carries no party label: no partisan weight (docs/architecture/04 §4.5), and
   // voters judge each candidate's visible ideology directly rather than relative to a party's platform.
   const nonpartisan = !primary && c.nonpartisan === 1;
+  // A retention vote: "yes" (keep the judge) against "no". Voters far from the judge's visible views vote no more often.
+  if (c.kind === 'retention') {
+    const judge = cands[0]!.person, cand = cands[0]!.cand;
+    const yes = { partySign: 0, base: RETAIN_BASE + 0.4 * (cand.quality - 0.5) + r.normal(0, 0.22), minorAppeal: 0, homeCounty: judge.homeCounty ?? -1, homeState: judge.homeState === stateIdx,
+      classFit: Array.from({ length: N_CLASS }, (_, h) => -RETAIN_FIT * dist2(ctx.classCentroids[h]!, judge.traits.ideology)) };
+    const no = { partySign: 0, base: 0, minorAppeal: 0, homeCounty: -1, homeState: false, classFit: new Array<number>(N_CLASS).fill(0) };
+    return { id: c.contest_id, cd: -1, geo: 0, weight: 0, abstain: officeAbstain(officeKind) + 1.3, options: [yes, no] };
+  }
   const options = cands.map(({ cand, person }) => {
     const party = cand.party_id;
     const major = party === PARTY_D || party === PARTY_R;

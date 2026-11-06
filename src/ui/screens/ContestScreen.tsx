@@ -9,6 +9,7 @@ const COUNT_STATUS = ['Polls open', 'Too early to call', 'Too close to call', 'P
 const METHOD_LABEL: Record<string, string> = {
   rcv: 'Ranked-choice voting', top_two: 'Top-two primary', top_four: 'Top-four primary', majority: 'Majority required (runoff otherwise)',
   jungle: 'All-candidate ballot, majority required', top_two_general: 'General between the top-two finishers',
+  np_majority: 'Nonpartisan primary (a majority wins outright)', np_final: 'Nonpartisan election, decided on primary day',
 };
 
 export function ContestScreen({ id }: { id: number }) {
@@ -22,7 +23,7 @@ export function ContestScreen({ id }: { id: number }) {
       <div className="kicker" style={{ marginTop: 8 }}>{c.electionLabel} · {c.date}</div>
       <h1 className="screen-title">{c.label.replace(/^\d{4} /, '')}</h1>
       <p className="screen-sub">{c.office ?? 'President of the United States'}{c.districtLabel ? ` · ${c.districtLabel}` : ''}{c.ev ? ` · ${c.ev} electoral votes` : ''}
-        {METHOD_LABEL[c.method] && <> · {METHOD_LABEL[c.method]}</>}{c.nonpartisan && <> · nonpartisan ballot</>}
+        {METHOD_LABEL[c.method] && <> · {METHOD_LABEL[c.method]}</>}{c.retention && <> · Retention vote: {Math.round(100 * c.retention.threshold)}% yes needed to keep the seat</>}{c.nonpartisan && !c.retention && <> · nonpartisan ballot</>}
         {c.nightId !== null && !c.counting && <> · <a href={`#/night/${c.nightId}`}>★ Watch this election night</a></>}
         {c.parent && <> · <a href={`#/contest/${c.parent}`}>first round</a></>}{c.next && <> · <a href={`#/contest/${c.next}`}>{c.status === 'runoff' ? 'runoff' : 'next round'}</a></>}</p>
       <div className="grid cols-2">
@@ -39,11 +40,11 @@ export function ContestScreen({ id }: { id: number }) {
             <thead><tr><th>Candidate</th><th>Party</th><th>Votes</th><th>Share</th><th /></tr></thead>
             <tbody>{c.candidates.map((x) => (
               <tr key={x.candidacyId}>
-                <td><a href={`#/people/${x.personId}`} style={{ color: 'inherit', fontWeight: 600 }}>{x.name}</a>{x.incumbent && <span className="badge" style={{ marginLeft: 6 }}>Incumbent</span>}{x.runningMate && <div className="tiny muted">with {x.runningMate}</div>}</td>
-                <td><PartyBadge party={x.party} /></td>
+                <td>{c.retention && x.party === 0 ? <strong>{x.name}</strong> : <a href={`#/people/${x.personId}`} style={{ color: 'inherit', fontWeight: 600 }}>{x.name}</a>}{x.incumbent && <span className="badge" style={{ marginLeft: 6 }}>Incumbent</span>}{x.runningMate && <div className="tiny muted">with {x.runningMate}</div>}</td>
+                <td>{c.retention && x.party === 0 ? '' : <PartyBadge party={x.party} />}</td>
                 <td className="num">{x.votes !== null ? fmtInt(x.votes) : '—'}</td>
                 <td className="num" style={{ width: 160 }}>{x.share !== null && <div className="row"><div style={{ flex: 1, height: 8, background: 'var(--bg-3)', borderRadius: 4 }}><div style={{ width: `${100 * x.share}%`, height: '100%', background: PARTY_COLORS[x.party], borderRadius: 4 }} /></div>{(100 * x.share).toFixed(1)}%</div>}</td>
-                <td className="small">{x.status === 'won' ? '✔ Won' : x.status === 'advanced' ? 'Advanced' : ''}</td>
+                <td className="small">{c.retention ? (x.status === 'won' ? (x.party === 0 ? '✔ Not retained' : '✔ Retained') : '') : x.status === 'won' ? '✔ Won' : x.status === 'advanced' ? 'Advanced' : ''}</td>
               </tr>
             ))}</tbody>
           </table>

@@ -4,6 +4,9 @@
  */
 import type { SimTime } from '../core/time';
 import type { Story } from '../counting/record';
+/** Display labels of office kinds (shared with the engine's news and queries). */
+export { OFFICE_LABEL } from '../institutions/offices';
+
 export type { Story, StoryAlert, StoryLine } from '../counting/record';
 
 export type AdvanceTargetMsg = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number } | { kind: 'nextElection' };
@@ -297,6 +300,8 @@ export interface ContestDetail {
   revisions: { rev: number; kind: string; time: SimTime }[];
   /** The ballot carried no party labels (Phase 7.1). */
   nonpartisan: boolean;
+  /** A judge's retention vote (Phase 7.2): the share of yes votes needed, and the outcome once decided. */
+  retention: { threshold: number; retained: boolean | null } | null;
   /** Ranked-choice tabulation, round by round, once the contest is decided (Phase 7.1). */
   rcv: { round: number; candidates: { candidacyId: number; name: string; party: number; votes: number; status: string }[]; exhausted: number }[] | null;
 }
@@ -330,7 +335,21 @@ export type GovernmentQuery =
   | { kind: 'legislatures' }
   | { kind: 'census' }
   | { kind: 'districtMap'; state: number; plan: 'cd' | 'sldu' | 'sldl'; year: number }
-  | { kind: 'electionLaw' };
+  | { kind: 'electionLaw' }
+  | { kind: 'stateOffices'; state?: number };
+
+/** A state's down-ballot offices, elected boards and courts (Phase 7.2), and a national summary of who holds them. */
+export interface StateOfficesDto {
+  stateIdx: number;
+  states: { stateIdx: number; usps: string; name: string }[];
+  bodies: {
+    key: string; name: string; group: 'executive' | 'boards' | 'courts'; selection: string; seats: number; termYears: number; notes: string[];
+    composition: { party: number; seats: number }[];
+    members: { officeId: number; title: string; seat: string; personId: number | null; name: string | null; party: number | null; since: SimTime | null; acquired: string | null; next: string | null; age: number | null }[];
+  }[];
+  /** Per state: seats on its supreme court(s) and its down-ballot executive offices by party (0 = vacant). */
+  summary: { stateIdx: number; usps: string; name: string; court: { party: number; seats: number }[]; courtSelection: string; executive: { party: number; seats: number }[] }[];
+}
 
 /** Each state's election law today and every change enacted in the universe (Phase 7.1). */
 export interface ElectionLawDto {

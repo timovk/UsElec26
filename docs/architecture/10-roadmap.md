@@ -132,7 +132,7 @@ Stopping after 7.5 gives a lean Phase 7. Estimates are working time.
 | Sub-phase | Deliverables | Estimate |
 |---|---|---|
 | **7.1 Election rules over time** | Jurisdiction rules with effective dates, never applied before them; ranked-choice voting (rankings from the voter model, round-by-round tabulation with exhausted ballots, first choices on election night and the full tabulation later, as in Maine); nonpartisan contests; Alaska's top-four from 2022; the existing top-two, jungle and runoff rules moved onto the framework. Tests: RCV known-answer tests, no retroactive application. | 5–7 h |
-| **7.2 Statewide down-ballot and state courts** | Treasurer, auditor/comptroller, superintendent, insurance, agriculture and labor commissioners, utility commissions (per each state's rules); state supreme and appellate courts: partisan, nonpartisan and retention elections. | 4–5 h |
+| **7.2 Statewide down-ballot, boards and state courts** | Treasurer, auditor/comptroller, superintendent, insurance, agriculture and labor commissioners, utility commissions (per each state's rules); elected state boards of education and university regents; state supreme courts and statewide appellate courts: partisan, nonpartisan and retention elections, appointments and mandatory retirement. | 6–8 h |
 | **7.3 Ballot measures** | Statewide initiatives and referendums, decided by voters' issue positions rather than party; topics from the platforms and the electorate's issues; archive and election-night coverage with desk calls. | 4–5 h |
 | **7.4 Multi-member and floterial districts** | Real seat counts per legislative district; "vote for N" ballots in the kernel with top-N winners; New Hampshire floterial districts. | 3–5 h |
 | **7.5 Town and Alaska reporting** | Maps, results pages and election night by New England town and Alaska House district (the count already uses these reporting units). | 3–4 h |
@@ -141,6 +141,16 @@ Stopping after 7.5 gives a lean Phase 7. Estimates are working time.
 | **7.8 Precinct map layer** | Results at synthetic-precinct level on the night and archive maps (WebGL2). | 4–6 h |
 
 **Live primary nights** (deferred from Phase 5) are not part of Phase 7; they come at a later date.
+
+### Future ideas (not scheduled)
+Ideas agreed for later, outside the numbered phases until they are scheduled:
+- **Live primary nights** (deferred from Phase 5): presidential and state primary nights counted and broadcast
+  like the general election.
+- **Regional appellate courts** (from 7.2): intermediate appellate courts elected by region (Texas's 14 courts of
+  appeals, Ohio's 12 appellate districts, Washington's three divisions and the like). 7.2 covers supreme courts
+  and the appellate courts elected statewide.
+- **Court rulings** (from 7.2): courts deciding cases that matter to the simulation (redistricting suits,
+  election-law cases), and rulings that spark campaigns against a justice at a retention election.
 
 ### Phase 8: Advanced historical archive
 Deliverables: rich county histories, long-term trends, interactive timelines, animated historical maps,

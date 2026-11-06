@@ -13,7 +13,9 @@ import type { World } from './world';
 import { cdCode, cdSpoken } from '../geo/pack';
 
 const yearOf = (t: SimTime) => daysToCivil(easternDay(t)).y;
-const OFF: Record<string, string> = { president: 'President', us_senator: 'Senate', us_representative: 'House', governor: 'Governor', lt_governor: 'Lt. Governor', attorney_general: 'Attorney General', secretary_of_state: 'Secretary of State' };
+const OFF: Record<string, string> = { president: 'President', us_senator: 'Senate', us_representative: 'House', governor: 'Governor', lt_governor: 'Lt. Governor', attorney_general: 'Attorney General', secretary_of_state: 'Secretary of State',
+  treasurer: 'Treasurer', auditor: 'Auditor', superintendent: 'Superintendent', insurance_commissioner: 'Insurance', agriculture_commissioner: 'Agriculture', labor_commissioner: 'Labor',
+  land_commissioner: 'Land', other_statewide: 'Statewide', justice: 'Supreme Court' };
 
 /** Short race label used on screen ("PA Senate", "NC-9", "ME President · ME-2"). */
 export function raceShort(db: Db, w: World, r: NightRecord['races'][number]): string {

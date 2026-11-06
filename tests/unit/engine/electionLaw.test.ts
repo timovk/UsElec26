@@ -204,7 +204,8 @@ describe('election law in a universe (fixture)', () => {
     const neLeg = rows("SELECT c.nonpartisan FROM contest c JOIN office o ON o.office_id = c.office_id WHERE c.state_idx = ? AND o.kind = 'state_senator' AND c.kind = 'general'", [ne]);
     expect(neLeg.length).toBeGreaterThan(0);
     expect(neLeg.every((c) => Number(c.nonpartisan) === 1)).toBe(true);
-    expect(Number(db.value("SELECT COUNT(*) FROM contest WHERE nonpartisan = 1 AND state_idx != ?", [ne]))).toBe(0);
+    // Outside Nebraska, legislative ballots carry party labels (courts and some boards are nonpartisan since Phase 7.2).
+    expect(Number(db.value("SELECT COUNT(*) FROM contest c JOIN office o ON o.office_id = c.office_id WHERE c.nonpartisan = 1 AND c.state_idx != ? AND o.kind IN ('state_senator','state_representative')", [ne]))).toBe(0);
 
     // The states' own sessions: a century of hypothetical sessions on this history (all far in the future).
     const before = w.law.history().length, news: string[] = [];

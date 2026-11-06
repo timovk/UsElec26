@@ -11,6 +11,7 @@
  *     used only when their facts exist; numbers are rounded as people speak; recent templates are avoided.
  *  4. Validation — a line with any unbound slot is dropped, never shown.
  */
+import { raceWord } from '../institutions/offices';
 import { Rng } from '../core/rng';
 import { formatTime } from '../core/time';
 import { surname } from '../core/names';
@@ -261,7 +262,7 @@ export function buildStory(rec: Omit<NightRecord, 'story'>, ctx: StoryContext): 
   const ballots = (r: number) => { let s = 0; for (let j = 0; j < rec.races[r]!.k; j++) s += votes[r]![j]!; return s; };
   const marginPts = (r: number) => { const o = order(r), v = valid(r); return v > 0 && o.length > 1 ? (100 * (votes[r]![o[0]!]! - votes[r]![o[1]!]!)) / v : 100; };
   const pctIn = (r: number) => (expected[r]! > 0 ? Math.min(1, ballots(r) / expected[r]!) : 0);
-  const officeWord = (o: string, label: string) => (o === 'us_senator' ? 'Senate race' : o === 'governor' ? "governor's race" : o === 'lt_governor' ? "lieutenant governor's race" : o === 'attorney_general' ? 'attorney general race' : o === 'secretary_of_state' ? 'secretary of state race' : `${label} race`);
+  const officeWord = (o: string, label: string) => { const w = raceWord(o, label); return w === 'race' ? `${label} race` : w; };
   const raceName = (r: number) => {
     const x = X(r);
     if (x.office === 'president') return x.cd >= 0 ? `the presidential vote in ${x.district ?? x.short}` : x.stateName;

@@ -9,13 +9,13 @@ import { PARTY_COLORS, PartyBadge } from '../components/common';
 import { go } from '../app/router';
 import { useQuery } from './Desk';
 import { formatTime } from '../../core/time';
+import { OFFICE_LABEL } from '../../engine/protocol';
 
 type Row = ElectionListItem['contests'][number] & { election: ElectionListItem };
 type SortKey = 'date' | 'contest' | 'winner' | 'margin';
 
-const OFFICE_LABEL: Record<string, string> = { president: 'President', us_senator: 'U.S. Senate', us_representative: 'U.S. House', governor: 'Governor', lt_governor: 'Lt. Governor', attorney_general: 'Attorney General', secretary_of_state: 'Secretary of State' };
-const KIND_LABEL: Record<string, string> = { general: 'General', special: 'Special', pres_state: 'Presidential', primary: 'Primary', top_two: 'Top-two primary', pres_nomination: 'Nomination', runoff: 'Runoff' };
-const STAGES = { general: ['general', 'special', 'pres_state', 'runoff'], primary: ['primary', 'top_two', 'pres_nomination'] } as const;
+const KIND_LABEL: Record<string, string> = { general: 'General', special: 'Special', pres_state: 'Presidential', primary: 'Primary', top_two: 'Top-two primary', pres_nomination: 'Nomination', runoff: 'Runoff', retention: 'Retention' };
+const STAGES = { general: ['general', 'special', 'pres_state', 'runoff', 'retention'], primary: ['primary', 'top_two', 'pres_nomination'] } as const;
 
 export function ResultsExplorer({ list }: { list: ElectionListItem[] }) {
   const [q, setQ] = useState('');

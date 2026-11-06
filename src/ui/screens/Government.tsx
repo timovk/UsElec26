@@ -1,10 +1,11 @@
 /**
  * Government (Phase 6): presidential approval and the economy as published (with the simulation's truth set
  * apart), Congress (bills, roll calls and the yearly record), the state legislatures, the census and
- * apportionment, every district plan drawn in this universe, and (Phase 7.1) each state's election law over time.
+ * apportionment, every district plan drawn in this universe, (Phase 7.1) each state's election law over time, and
+ * (Phase 7.2) each state's down-ballot offices, elected boards and courts.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { BillDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GeoMeta, LegislaturesDto } from '../../engine/protocol';
+import type { BillDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GeoMeta, LegislaturesDto, StateOfficesDto } from '../../engine/protocol';
 import { useQuery } from './Desk';
 import { go } from '../app/router';
 import { PARTY_ABBR, PARTY_COLORS, PARTY_NAME, PartyBadge, SeatBar, Truth, fmtInt, fmtLean } from '../components/common';
@@ -15,7 +16,7 @@ import { useApp } from '../state/store';
 
 const TABS = [
   { id: 'economy', label: 'Approval & economy' }, { id: 'congress', label: 'Congress' }, { id: 'legislatures', label: 'State legislatures' },
-  { id: 'census', label: 'Census & apportionment' }, { id: 'districts', label: 'District maps' }, { id: 'law', label: 'Election law' },
+  { id: 'offices', label: 'State offices & courts' }, { id: 'census', label: 'Census & apportionment' }, { id: 'districts', label: 'District maps' }, { id: 'law', label: 'Election law' },
 ] as const;
 
 export function GovernmentScreen({ tab: tabParam, args }: { tab?: string; args: string[] }) {
@@ -33,6 +34,7 @@ export function GovernmentScreen({ tab: tabParam, args }: { tab?: string; args: 
         : tab === 'legislatures' ? <LegislaturesPanel />
         : tab === 'census' ? <CensusPanel />
         : tab === 'law' ? <ElectionLawPanel />
+        : tab === 'offices' ? <StateOfficesPanel state={args[0] !== undefined ? Number(args[0]) : undefined} />
         : <DistrictsPanel state={args[0] !== undefined ? Number(args[0]) : undefined} plan={(args[1] as 'cd' | 'sldu' | 'sldl' | undefined) ?? 'cd'} year={args[2] ? Number(args[2]) : undefined} />}
     </>
   );
@@ -369,5 +371,65 @@ function ElectionLawPanel() {
         </table>
       </section>
     </div>
+  );
+}
+
+// ---- State offices, boards and courts (Phase 7.2) --------------------------------------------------------------
+function StateOfficesPanel({ state }: { state?: number }) {
+  const d = useQuery<StateOfficesDto>({ kind: 'stateOffices', ...(state !== undefined ? { state } : {}) });
+  const [national, setNational] = useState(false);
+  if (!d) return <p className="muted">Loading…</p>;
+  const groups: [StateOfficesDto['bodies'][number]['group'], string][] = [['executive', 'Statewide officers'], ['boards', 'Commissions and boards'], ['courts', 'Courts']];
+  const cur = d.states.find((s) => s.stateIdx === d.stateIdx);
+  const comp = (c: { party: number; seats: number }[]) => c.map((x) => <span key={x.party} className="small" style={{ marginRight: 10 }}><span className="party-dot" style={{ background: PARTY_COLORS[x.party] }} /> {PARTY_ABBR[x.party] ?? '—'} {x.seats}</span>);
+  return (
+    <>
+      <div className="row" style={{ gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+        <label className="small">State{' '}
+          <select value={d.stateIdx} onChange={(e) => go(`government/offices/${e.target.value}`)}>{d.states.map((s) => <option key={s.stateIdx} value={s.stateIdx}>{s.name}</option>)}</select>
+        </label>
+        <label className="small row" style={{ gap: 6 }}><input type="checkbox" checked={national} onChange={(e) => setNational(e.target.checked)} /> Every state at a glance</label>
+      </div>
+      {national ? (
+        <section className="card">
+          <h2>Supreme courts and down-ballot offices by party</h2>
+          <p className="tiny muted">Justices belong to a party even where the ballot carries no label (the party they ran with, or of the governor who appointed them). Down-ballot offices: the statewide officers beyond governor, lieutenant governor, attorney general and secretary of state.</p>
+          <table className="data"><thead><tr><th>State</th><th>Supreme court</th><th>How justices are chosen</th><th>Down-ballot officers</th></tr></thead>
+            <tbody>{d.summary.map((s) => <tr key={s.stateIdx} className="click" onClick={() => { setNational(false); go(`government/offices/${s.stateIdx}`); }}><td>{s.name}</td><td>{comp(s.court)}</td><td className="tiny">{s.courtSelection}</td><td>{s.executive.length ? comp(s.executive) : <span className="tiny muted">none elected</span>}</td></tr>)}</tbody>
+          </table>
+        </section>
+      ) : (
+        <>
+          {d.bodies.length === 0 && <p className="muted small">{cur?.name ?? 'This state'} elects no offices beyond governor, lieutenant governor, attorney general and secretary of state, and has no elected boards; its courts are appointed.</p>}
+          {groups.map(([g, title]) => {
+            const bs = d.bodies.filter((b) => b.group === g); if (!bs.length) return null;
+            return (
+              <section key={g} className="card" style={{ marginBottom: 12 }}>
+                <h2>{title}</h2>
+                {g === 'executive' ? (
+                  <table className="data"><thead><tr><th>Office</th><th>Holder</th><th>Since</th><th>How chosen</th><th>Next election</th></tr></thead>
+                    <tbody>{bs.map((b) => { const m = b.members[0]; return (
+                      <tr key={b.key}><td>{b.name}</td><td>{m?.name ? <><a href={`#/people/${m.personId}`}>{m.name}</a> {m.party !== null && <PartyBadge party={m.party} />}</> : <span className="muted">vacant</span>}</td>
+                        <td className="small">{m?.since ? formatDate(m.since) : '—'}</td><td className="tiny">{b.selection}</td><td className="small">{m?.next ?? '—'}</td></tr>); })}</tbody>
+                  </table>
+                ) : bs.map((b) => (
+                  <div key={b.key} style={{ marginBottom: 14 }}>
+                    <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}><strong>{b.name}</strong><span>{comp(b.composition)}</span></div>
+                    <div className="tiny muted" style={{ margin: '2px 0 6px' }}>{b.selection}{b.notes.length ? ` · ${b.notes.join(' · ')}` : ''}</div>
+                    <SeatBar composition={b.composition} seats={b.seats} />
+                    <table className="data" style={{ marginTop: 6 }}><thead><tr><th>Seat</th><th>Member</th><th className="num">Age</th><th>Since</th><th>How they got the seat</th><th>Next</th></tr></thead>
+                      <tbody>{b.members.map((m) => (
+                        <tr key={m.officeId}><td className="small">{m.seat}</td><td>{m.name ? <><a href={`#/people/${m.personId}`}>{m.name}</a> {m.party !== null && <PartyBadge party={m.party} />}</> : <span className="muted">vacant</span>}</td>
+                          <td className="num small">{m.age ?? '—'}</td><td className="small">{m.since ? formatDate(m.since) : '—'}</td><td className="tiny">{m.acquired ?? '—'}</td><td className="small">{m.next ?? '—'}</td></tr>))}</tbody>
+                    </table>
+                  </div>
+                ))}
+              </section>
+            );
+          })}
+          <p className="tiny muted">The 2016 baseline of each state’s law (offices, terms, how judges are chosen, retirement ages); seats’ staggering and board districts are drawn by the simulation. Justices’ parties are shown even where the ballot is nonpartisan.</p>
+        </>
+      )}
+    </>
   );
 }

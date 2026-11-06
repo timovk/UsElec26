@@ -1,4 +1,4 @@
-/** A universe saved by the Phase 1 release (engine 0.1.0, schema 1) opens, migrates and runs the 2016 elections. */
+/** A universe saved by the Phase 1 release (engine 0.1.0, schema 1) opens, migrates, gains what later phases add (legislators, down-ballot offices and courts) and runs the 2016 elections. */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
@@ -21,6 +21,10 @@ describe('Phase 1 save compatibility', () => {
     expect(Number(u.db.value("SELECT COUNT(*) FROM contest WHERE kind = 'pres_state' AND status IN ('decided','certified')"))).toBe(51);
     expect(Number(u.db.value('SELECT SUM(ev) FROM electoral_vote'))).toBe(538);
     expect(Number(u.db.value("SELECT COUNT(*) FROM office_term t JOIN office o ON o.office_id = t.office_id WHERE o.kind = 'president' AND t.end_time IS NULL AND t.start_time = ?", [zonedToUtc(2017, 1, 20, 12, 0, 'America/New_York')]))).toBe(1);
+    // Opened after Phase 7.2: the universe gained down-ballot offices and courts, and elected them in 2016.
+    expect(Number(u.db.value('SELECT COUNT(*) FROM office_seat'))).toBeGreaterThan(800);
+    expect(Number(u.db.value("SELECT COUNT(*) FROM contest c JOIN office o ON o.office_id = c.office_id WHERE o.kind IN ('treasurer','justice') AND c.year = 2016 AND c.status = 'certified'"))).toBeGreaterThan(20);
+    expect(Number(u.db.value("SELECT COUNT(*) FROM office_term t JOIN office_seat s ON s.office_id = t.office_id WHERE t.provenance LIKE '%Phase 7.2%'"))).toBeGreaterThan(800);
     expect(integrityReport(u.db).checks.filter((c) => !c.ok)).toEqual([]);
   }, 300_000);
 });

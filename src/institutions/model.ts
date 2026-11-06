@@ -1,11 +1,14 @@
 /** In-memory institutional model shared by the engine, persistence and the API. */
+import type { DownballotKind } from '../rules/downballot2016';
 
 export type OfficeKind =
   | 'president' | 'vice_president' | 'cabinet'
   | 'us_senator' | 'us_representative'
   | 'governor' | 'lt_governor' | 'attorney_general' | 'secretary_of_state'
   | 'congress_leader' | 'state_leg_leader'
-  | 'state_senator' | 'state_representative';
+  | 'state_senator' | 'state_representative'
+  // Phase 7.2: down-ballot statewide offices, elected boards and state courts (rules/downballot2016).
+  | DownballotKind;
 
 /** State legislative seats (Phase 6). */
 export const LEGISLATOR_KINDS: readonly OfficeKind[] = ['state_senator', 'state_representative'];
@@ -41,7 +44,17 @@ export interface Person {
 export interface Office {
   id: number; kind: OfficeKind; title: string; stateIdx: number | null; districtIdx: number | null;
   senateClass: number | null; chamberId: number | null; dept: string | null; rank: number;
+  /** A seat of a down-ballot office, board or court (Phase 7.2; table office_seat). */
+  seat?: OfficeSeat;
 }
+
+/**
+ * A seat of a down-ballot body: the body (its key in rules/downballot2016), the seat number, the district it is
+ * elected from (1-based; 0 statewide), and its cycle: an election year (or, on appointed courts, the year a term
+ * ends) and the term length. Appointments to elected and retention seats move the cycle to the appointee's first
+ * election.
+ */
+export interface OfficeSeat { body: string; number: number; district: number; cycle: number; termYears: number }
 
 export interface Term {
   id: number; officeId: number; personId: number; partyId: number | null; start: number; end: number | null;

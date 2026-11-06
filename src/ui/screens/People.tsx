@@ -6,7 +6,9 @@ import { go } from '../app/router';
 
 const OFFICE_FILTERS: [string, string][] = [
   ['', 'All people'], ['president,vice_president,cabinet', 'Executive branch'], ['us_senator', 'U.S. Senators'], ['us_representative', 'U.S. Representatives'],
-  ['governor', 'Governors'], ['lt_governor,attorney_general,secretary_of_state', 'Statewide officers'], ['congress_leader,state_leg_leader', 'Legislative leaders'], ['state_senator', 'State senators'], ['state_representative', 'State representatives'],
+  ['governor', 'Governors'], ['lt_governor,attorney_general,secretary_of_state,treasurer,auditor,superintendent,insurance_commissioner,agriculture_commissioner,labor_commissioner,land_commissioner,other_statewide', 'Statewide officers'],
+  ['commissioner,education_board,regent', 'Commissions and boards'], ['justice,appellate_judge', 'Judges'],
+  ['congress_leader,state_leg_leader', 'Legislative leaders'], ['state_senator', 'State senators'], ['state_representative', 'State representatives'],
 ];
 
 export function People() {

@@ -7,6 +7,7 @@
 import { Rng } from '../core/rng';
 import { daysToCivil, easternDay, formatDay, zonedToUtc, type DayNumber, type SimTime } from '../core/time';
 import { gzip, gunzip } from '../core/codec';
+import { DOWNBALLOT_KINDS } from '../rules/downballot2016';
 import { fullName, PARTY_D, PARTY_R, type Person } from '../institutions/model';
 import { debatePerformance, initCampaign, scandalDraw, stepCampaign, valenceOf, voterPower, type CampaignOffice, type CampaignState, type CampaignTraits } from '../campaigns/model';
 import { fieldPoll, publishedLean, type PieceTypes, type PollArea, type PollDesign } from '../electorate/measure';
@@ -25,6 +26,9 @@ const ET = 'America/New_York' as const;
 const at = (day: DayNumber, h: number, m = 0): SimTime => { const c = daysToCivil(day); return zonedToUtc(c.y, c.m, c.d, h, m, ET); };
 const PARTY_NAME: Record<number, string> = { 1: 'Democratic', 2: 'Republican', 3: 'Libertarian', 4: 'Green', 5: 'Independent' };
 const ABBR: Record<number, string> = { 1: 'D', 2: 'R', 3: 'L', 4: 'G', 5: 'I' };
+
+/** Offices whose races are neither polled nor forecast: state legislative seats, and down-ballot offices, boards and courts (Phase 7.2). */
+const UNPOLLED = ['state_senator', 'state_representative', ...DOWNBALLOT_KINDS].map((k) => `'${k}'`).join(',');
 
 export interface SeasonState {
   campaigns: Record<string, CampaignState>;
@@ -147,7 +151,7 @@ export class Season {
     // State legislative contests are neither polled nor forecast: leave them out in SQL (about 6,000 a year).
     // Only the columns read below (row objects for about 1,000 contests and 3,000 candidacies, every day).
     const rows = this.db.all<Pick<ContestRow, 'contest_id' | 'election_id' | 'office_id' | 'kind' | 'party_id' | 'state_idx' | 'district_idx' | 'label' | 'ev'> & { eday: number }>(`SELECT c.contest_id, c.election_id, c.office_id, c.kind, c.party_id, c.state_idx, c.district_idx, c.label, c.ev, e.day AS eday FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
-      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND c.kind IN ('general','special','pres_state','primary','top_two','pres_primary') AND (o.kind IS NULL OR o.kind NOT IN ('state_senator','state_representative')) ORDER BY c.contest_id`, [year, day]);
+      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND c.kind IN ('general','special','pres_state','primary','top_two','pres_primary') AND (o.kind IS NULL OR o.kind NOT IN (${UNPOLLED})) ORDER BY c.contest_id`, [year, day]);
     type Cand = Pick<CandidacyRow, 'contest_id' | 'person_id' | 'party_id'>;
     const opt = (cand: Cand, p: Person): Opt => ({ key: `p${p.id}`, label: fullName(p), party: cand.party_id, personId: p.id });
     // A general election is not a race to poll until every primary (and runoff) feeding it has chosen its nominee.
@@ -158,7 +162,7 @@ export class Season {
     // Every candidacy of those contests in one query.
     const byContest = new Map<number, { cand: Cand; person: Person }[]>();
     for (const k of this.db.all<Cand>(`SELECT k.contest_id, k.person_id, k.party_id FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
-      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND k.status NOT IN ('withdrew') AND (o.kind IS NULL OR o.kind NOT IN ('state_senator','state_representative')) ORDER BY k.contest_id, k.ballot_order, k.candidacy_id`, [year, day])) {
+      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND k.status NOT IN ('withdrew') AND (o.kind IS NULL OR o.kind NOT IN (${UNPOLLED})) ORDER BY k.contest_id, k.ballot_order, k.candidacy_id`, [year, day])) {
       const p = w.persons.get(k.person_id); if (!p) continue;
       const a = byContest.get(k.contest_id) ?? []; a.push({ cand: k, person: p }); byContest.set(k.contest_id, a);
     }

@@ -29,7 +29,10 @@ interface Host {
 }
 
 const MONTH0 = (day: DayNumber) => { const c = daysToCivil(day); return (c.y - 2016) * 12 + (c.m - 1); };
-const ELIGIBLE = new Set(['president', 'vice_president', 'cabinet', 'us_senator', 'us_representative', 'governor', 'lt_governor', 'attorney_general', 'secretary_of_state']);
+const ELIGIBLE = new Set(['president', 'vice_president', 'cabinet', 'us_senator', 'us_representative', 'governor', 'lt_governor', 'attorney_general', 'secretary_of_state',
+  // Phase 7.2: down-ballot officers, board members and judges.
+  'treasurer', 'auditor', 'superintendent', 'insurance_commissioner', 'agriculture_commissioner', 'labor_commissioner', 'land_commissioner', 'other_statewide',
+  'commissioner', 'education_board', 'regent', 'justice', 'appellate_judge']);
 const ABBR: Record<number, string> = { 1: 'D', 2: 'R', 3: 'L', 4: 'G', 5: 'I' };
 const SCANDAL_KINDS = ['a campaign-finance investigation', 'an ethics complaint', 'questions over stock trades', 'allegations of misconduct', 'a report on undisclosed lobbying contacts', 'an inquiry into the use of official funds'];
 

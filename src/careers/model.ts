@@ -13,6 +13,8 @@ import type { OfficeKind, Person } from '../institutions/model';
 const SCRUTINY: Partial<Record<OfficeKind, number>> = {
   president: 2.2, vice_president: 1.4, cabinet: 1.5, us_senator: 1.0, us_representative: 0.75, governor: 1.2,
   lt_governor: 0.6, attorney_general: 0.7, secretary_of_state: 0.5, congress_leader: 1.2, state_leg_leader: 0.6,
+  treasurer: 0.45, auditor: 0.4, superintendent: 0.45, insurance_commissioner: 0.45, agriculture_commissioner: 0.4, labor_commissioner: 0.35, land_commissioner: 0.4,
+  other_statewide: 0.3, commissioner: 0.4, education_board: 0.25, regent: 0.25, justice: 0.3, appellate_judge: 0.2,
 };
 
 /** Monthly probability that an officeholder is hit by a scandal. */
@@ -35,7 +37,7 @@ export function scandalResignHazard(severity: number, months: number, office: Of
 /** Monthly probability of leaving office mid-term for other reasons (health, family, a private-sector offer). */
 export function otherExitHazard(age: number, office: OfficeKind): number {
   if (office === 'president' || office === 'vice_president') return 0;
-  const base = office === 'cabinet' ? 1 / 32 : 0.00045;
+  const base = office === 'cabinet' ? 1 / 32 : office === 'justice' || office === 'appellate_judge' ? 0.0011 : 0.00045;
   return office === 'cabinet' ? base : base * (1 + Math.max(0, age - 70) * 0.12);
 }
 

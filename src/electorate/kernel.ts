@@ -79,8 +79,8 @@ export interface KernelOption {
 export interface KernelContest {
   id: number;
   cd: number;            // −1 statewide; otherwise only Base Units in this district vote (congressional unless `geo` says otherwise)
-  /** Which district `cd` refers to: 0 congressional (default), 1 state senate, 2 state house. */
-  geo?: 0 | 1 | 2;
+  /** Which district `cd` refers to: 0 congressional (default), 1 state senate, 2 state house, 3 + k the k-th of `bus.extra` (Phase 7.2 board and court districts). */
+  geo?: number;
   weight: number;        // partisan salience w_e
   abstain: number;       // undervote utility
   options: KernelOption[];
@@ -97,7 +97,9 @@ export interface ShardInput {
   /** Per BU: marginals (13 floats: age×4, male, race×4, college-by-age×4) are raked to the county joint inside the kernel. */
   bus: { start: number; count: number; county: Uint16Array; cd: Uint16Array; rj: Uint16Array; vep: Float32Array; shift: Float32Array; turnout: Float32Array; marg: Float32Array;
     /** State senate and state house districts (only needed when a contest uses them). */
-    sldu?: Uint16Array; sldl?: Uint16Array };
+    sldu?: Uint16Array; sldl?: Uint16Array;
+    /** Districts of elected boards and district-elected courts (Phase 7.2), indexed like the shard's units. */
+    extra?: Uint16Array[] };
   counties: { first: number; mu: Float32Array; turnout: Float32Array; joint: Float32Array }; // local county index = county − first
   classOf: Uint8Array; sigma: Float64Array; tau: Float64Array;          // per cohort; tau includes the election-type intercept
   betaInt: number; enth: number;
@@ -264,17 +266,18 @@ export function runShard(inp: ShardInput): ShardOutput {
   // contests are taken in ascending contest order, as a scan of every contest would (the random draws, and so
   // the results, are the same); a state can have 150+ contests, of which a unit votes in five or six.
   const statewide: number[] = [];
-  const byDistrict: Map<number, number[]>[] = [new Map(), new Map(), new Map()];
+  const geoArrays = [inp.bus.cd, inp.bus.sldu, inp.bus.sldl, ...(inp.bus.extra ?? [])];
+  const byDistrict: Map<number, number[]>[] = geoArrays.map(() => new Map());
   inp.contests.forEach((c, ci) => {
     if (c.cd < 0) { statewide.push(ci); return; }
     const m = byDistrict[c.geo ?? 0]!; const l = m.get(c.cd); if (l) l.push(ci); else m.set(c.cd, [ci]);
   });
-  const geoArrays = [inp.bus.cd, inp.bus.sldu, inp.bus.sldl];
   const mine: number[] = [];
+  const nGeo = geoArrays.length;
   const unitContests = (i: number): number[] => {
     mine.length = 0;
     for (const ci of statewide) mine.push(ci);
-    for (let g = 0; g < 3; g++) { const m = byDistrict[g]!; if (!m.size) continue; const l = m.get(geoArrays[g]![i]!); if (l) for (const ci of l) mine.push(ci); }
+    for (let g = 0; g < nGeo; g++) { const m = byDistrict[g]!; if (!m.size) continue; const l = m.get(geoArrays[g]![i]!); if (l) for (const ci of l) mine.push(ci); }
     if (mine.length > 1) mine.sort((a, b) => a - b);
     return mine;
   };
