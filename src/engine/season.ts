@@ -145,17 +145,19 @@ export class Season {
   private buildRaces(year: number, day: DayNumber): Race[] {
     const w = this.w, out: Race[] = [];
     // State legislative contests are neither polled nor forecast: leave them out in SQL (about 6,000 a year).
-    const rows = this.db.all<ContestRow & { eday: number }>(`SELECT c.*, e.day AS eday FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
+    // Only the columns read below (row objects for about 1,000 contests and 3,000 candidacies, every day).
+    const rows = this.db.all<Pick<ContestRow, 'contest_id' | 'election_id' | 'office_id' | 'kind' | 'party_id' | 'state_idx' | 'district_idx' | 'label' | 'ev'> & { eday: number }>(`SELECT c.contest_id, c.election_id, c.office_id, c.kind, c.party_id, c.state_idx, c.district_idx, c.label, c.ev, e.day AS eday FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
       WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND c.kind IN ('general','special','pres_state','primary','top_two','pres_primary') AND (o.kind IS NULL OR o.kind NOT IN ('state_senator','state_representative')) ORDER BY c.contest_id`, [year, day]);
-    const opt = (cand: CandidacyRow, p: Person): Opt => ({ key: `p${p.id}`, label: fullName(p), party: cand.party_id, personId: p.id });
+    type Cand = Pick<CandidacyRow, 'contest_id' | 'person_id' | 'party_id'>;
+    const opt = (cand: Cand, p: Person): Opt => ({ key: `p${p.id}`, label: fullName(p), party: cand.party_id, personId: p.id });
     // A general election is not a race to poll until every primary (and runoff) feeding it has chosen its nominee.
     const awaiting = new Map<number, number[]>();
     for (const f of this.db.all<{ next_contest: number; party_id: number | null }>("SELECT next_contest, party_id FROM contest WHERE year = ? AND kind IN ('primary','top_two') AND status IN ('set','filing') AND next_contest IS NOT NULL", [year])) {
       const a = awaiting.get(f.next_contest) ?? []; a.push(f.party_id ?? 0); awaiting.set(f.next_contest, a);
     }
     // Every candidacy of those contests in one query.
-    const byContest = new Map<number, { cand: CandidacyRow; person: Person }[]>();
-    for (const k of this.db.all<CandidacyRow>(`SELECT k.* FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
+    const byContest = new Map<number, { cand: Cand; person: Person }[]>();
+    for (const k of this.db.all<Cand>(`SELECT k.contest_id, k.person_id, k.party_id FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
       WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND k.status NOT IN ('withdrew') AND (o.kind IS NULL OR o.kind NOT IN ('state_senator','state_representative')) ORDER BY k.contest_id, k.ballot_order, k.candidacy_id`, [year, day])) {
       const p = w.persons.get(k.person_id); if (!p) continue;
       const a = byContest.get(k.contest_id) ?? []; a.push({ cand: k, person: p }); byContest.set(k.contest_id, a);

@@ -98,14 +98,20 @@ export function runForecast(f: ForecastInput): ForecastOutput {
   const houseRaces = races.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'us_representative');
   const divErr = new Float64Array(10);
   const totalEV = presRaces.reduce((a, { x }) => a + x.ev, 0);
+  // Races simulated draw by draw (House races are integrated analytically below), in input order.
+  const drawn = races.map((x, i) => (x.kind === 'us_representative' ? -1 : i)).filter((i) => i >= 0);
+  // Tipping point: presidential races ordered by this draw's margin, ties in input order (a stable sort of
+  // the input order, reproduced by the explicit tie-break on a reused array).
+  const presIdx = presRaces.map((_, j) => j), presAt = presRaces.map(({ i }) => i), presEv = presRaces.map(({ x }) => x.ev), presKey = presRaces.map(({ x }) => x.key);
+  const pm = new Float64Array(presRaces.length);
+  const byMarginD = (a: number, b: number) => pm[b]! - pm[a]! || a - b, byMarginR = (a: number, b: number) => pm[a]! - pm[b]! || a - b;
   let presD = 0, presR = 0, tie = 0, senCtl = 0, houseCtl = 0, houseN = 0;
   for (let d = 0; d < S; d++) {
     const eN = t5(r) * sdN;
     for (let k = 0; k < 10; k++) divErr[k] = r.normal(0, sdDiv);
     let ev = 0, sen = 0, gov = 0;
-    for (let i = 0; i < races.length; i++) {
-      const x = races[i]!;
-      if (x.kind === 'us_representative') continue;
+    for (let q = 0; q < drawn.length; q++) {
+      const i = drawn[q]!, x = races[i]!;
       let m: number;
       if (!x.contested) m = x.sure === 1 ? 100 : x.sure === 2 ? -100 : 0;
       else m = post[i]!.m + eN + divErr[x.division]! + t5(r) * post[i]!.local;
@@ -130,8 +136,9 @@ export function runForecast(f: ForecastInput): ForecastOutput {
       if (ev >= 270) presD++; else if (totalEV - ev >= 270) presR++; else tie++;
       // Tipping point: sort states by margin; the one that brings the winner to 270.
       const winnerD = ev >= 270;
-      const order = presRaces.map(({ x, i }) => ({ key: x.key, ev: x.ev, m: presMargin[i]! })).sort((a, b) => (winnerD ? b.m - a.m : a.m - b.m));
-      let acc = 0; for (const o of order) { acc += o.ev; if (acc >= 270) { tipping.set(o.key, (tipping.get(o.key) ?? 0) + 1); break; } }
+      for (let j = 0; j < presAt.length; j++) pm[j] = presMargin[presAt[j]!]!;
+      presIdx.sort(winnerD ? byMarginD : byMarginR);
+      let acc = 0; for (const j of presIdx) { acc += presEv[j]!; if (acc >= 270) { const k = presKey[j]!; tipping.set(k, (tipping.get(k) ?? 0) + 1); break; } }
     }
     const vp = f.presidential ? (ev >= 270 ? 1 : 2) : f.vpParty;
     if (senD[d]! > f.chambers.senate.seats / 2 || (senD[d]! === f.chambers.senate.seats / 2 && vp === 1)) senCtl++;

@@ -195,7 +195,10 @@ export class ElectionEngine {
       if (vt !== null && env.level) setEnvironmentEconomy(env, vt);
     }
     if (year % 4 === 0 && this.state.plannedYears.includes(year)) this.nomination.daily(year, day);
-    await this.season.daily(day);
+    // The season only reads office holdings (campaigns, polls and forecasts ask for candidate quality often).
+    const outer = this.heldIndex === null;
+    if (outer) this.heldIndex = this.buildHeldIndex();
+    try { await this.season.daily(day); } finally { if (outer) this.heldIndex = null; }
   }
 
   environmentFor(year: number): Environment {
@@ -239,12 +242,14 @@ export class ElectionEngine {
   private heldIndex: Map<number, import('../institutions/model').OfficeKind[]> | null = null;
   private withHeldIndex<T>(fn: () => T): T {
     const outer = this.heldIndex === null;
-    if (outer) {
-      const m = new Map<number, import('../institutions/model').OfficeKind[]>();
-      for (const [oid, t] of this.w.current) { const a = m.get(t.personId); const k = this.w.officeById.get(oid)!.kind; if (a) a.push(k); else m.set(t.personId, [k]); }
-      this.heldIndex = m;
-    }
+    if (outer) this.heldIndex = this.buildHeldIndex();
     try { return fn(); } finally { if (outer) this.heldIndex = null; }
+  }
+  /** Person → kinds of offices held, in the order `heldKinds` lists them (office holdings in insertion order). */
+  private buildHeldIndex(): Map<number, import('../institutions/model').OfficeKind[]> {
+    const m = new Map<number, import('../institutions/model').OfficeKind[]>();
+    for (const [oid, t] of this.w.current) { const a = m.get(t.personId); const k = this.w.officeById.get(oid)!.kind; if (a) a.push(k); else m.set(t.personId, [k]); }
+    return m;
   }
 
   /** Consecutive terms the person has served in an office (for term limits). */
@@ -681,7 +686,7 @@ export class ElectionEngine {
   private lastSealedRejected = new Map<number, Uint8Array>();
   private lastNights = new Map<number, StateNight>();
 
-  officeKindOf(c: ContestRow): string { return c.office_id !== null ? this.w.officeById.get(c.office_id)!.kind : 'president'; }
+  officeKindOf(c: Pick<ContestRow, 'office_id'>): string { return c.office_id !== null ? this.w.officeById.get(c.office_id)!.kind : 'president'; }
 
   /** Order candidates by votes; returns [winnerIdx, runnerUpIdx, topShare]. */
   private rank(r: ContestResult, rng: Rng): { order: number[]; share: number[] } {

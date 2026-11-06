@@ -331,11 +331,16 @@ export class Universe {
     const r = Rng.stream(w.seed, 'mortality', day);
     for (const p of w.persons.values()) { // Map iteration is insertion (id) order: deterministic
       if (p.deathDay !== null) continue;
-      const age = ageOn(p.birthDay, day);
+      let b = this.birthCivil.get(p.birthDay);
+      if (!b) { b = daysToCivil(p.birthDay); this.birthCivil.set(p.birthDay, b); }
+      const age = cv.y - b.y - (cv.m < b.m || (cv.m === b.m && cv.d < b.d) ? 1 : 0); // ageOn(p.birthDay, day)
       const annual = Math.min(0.6, 0.55 * Math.exp(-10.4 + 0.094 * age));
       if (r.float() < annual / 365.25) this.death(p, day);
     }
   }
+
+  /** Calendar dates of birthdays (the daily mortality step takes every tracked person's age). */
+  private birthCivil = new Map<number, { y: number; m: number; d: number }>();
 
   private pendingOffices: Office[] = [];
   private pendingSql: [string, (string | number | null)[]][] = [];
