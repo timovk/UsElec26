@@ -1,7 +1,7 @@
 import type { ContestDetail } from '../../engine/protocol';
 import { surname } from '../../core/names';
 import { useQuery } from './Desk';
-import { PARTY_COLORS, PartyBadge, fmtInt } from '../components/common';
+import { CodeLinks, PARTY_COLORS, PartyBadge, districtHref, fmtInt } from '../components/common';
 import { MiniMap } from '../components/MiniMap';
 
 const COUNT_STATUS = ['Polls open', 'Too early to call', 'Too close to call', 'Projected', 'Projection withdrawn', 'Runoff projected'];
@@ -23,8 +23,8 @@ export function ContestScreen({ id }: { id: number }) {
     <>
       <a className="small" href={`#/results/${c.label.slice(0, 4)}`}>‹ {c.label.slice(0, 4)} results</a>
       <div className="kicker" style={{ marginTop: 8 }}>{c.electionLabel} · {c.date}</div>
-      <h1 className="screen-title">{c.label.replace(/^\d{4} /, '')}</h1>
-      <p className="screen-sub">{c.office ?? 'President of the United States'}{c.districtLabel ? ` · ${c.districtLabel}` : ''}{c.ev ? ` · ${c.ev} electoral votes` : ''}
+      <h1 className="screen-title"><CodeLinks text={c.label.replace(/^\d{4} /, '')} style={{ color: 'inherit' }} /></h1>
+      <p className="screen-sub">{c.office ?? 'President of the United States'}{c.districtLabel && <> · <a href={districtHref(c.districtLabel)}>{c.districtLabel} history</a></>}{c.stateIdx !== null && <> · <a href={`#/archive/${c.stateIdx}`}>{c.stateUsps} history</a></>}{c.ev ? ` · ${c.ev} electoral votes` : ''}
         {METHOD_LABEL[c.method] && <> · {METHOD_LABEL[c.method]}</>}{c.retention && <> · Retention vote: {Math.round(100 * c.retention.threshold)}% yes needed to keep the seat</>}{c.nonpartisan && !c.retention && <> · nonpartisan ballot</>}
         {c.nightId !== null && !c.counting && <> · <a href={`#/night/${c.nightId}`}>★ Watch this election night</a></>}
         {c.parent && <> · <a href={`#/contest/${c.parent}`}>first round</a></>}{c.next && <> · <a href={`#/contest/${c.next}`}>{c.status === 'runoff' ? 'runoff' : 'next round'}</a></>}</p>

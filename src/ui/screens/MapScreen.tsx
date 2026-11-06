@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EntityDetail, GeoMeta, MapLayer, MapLayerDto, MapMetric, ResultsMapDto, ResultsOffice } from '../../engine/protocol';
 import { LEGEND_MARGIN, MARGIN_STOPS, MapRenderer, loadBasemap, marginColor, partyShareColor, type Basemap } from '../map/renderer';
 import { useQuery } from './Desk';
-import { OfficeHolder, PARTY_COLORS, PARTY_NAME, Truth, fmtInt, fmtLean } from '../components/common';
+import { OfficeHolder, PARTY_COLORS, PARTY_NAME, Truth, districtHref, fmtInt, fmtLean } from '../components/common';
 import { MODES, MODE_CAPTION, areaColor, areaValue, legendOf, type Area, type MapMode } from '../night/mapModes';
 
 let basemapPromise: Promise<Basemap> | null = null;
@@ -190,7 +190,7 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
               <div className="kicker">{entity.layer === 'cd' ? 'Congressional district' : entity.layer}</div>
               <h2 style={{ marginBottom: 2 }}>{entity.title}</h2>
               <div className="small muted" style={{ marginBottom: 10 }}>{entity.subtitle}</div>
-              <div className="row"><button className="btn small" onClick={zoomToSelected}>Zoom to</button>{entity.layer === 'county' && <a className="btn small" href={`#/county/${entity.idx}`}>Election history</a>}</div>
+              <div className="row"><button className="btn small" onClick={zoomToSelected}>Zoom to</button>{entity.layer === 'county' && <a className="btn small" href={`#/county/${entity.idx}`}>Election history</a>}{entity.layer === 'state' && <a className="btn small" href={`#/archive/${entity.idx}`}>Election history</a>}{entity.layer === 'cd' && /^[A-Z]{2}-(AL|\d{2})/.test(entity.subtitle) && <a className="btn small" href={districtHref(entity.subtitle.slice(0, 5))}>Election history</a>}</div>
               <table className="data" style={{ marginTop: 10 }}><tbody>{entity.stats.map((s) => <tr key={s.label}><td className="muted">{s.label}</td><td className="num">{s.value}{s.provenance && <span className="badge truth" style={{ marginLeft: 6 }}>◆</span>}</td></tr>)}</tbody></table>
               <h3>Officials</h3>
               {entity.officials.map((o) => <OfficeHolder key={o.officeId} o={o} />)}

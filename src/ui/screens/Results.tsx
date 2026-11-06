@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ElectionListItem, YearSummary } from '../../engine/protocol';
 import { useQuery } from './Desk';
-import { PARTY_COLORS, PARTY_NAME, PartyBadge, SeatBar, fmtInt } from '../components/common';
+import { CodeLinks, PARTY_COLORS, PARTY_NAME, PartyBadge, SeatBar, fmtInt } from '../components/common';
 import { go } from '../app/router';
 import { ResultsExplorer } from './ResultsExplorer';
 import { engine } from '../state/engineClient';
@@ -55,7 +55,7 @@ export function Results({ year: yearParam }: { year?: number }) {
             <div style={{ maxHeight: 260, overflow: 'auto' }}>
               {s.flips.length === 0 ? <p className="muted small">None.</p> : s.flips.map((f) => (
                 <div key={f.contestId} className="row between small" style={{ padding: '3px 0' }}>
-                  <a href={`#/contest/${f.contestId}`}>{f.label.replace(/^\d{4} /, '')}</a><span><PartyBadge party={f.from} /> → <PartyBadge party={f.to} /></span>
+                  <span><CodeLinks text={f.label.replace(/^\d{4} /, '')} href={`#/contest/${f.contestId}`} /></span><span><PartyBadge party={f.from} /> → <PartyBadge party={f.to} /></span>
                 </div>
               ))}
             </div>

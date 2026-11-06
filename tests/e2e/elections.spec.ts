@@ -44,6 +44,17 @@ test('simulate the 2016 cycle and inspect results from the nation down to a coun
   await page.locator('section.card', { has: page.getByRole('heading', { name: 'By county' }) }).locator('tbody a').first().click();
   await expect(page.getByRole('heading', { name: 'All contests' })).toBeVisible();
 
+  // From the county to one of its congressional districts (the code is a link), then to the state's history.
+  await page.locator('.screen-sub a[href^="#/district/"]').first().click();
+  await expect(page.getByText('Congressional district history')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'House elections' })).toBeVisible();
+  await expect(page.locator('section.card', { has: page.getByRole('heading', { name: 'House elections' }) }).locator('tbody tr')).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'Presidential elections' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/e2e-district.png' });
+  await page.locator('a[href^="#/archive/"]').first().click();
+  await expect(page.getByText('State election history')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Congressional districts' })).toBeVisible();
+
   // Results map.
   await page.goto('./#/map/results/2016');
   await expect(page.locator('canvas')).toBeVisible();

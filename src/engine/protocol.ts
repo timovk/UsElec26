@@ -265,6 +265,8 @@ export type ArchiveQuery =
   | { kind: 'electionYears' }
   | { kind: 'contest'; id: number }
   | { kind: 'countyHistory'; county: number }
+  | { kind: 'districtHistory'; code: string }
+  | { kind: 'stateHistory'; state: number }
   | { kind: 'resultsMap'; year: number; office: ResultsOffice; layer: MapLayer }
   | { kind: 'yearSummary'; year: number }
   | { kind: 'audit'; year: number };
@@ -305,9 +307,34 @@ export interface ContestDetail {
   /** Ranked-choice tabulation, round by round, once the contest is decided (Phase 7.1). */
   rcv: { round: number; candidates: { candidacyId: number; name: string; party: number; votes: number; status: string }[]; exhausted: number }[] | null;
 }
+/** One contest's result in a county, a district or a state. */
+export interface HistoryRow {
+  contestId: number; year: number; date: string; office: string; officeKind: string; label: string;
+  candidates: { name: string; party: number; votes: number; share: number; winner: boolean }[]; total: number; undervotes: number; dMargin: number | null;
+}
 export interface CountyHistoryDto {
   county: number; name: string; state: string; stateIdx: number;
-  rows: { contestId: number; year: number; date: string; office: string; officeKind: string; label: string; candidates: { name: string; party: number; votes: number; share: number; winner: boolean }[]; total: number; undervotes: number; dMargin: number | null }[];
+  /** Congressional districts the county lies in today (codes). */
+  districts: string[];
+  rows: HistoryRow[];
+}
+/** A congressional district by its code (e.g. TX-15): its House elections, and every contest's result within it as drawn at the time. */
+export interface DistrictHistoryDto {
+  /** False when the code names no state (the rest is then empty). */
+  found: boolean;
+  code: string; state: string; stateIdx: number; number: number;
+  /** The district as drawn today, its representative and counties (null when the state no longer has a district of this number). */
+  now: { lean: number; population: number; plan: string; holder: { personId: number; name: string; party: number; since: SimTime } | null; counties: { idx: number; name: string; share: number }[] } | null;
+  /** The plans the district has been drawn under, oldest first. */
+  plans: { firstYear: number; label: string }[];
+  rows: HistoryRow[];
+}
+/** A state's statewide election history, its congressional districts and its counties. */
+export interface StateHistoryDto {
+  stateIdx: number; name: string; usps: string;
+  rows: HistoryRow[];
+  districts: { code: string; holder: { personId: number; name: string; party: number } | null; lean: number }[];
+  counties: { idx: number; name: string }[];
 }
 export interface ResultsMapDto {
   year: number; office: ResultsOffice; layer: MapLayer; values: (number | null)[]; legend: string; national: { party: number; votes: number }[] | null; ev: { party: number; ev: number; name: string }[] | null;

@@ -1,14 +1,15 @@
 /** Read-only queries over the elections archive (all numbers come from sealed archive records). */
-import { formatDay, isoDay } from '../core/time';
+import { daysToCivil, easternDay, formatDay, isoDay } from '../core/time';
 import { fullName, PARTY_D, PARTY_R } from '../institutions/model';
-import { NONE16 } from '../geo/pack';
+import { NONE16, cdCode } from '../geo/pack';
 import { MODE_NAMES } from '../electorate/kernel';
 import { auditElection, decodeContestBlob, readRollup, type StateRollup } from '../archive/results';
 import { liveContest, liveGeo, liveTallies, type LiveContest } from './nightQueries';
 import { decodeIntColumns } from '../core/codec';
 import type { Universe } from './universe';
 import { baselineContest, turnoutByBu } from './baselines';
-import type { ArchiveQuery, CandidateDto, ContestDetail, CountyHistoryDto, ElectionListItem, ResultsMapDto, YearSummary } from './protocol';
+import type { ArchiveQuery, CandidateDto, ContestDetail, CountyHistoryDto, DistrictHistoryDto, ElectionListItem, HistoryRow, ResultsMapDto, StateHistoryDto, YearSummary } from './protocol';
+import { leanMargin } from './world';
 
 interface CRow { contest_id: number; election_id: number; office_id: number | null; kind: string; party_id: number | null; state_idx: number | null; district_idx: number | null; method: string; label: string; status: string; winner_candidacy: number | null; parent_contest: number | null; next_contest: number | null; ev: number | null; year: number }
 
@@ -19,6 +20,8 @@ export async function runArchiveQuery(u: Universe, q: ArchiveQuery): Promise<unk
     case 'elections': return elections(u, q.year);
     case 'contest': return contest(u, q.id);
     case 'countyHistory': return countyHistory(u, q.county);
+    case 'districtHistory': return districtHistory(u, q.code);
+    case 'stateHistory': return stateHistory(u, q.state);
     case 'resultsMap': return resultsMap(u, q.year, q.office, q.layer);
     case 'yearSummary': return yearSummary(u, q.year);
     case 'audit': return audit(u, q.year);
@@ -188,17 +191,112 @@ async function countyHistory(u: Universe, county: number): Promise<CountyHistory
     const roll = rolls.get(`${x.election_id}:${x.state_idx}`);
     const entry = roll?.contests.find((r) => r.id === x.contest_id);
     const v = entry?.counties.find(([cc]) => cc === county)?.[1];
-    if (!v) continue;
-    const order = u.db.all<{ candidacy_id: number; person_id: number; party_id: number }>('SELECT candidacy_id, person_id, party_id FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [x.contest_id]);
-    const valid = v.slice(0, order.length).reduce((a, b) => a + b, 0);
-    const cands = order.map((o, j) => ({ name: fullName(w.persons.get(o.person_id)!), party: o.party_id, votes: v[j]!, share: valid ? v[j]! / valid : 0, winner: o.candidacy_id === x.winner_candidacy }))
-      .sort((a, b) => b.votes - a.votes);
-    const d = cands.find((q) => q.party === PARTY_D)?.votes ?? 0, r = cands.find((q) => q.party === PARTY_R)?.votes ?? 0;
-    const office = x.office_id !== null ? w.officeById.get(x.office_id)! : null;
-    rows.push({ contestId: x.contest_id, year: x.year, date: isoDay(x.day), office: office?.kind === 'president' || x.kind === 'pres_state' ? 'President' : office?.title ?? x.label, officeKind: office?.kind ?? 'president',
-      label: x.label, candidates: cands, total: valid, undervotes: v[order.length]!, dMargin: d + r > 0 ? 100 * (d - r) / (d + r) : null });
+    if (v) rows.push(historyRow(u, x, v));
   }
-  return { county, name: c.fullName, state: w.pack.states[c.stateIdx]!.name, stateIdx: c.stateIdx, rows };
+  // The county's congressional districts today.
+  const year = daysToCivil(easternDay(w.time)).y, cdOf = w.districts.assignment('cd', year), cds = new Set<number>();
+  for (let b = c.buStart; b < c.buStart + c.buCount; b++) if (cdOf[b] !== NONE16 && w.pop.vep[b]! > 0) cds.add(cdOf[b]!);
+  const districts = [...cds].sort((a, b) => a - b).map((k) => cdCode({ states: w.pack.states, cds: w.districts.cds }, k)).sort();
+  return { county, name: c.fullName, state: w.pack.states[c.stateIdx]!.name, stateIdx: c.stateIdx, districts, rows };
+}
+
+/** A contest's result in one area (votes per candidacy in ballot order, then undervotes). */
+function historyRow(u: Universe, x: CRow & { day: number }, v: number[]): HistoryRow {
+  const w = u.world;
+  const order = u.db.all<{ candidacy_id: number; person_id: number; party_id: number; ballot_order: number }>('SELECT candidacy_id, person_id, party_id, ballot_order FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [x.contest_id]);
+  const valid = v.slice(0, order.length).reduce((a, b) => a + b, 0);
+  const name = (o: (typeof order)[number]) => {
+    const n = fullName(w.persons.get(o.person_id)!);
+    return x.kind === 'retention' ? (o.ballot_order === 0 ? `Yes: retain ${n}` : 'No') : n;
+  };
+  const cands = order.map((o, j) => ({ name: name(o), party: o.party_id, votes: v[j]!, share: valid ? v[j]! / valid : 0, winner: o.candidacy_id === x.winner_candidacy }))
+    .sort((a, b) => b.votes - a.votes);
+  const d = cands.find((q) => q.party === PARTY_D)?.votes ?? 0, r = cands.find((q) => q.party === PARTY_R)?.votes ?? 0;
+  const office = x.office_id !== null ? w.officeById.get(x.office_id)! : null;
+  return { contestId: x.contest_id, year: x.year, date: isoDay(x.day), office: office?.kind === 'president' || x.kind === 'pres_state' ? 'President' : office?.title ?? x.label, officeKind: office?.kind ?? 'president',
+    label: x.label, candidates: cands, total: valid, undervotes: v[order.length] ?? 0, dMargin: x.kind !== 'retention' && d + r > 0 ? 100 * (d - r) / (d + r) : null };
+}
+
+/** Holder of an office today (name, party and since when). */
+function holderOf(u: Universe, officeId: number): { personId: number; name: string; party: number; since: number } | null {
+  const t = u.world.current.get(officeId); if (!t) return null;
+  const p = u.world.persons.get(t.personId); if (!p) return null;
+  return { personId: p.id, name: fullName(p), party: t.partyId ?? p.partyId, since: t.start };
+}
+
+/**
+ * A congressional district by its code: the House elections for the seat, and every federal and statewide
+ * contest's result within the district as it was drawn for that election (the county rollups carry district
+ * totals). After redistricting, the same number is a different area: each row uses that year's district.
+ */
+async function districtHistory(u: Universe, code: string): Promise<DistrictHistoryDto> {
+  const w = u.world;
+  const missing: DistrictHistoryDto = { found: false, code, state: '', stateIdx: -1, number: 0, now: null, plans: [], rows: [] };
+  const m = /^([A-Za-z]{2})-(AL|\d+)$/i.exec(code.trim()); if (!m) return missing;
+  const st = w.pack.states.find((s) => s.usps === m[1]!.toUpperCase()); if (!st) return missing;
+  const number = m[2]!.toUpperCase() === 'AL' ? 0 : Number(m[2]);
+  const D = w.districts, year = daysToCivil(easternDay(w.time)).y;
+  const elections = u.db.all<{ election_id: number; day: number; kind: string; year: number }>(
+    "SELECT election_id, day, kind, year FROM election WHERE state_idx = ? AND kind IN ('general','special','general_runoff') AND status <> 'scheduled' ORDER BY day DESC, election_id DESC", [st.idx]);
+  const rows: HistoryRow[] = [];
+  for (const e of elections) {
+    const d = D.districtNumbered('cd', st.idx, number, e.year, e.kind === 'special'); if (!d) continue;
+    const roll = await readRollup(u.db, e.election_id, st.idx); if (!roll) continue;
+    const contests = u.db.all<CRow & { day: number; okind: string | null; sdist: number | null }>(
+      `SELECT c.*, ? AS day, o.kind AS okind, s.district AS sdist FROM contest c LEFT JOIN office o ON o.office_id = c.office_id LEFT JOIN office_seat s ON s.office_id = c.office_id
+       WHERE c.election_id = ? AND c.kind IN ('general','special','pres_state','retention') ORDER BY c.contest_id`, [e.day, e.election_id]);
+    for (const c of contests) {
+      // This district's House race, and the races of the whole state (not other districts' or legislative seats).
+      const ok = c.okind === null || (c.okind === 'us_representative' ? c.district_idx === d.idx : c.okind !== 'state_senator' && c.okind !== 'state_representative' && !c.sdist);
+      if (!ok) continue;
+      const v = roll.contests.find((x) => x.id === c.contest_id)?.cds.find(([cd]) => cd === d.idx)?.[1];
+      if (v) rows.push(historyRow(u, c, v));
+    }
+  }
+  const nowD = D.districtNumbered('cd', st.idx, number, year);
+  let now: DistrictHistoryDto['now'] = null;
+  if (nowD) {
+    const cdOf = D.assignment('cd', year), rg = w.pack.counties.filter((c) => c.stateIdx === st.idx);
+    const byCounty = new Map<number, number>(); let tot = 0;
+    for (const c of rg) for (let b = c.buStart; b < c.buStart + c.buCount; b++) if (cdOf[b] === nowD.idx) { const v = w.pop.vep[b]!; byCounty.set(c.idx, (byCounty.get(c.idx) ?? 0) + v); tot += v; }
+    const office = w.offices.find((o) => o.kind === 'us_representative' && o.districtIdx === nowD.idx);
+    const plan = nowD.planId ? u.db.get<{ census_year: number; first_year: number }>('SELECT census_year, first_year FROM district_plan WHERE plan_id = ?', [nowD.planId]) : undefined;
+    now = {
+      lean: Math.round(10 * leanMargin(w.lean.cd, nowD.idx)) / 10, population: nowD.pop2010,
+      plan: plan ? `drawn after the ${plan.census_year} census, in effect from ${plan.first_year}` : 'the 2016 plan, drawn after the 2010 census',
+      holder: office ? holderOf(u, office.id) : null,
+      counties: [...byCounty].map(([idx, v]) => ({ idx, name: w.pack.counties[idx]!.fullName, share: tot > 0 ? v / tot : 0 })).sort((a, b) => b.share - a.share),
+    };
+  }
+  const plans = D.cds.filter((d) => d.stateIdx === st.idx && d.number === number).map((d) => {
+    const p = d.planId ? u.db.get<{ census_year: number; first_year: number }>('SELECT census_year, first_year FROM district_plan WHERE plan_id = ?', [d.planId]) : undefined;
+    return { firstYear: p?.first_year ?? 2016, label: p ? `Drawn after the ${p.census_year} census (from ${p.first_year})` : 'The 2016 plan (drawn after the 2010 census)' };
+  }).sort((a, b) => a.firstYear - b.firstYear);
+  if (!now && !rows.length && !plans.length) return missing;
+  return { found: true, code: `${st.usps}-${number === 0 ? 'AL' : String(number).padStart(2, '0')}`, state: st.name, stateIdx: st.idx, number, now, plans, rows };
+}
+
+/** A state's statewide contests (President, Senate, Governor and every statewide office and court seat), its districts and its counties. */
+function stateHistory(u: Universe, stateIdx: number): StateHistoryDto {
+  const w = u.world, st = w.pack.states[stateIdx]!, year = daysToCivil(easternDay(w.time)).y;
+  const contests = u.db.all<CRow & { day: number }>(
+    `SELECT c.*, e.day FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id LEFT JOIN office_seat s ON s.office_id = c.office_id
+     WHERE c.state_idx = ? AND c.kind IN ('general','special','pres_state','retention') AND c.status IN ('decided','certified')
+       AND (o.kind IS NULL OR o.kind NOT IN ('us_representative','state_senator','state_representative')) AND (s.district IS NULL OR s.district = 0)
+     ORDER BY e.day DESC, c.contest_id`, [stateIdx]);
+  const rows = contests.map((c) => {
+    const t = u.db.all<{ candidacy_id: number; votes: number }>('SELECT t.candidacy_id, t.votes FROM contest_total t JOIN candidacy k ON k.candidacy_id = t.candidacy_id WHERE t.contest_id = ? AND t.rev = (SELECT MAX(rev) FROM contest_total WHERE contest_id = ?) ORDER BY k.ballot_order, k.candidacy_id', [c.contest_id, c.contest_id]);
+    const under = u.db.value<number>('SELECT undervotes FROM contest_turnout WHERE contest_id = ? ORDER BY rev DESC LIMIT 1', [c.contest_id]) ?? 0;
+    return historyRow(u, c, [...t.map((x) => x.votes), under]);
+  });
+  const ref = { states: w.pack.states, cds: w.districts.cds };
+  const districts = w.districts.districtsOf('cd', stateIdx, year).map((d) => {
+    const office = w.offices.find((o) => o.kind === 'us_representative' && o.districtIdx === d.idx);
+    const h = office ? holderOf(u, office.id) : null;
+    return { code: cdCode(ref, d.idx), holder: h ? { personId: h.personId, name: h.name, party: h.party } : null, lean: Math.round(10 * leanMargin(w.lean.cd, d.idx)) / 10 };
+  });
+  const counties = w.pack.counties.filter((c) => c.stateIdx === stateIdx).map((c) => ({ idx: c.idx, name: c.fullName }));
+  return { stateIdx, name: st.name, usps: st.usps, rows, districts, counties };
 }
 
 /** Two-party margins (D positive, points) for an office and year at state, county or district level. */

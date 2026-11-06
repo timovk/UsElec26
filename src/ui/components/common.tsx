@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { OfficeHolderDto, PartyDto } from '../../engine/protocol';
 import { formatDate } from '../../core/time';
 
@@ -45,6 +45,7 @@ export function OfficeHolder({ o, showTitle = true }: { o: OfficeHolderDto; show
           {o.since !== null && <div className="tiny muted">In office since {formatDate(o.since)}{o.acquired ? ` · ${o.acquired}` : ''}</div>}
         </div>
       </a>
+      {showTitle && /\b[A-Z]{2}-(AL|\d{2})\b/.test(o.title) && <a className="tiny" style={{ marginLeft: 44 }} href={districtHref(/\b[A-Z]{2}-(AL|\d{2})\b/.exec(o.title)![0])}>District history ›</a>}
     </div>
   );
 }
@@ -67,3 +68,24 @@ export function PartyName({ parties, id }: { parties?: PartyDto[]; id: number })
 export const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 export const fmtBytes = (n: number | null) => (n === null ? '—' : n > 1e9 ? `${(n / 1e9).toFixed(2)} GB` : n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.round(n / 1e3)} KB`);
 export const fmtLean = (m: number) => `${m >= 0 ? 'D' : 'R'}+${Math.abs(m).toFixed(1)}`;
+
+/** Congressional district codes in text ("TX-15", "NC-02", "WY-AL"). */
+const CODE_RE = /\b([A-Z]{2})-(AL|\d{2})\b/g;
+export const districtHref = (code: string) => `#/district/${code}`;
+
+/**
+ * Text with every congressional district code linked to the district's history. The rest of the text links to
+ * `href` when given (as separate links, never nested).
+ */
+export function CodeLinks({ text, href, style }: { text: string; href?: string; style?: CSSProperties }) {
+  const parts: ReactNode[] = [];
+  let last = 0, k = 0;
+  const plain = (s: string) => (s ? (href ? <a key={k++} href={href} style={style}>{s}</a> : <span key={k++}>{s}</span>) : null);
+  for (const m of text.matchAll(CODE_RE)) {
+    parts.push(plain(text.slice(last, m.index)));
+    parts.push(<a key={k++} href={districtHref(m[0])} title={`${m[0]}: every election in the district`} style={{ ...style, textDecoration: 'underline dotted' }} onClick={(e) => e.stopPropagation()}>{m[0]}</a>);
+    last = m.index! + m[0].length;
+  }
+  parts.push(plain(text.slice(last)));
+  return <>{parts}</>;
+}

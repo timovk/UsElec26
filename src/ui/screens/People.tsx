@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { PersonRow } from '../../engine/protocol';
 import { useQuery } from './Desk';
-import { PartyBadge } from '../components/common';
+import { CodeLinks, PartyBadge } from '../components/common';
 import { go } from '../app/router';
 
 const OFFICE_FILTERS: [string, string][] = [
@@ -36,7 +36,7 @@ export function People() {
             {data?.rows.map((p) => (
               <tr key={p.id} className="click" onClick={() => go(`people/${p.id}`)}>
                 <td><a href={`#/people/${p.id}`} style={{ color: 'inherit', fontWeight: 600 }}>{p.name}</a>{p.dead && <span className="muted small"> (deceased)</span>}</td>
-                <td><PartyBadge party={p.party} /></td><td>{p.office ?? <span className="muted">—</span>}</td><td>{p.stateUsps}</td><td className="num">{p.age}</td><td className="muted">{p.tier}</td>
+                <td><PartyBadge party={p.party} /></td><td>{p.office ? <CodeLinks text={p.office} /> : <span className="muted">—</span>}</td><td>{p.stateUsps}</td><td className="num">{p.age}</td><td className="muted">{p.tier}</td>
               </tr>
             ))}
           </tbody>

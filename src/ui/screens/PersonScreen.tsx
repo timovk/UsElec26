@@ -1,7 +1,7 @@
 import type { PersonDetail } from '../../engine/protocol';
 import { formatDate } from '../../core/time';
 import { useQuery } from './Desk';
-import { Avatar, PARTY_NAME, PartyBadge, PreSim, Truth } from '../components/common';
+import { Avatar, CodeLinks, PARTY_NAME, PartyBadge, PreSim, Truth } from '../components/common';
 
 export function PersonScreen({ id }: { id: number }) {
   const p = useQuery<PersonDetail | null>({ kind: 'person', id }, [id]);
@@ -15,7 +15,7 @@ export function PersonScreen({ id }: { id: number }) {
         <Avatar name={p.name} party={p.party} size={64} />
         <div>
           <h1 className="screen-title" style={{ margin: 0 }}>{p.fullName}</h1>
-          <div className="row small"><PartyBadge party={p.party} /> <span>{PARTY_NAME[p.party]}</span><span className="muted">· {current[0]?.title ?? (p.death ? 'Deceased' : 'No current office')}</span></div>
+          <div className="row small"><PartyBadge party={p.party} /> <span>{PARTY_NAME[p.party]}</span><span className="muted">· {current[0]?.title ? <CodeLinks text={current[0].title} /> : (p.death ? 'Deceased' : 'No current office')}</span></div>
         </div>
       </div>
       <div className="grid cols-3">
@@ -35,7 +35,7 @@ export function PersonScreen({ id }: { id: number }) {
           {p.terms.length === 0 && <p className="muted">No offices held.</p>}
           {[...p.terms].reverse().map((t, i) => (
             <div key={i} className="news-item">
-              <div className="h">{t.title}</div>
+              <div className="h"><CodeLinks text={t.title} /></div>
               <div className="t">{formatDate(t.start)} – {t.end === null ? 'present' : formatDate(t.end)}{t.endReason ? ` (${t.endReason})` : ''}</div>
               <div className="small muted">{t.acquired} {t.provenance !== 'simulated' && <PreSim />}</div>
             </div>

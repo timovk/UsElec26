@@ -5,7 +5,7 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import type { ElectionListItem, NightCallDto } from '../../engine/protocol';
-import { PARTY_COLORS, PartyBadge } from '../components/common';
+import { CodeLinks, PARTY_COLORS, PartyBadge } from '../components/common';
 import { go } from '../app/router';
 import { useQuery } from './Desk';
 import { formatTime } from '../../core/time';
@@ -92,7 +92,7 @@ function VirtualTable({ rows, head }: { rows: Row[]; head: React.ReactNode }) {
           {rows.slice(first, last).map((c) => (
             <tr key={c.id} className="click" style={{ height: ROW }} onClick={() => go(`contest/${c.id}`)}>
               <td className="num muted small">{c.election.date}</td>
-              <td className="small"><a href={`#/contest/${c.id}`} style={{ color: 'inherit' }}>{c.label.replace(/^\d{4} /, '')}</a>{c.flip && <span className="badge" style={{ marginLeft: 6 }}>flip</span>}</td>
+              <td className="small"><CodeLinks text={c.label.replace(/^\d{4} /, '')} href={`#/contest/${c.id}`} style={{ color: 'inherit' }} />{c.flip && <span className="badge" style={{ marginLeft: 6 }}>flip</span>}</td>
               <td className="muted small">{KIND_LABEL[c.kind] ?? c.kind}</td>
               <td className="small">{c.winner ? <span className="row"><PartyBadge party={c.winner.party} />{c.winner.name}</span> : <span className="muted">{c.status === 'runoff' ? 'Runoff' : '—'}</span>}</td>
               <td className="num small">{c.margin !== null && c.winner ? `${c.margin.toFixed(1)} pts` : ''}</td>

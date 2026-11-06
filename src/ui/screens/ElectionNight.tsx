@@ -8,7 +8,7 @@ import { useMemo, useRef, useState } from 'react';
 import type { GeoMeta, NightFrameDto, NightListItem, NightMarker, NightMetaDto, NightRaceFrame, NightTally } from '../../engine/protocol';
 import { formatDate } from '../../core/time';
 import { MapRenderer, type Basemap } from '../map/renderer';
-import { PARTY_COLORS, PARTY_NAME, PartyBadge, fmtInt } from '../components/common';
+import { CodeLinks, PARTY_COLORS, PARTY_NAME, PartyBadge, fmtInt } from '../components/common';
 import { useQuery } from './Desk';
 import { go } from '../app/router';
 import { useEffect } from 'react';
@@ -192,7 +192,7 @@ function RaceBoard({ m, f, byRj, rjs, onClose }: { m: NightMetaDto['races'][numb
   const rows = (byRj ?? []).map(([rj, v]) => ({ rj, v, tot: v.reduce((a, b) => a + b, 0) })).sort((a, b) => b.tot - a.tot);
   return (
     <div className="race-board">
-      <div className="row between"><div><div className="kicker">{m.state}{m.ev ? ` · ${m.ev} electoral vote${m.ev === 1 ? '' : 's'}` : ''}</div><h2 style={{ margin: '2px 0' }}>{m.label}</h2></div><button className="btn ghost small" onClick={onClose} aria-label="Close">✕</button></div>
+      <div className="row between"><div><div className="kicker">{m.state}{m.ev ? ` · ${m.ev} electoral vote${m.ev === 1 ? '' : 's'}` : ''}</div><h2 style={{ margin: '2px 0' }}><CodeLinks text={m.label} style={{ color: 'inherit' }} /></h2></div><button className="btn ghost small" onClick={onClose} aria-label="Close">✕</button></div>
       <div className="small"><Status f={f} m={m} />{f && f.s === ST.CALLED && f.ca >= 0 && <span className="muted"> {clock(f.ca)}</span>}</div>
       <table className="data" style={{ marginTop: 6 }}><tbody>{order.map(({ c, j, v }) => (
         <tr key={c.candidacyId}><td><span className="row"><PartyBadge party={c.party} /> <strong>{c.name}</strong>{c.incumbent && <span className="tiny muted"> (inc.)</span>}{f?.s === ST.CALLED && f.o === j && <span style={{ color: 'var(--ok)' }}> ✓</span>}</span></td>

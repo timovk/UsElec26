@@ -1,6 +1,6 @@
 # Phase 7.2 Report — Down-ballot Offices, Elected Boards and State Courts
 
-**Status:** implemented and tested; awaiting your approval before Phase 7.3.
+**Status:** approved. Followed by the election-history pages for states and districts (below).
 **Engine version:** 0.7.2 · **Schema version:** 8 · **Night record:** version 2 (unchanged) · **Geography pack:** 2016.1 (unchanged)
 
 Phase 7.2 is the second of eight Phase 7 sub-phases ([roadmap](architecture/10-roadmap.md#phase-7-complete-electoral-coverage)).
@@ -253,7 +253,23 @@ universe.
   - docs: architecture 03, 05 and 10, README;
   - this report.
 
-## 9. Next: Phase 7.3 — Ballot measures (awaiting your approval)
+## 9. After approval: election history by state and district
+
+On request, between 7.2 and 7.3:
+- **District history** (`#/district/TX-15`): its representative, its underlying lean and the counties it covers
+  today; its House elections; presidential results within it with the shift between elections; and every federal
+  and statewide contest's result within the district. After redistricting the same number is a different area, so
+  each election uses the district as drawn for it (from the archived district totals).
+- **State history** (**Archive → a state**): presidential results with shifts, every statewide contest (filter by
+  office), today's congressional districts with the party holding each and its lean, and the counties.
+- **District codes are links** wherever they appear: contest pages and titles, the results lists, person and
+  people pages, the election-night race panel, the map's district panel (also *Election history* for states), and a
+  county's page (its districts today).
+- **Tests:** a unit test checks every Texas district's history (one House race, the presidential result within it,
+  and that the districts add up to the state). The browser test now goes from a county to its district and on to the
+  state.
+
+## 10. Next: Phase 7.3 — Ballot measures (awaiting your approval)
 
 - **Statewide initiatives and referendums,** decided by voters' issue positions rather than party.
 - **Topics** come from the parties' platforms and the electorate's issues.
