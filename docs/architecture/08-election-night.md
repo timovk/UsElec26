@@ -140,6 +140,7 @@ Network B and C are working names, with the final fictional names checked agains
 | **Projection (call)** | P(leader) ≥ θ_call **and** the stress test passes **and** P(final margin inside the automatic-recount threshold) < 0.05 **and** the minimum evidence rule (≥ 25% expected vote counted, or a poll-close call) |
 | **Retraction** | After a call, P(called candidate) < retraction threshold → "Projection withdrawn". The race returns to Too Close to Call and can be called again later. |
 | **Runoff projected** | In majority-rule contests, P(no candidate > 50%) ≥ θ_call, with the two advancing candidates projected separately |
+| **Ranked-choice count** (Phase 7.1) | A ranked-choice race is projected only if a candidate will win a majority of first choices. Otherwise the same test as a runoff sends it to the ranked-choice count, which follows certification (as in Maine): no projection on the night |
 | **Control projected** | Called seats for a party reach a majority (counting holdovers and the VP tiebreak) |
 | **President projected** | Called electoral votes for a candidate ≥ 270 |
 

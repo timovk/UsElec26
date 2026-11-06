@@ -106,6 +106,10 @@ CREATE TABLE contest_geo   (contest_id INTEGER, county_geo_id INTEGER);         
 CREATE INDEX contest_geo_county ON contest_geo(county_geo_id);
 CREATE TABLE electorate_snapshot (election_id INTEGER, state_fips TEXT, payload BLOB);  -- eligible by BU (validation)
 CREATE TABLE rcv_round     (contest_id INTEGER, rev INTEGER, round INTEGER, candidacy_id INTEGER, votes INTEGER, status TEXT);
+-- As implemented (schema 7, Phase 7.1): rcv_round as above (candidacy_id NULL = exhausted ballots; status
+-- continuing | eliminated | elected | defeated | exhausted); election_law(law_id, state_idx, enacted, effective_day,
+-- source, change_json, summary) holds the changes enacted in the universe (the 2016 baseline is code), and
+-- contest.nonpartisan marks ballots without party labels.
 CREATE TABLE electoral_vote(election_id INTEGER, contest_id INTEGER, candidacy_id INTEGER, ev INTEGER, kind TEXT);
 CREATE TABLE recount       (recount_id INTEGER PRIMARY KEY, contest_id INTEGER, trigger TEXT, requested INTEGER,
                             completed INTEGER, from_rev INTEGER, to_rev INTEGER, net_change_json TEXT);

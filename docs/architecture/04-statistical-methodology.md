@@ -267,6 +267,23 @@ Plackett–Luce model), then realized. Vote-for-N contests use sequential choice
 Top-two primaries are a single contest with all candidates. Runoffs are new elections with their own
 lock.
 
+*As implemented in Phase 7.1* (`counting/rcv.ts`, `engine/nightJob.ts`): the kernel returns, for each ranked
+contest, the expected voter-type mass behind every first choice in each reporting jurisdiction (RJ). The
+compute worker tabulates the instant runoff on the ballots that will be certified (cast, less rejected mail and
+provisional ballots). Each round, a candidate with more than half of the continuing ballots wins; otherwise the
+last-placed candidate (every candidate with no votes at once) is eliminated. Each RJ's ballots for that
+candidate move by one multinomial draw over the remaining candidates and "stop ranking", with probabilities
+`Σ_t m_t · PL_t(k | remaining)`. Here `m_t` is the pile's type mass and `PL_t` the softmax of the kernel's utilities
+for type t in the RJ's county. The stop utility is the contest's undervote utility plus 3, calibrated so that
+about a fifth to a third of an eliminated minor candidate's ballots exhaust. Plackett–Luce's independence of
+irrelevant alternatives means a pile needs only its type mix, not its ballots' histories. The moved ballots carry
+the expected mix of the types that rank the receiving candidate next. Every round's tallies plus exhausted
+ballots equal the first round's ballots exactly. Rounds are archived in `rcv_round`.
+
+*Nonpartisan ballots* (Phase 7.1): `w_e = 0` and no party sign. The ideology term becomes
+`−0.25 · ‖x̄_h − x_j‖²`: voters see the candidate, not the party's platform. Nebraska's legislature is the 2016
+example.
+
 ## 4.6 Short-term forces and the correlation structure
 
 The environment `Δ_b` shared by all contests on a ballot is a hierarchy of persistent shocks:

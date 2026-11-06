@@ -160,6 +160,15 @@ Ballots are cast over weeks (mail and early voting), not in an instant:
   Every roll call is stored, with each member's vote.
 - **State government:** each December 31, every state's session is summarized (laws, vetoes, overrides, a
   late budget under divided government).
+- **Election law** (Phase 7.1, `rules/electionLaw.ts`, `engine/electionReform.ts`): each state's rules are the
+  January 1, 2016 baseline plus changes enacted in the universe, each with an effective date (the next January 1).
+  An election follows the law in force on its day; changes never apply to elections already held. The session
+  may adopt ranked-choice voting (for party primaries and for Congress or every office but President), repeal it,
+  or switch among open, semi-closed and closed primaries. Adoption has a small base rate (0.3% per state-year),
+  rises after "spoiler" outcomes (a winner below 50% while a minor candidate took more than the margin), and
+  rises again when the harmed party controls the state. Repeal is likeliest after ranked ballots overturned a
+  first-round leader whose party now governs. Nothing from the real world after 2016 is imported. Ballot
+  initiatives join in Phase 7.3.
 - **Careers between elections** (monthly): scandals (hazard by office scrutiny and integrity), scandal
   resignations, other mid-term exits (health, private sector), cabinet turnover (mean tenure about 2.7 years), rare
   party switches. A new President brings a new cabinet. Party conferences choose leaders when each Congress
