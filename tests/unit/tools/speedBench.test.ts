@@ -2,7 +2,7 @@
  * Speed benchmark on the real Census geography (opt-in): ENA_SPEED=<label>.
  *
  * Creates a universe (seed ENA_SPEED_SEED, default SPEED-1) or opens ENA_SPEED_FROM (a saved universe), then
- * advances month by month to ENA_SPEED_UNTIL (default 2016-12-01), recording wall time per month, time per
+ * advances month by month to ENA_SPEED_UNTIL (default 2016-12-01; ENA_SPEED_SAVE=<path> saves the database at the end), recording wall time per month, time per
  * progress step and per section of the daily campaign season, and optionally time per SQL statement (ENA_SPEED_SQL=1) and a CPU profile (ENA_SPEED_CPU=1).
  * It also fingerprints every table (SHA-256 of its rows, in key order), so an optimization can be checked to
  * leave the simulation byte-identical: compare `.cache/speed-<label>.json` files.
@@ -138,6 +138,7 @@ it.skipIf(!label || !existsSync(`${REAL}manifest.json`))(`speed benchmark (${lab
     semantic: sem, semanticFingerprint: createHash('sha256').update(JSON.stringify(sem)).digest('hex').slice(0, 16),
   };
   writeFileSync(`.cache/speed-${label}.json`, JSON.stringify(report, null, 1));
+  if (process.env.ENA_SPEED_SAVE) writeFileSync(process.env.ENA_SPEED_SAVE, u.db.exportBytes()); // the universe database, for inspection
   console.log(`${label}: setup ${report.setupMs} ms, run ${report.runMs} ms, fingerprint ${report.fingerprint}, semantic ${report.semanticFingerprint}\n${months.map((m) => `${m.month} ${m.ms}`).join(' · ')}\n${report.steps.slice(0, 20).map((s) => `${s.step}: ${s.ms}`).join('\n')}\nseason ${JSON.stringify(report.season)}`);
   delete (globalThis as unknown as { __seasonT?: unknown }).__seasonT;
   u.close();

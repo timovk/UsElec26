@@ -64,6 +64,10 @@ test('the 2016 campaign: primaries, polls, forecasts, conventions and forecast v
   await page.screenshot({ path: 'test-results/e2e-national-average.png' });
   await advance(page, /Next election/, 'November 8, 2016');
   console.log(`January 1 → November 8, 2016 in Chromium: ${Date.now() - t0} ms`);
+  // Leave the Polls screen first: on it, the forecast tab would show the overview fetched before this advance
+  // until its refetch returns (once on CI the card read October 26's forecast). A fresh screen fetches it now.
+  await page.goto('./#/desk');
+  await expect(page.getByRole('heading', { name: 'The Desk', exact: true })).toBeVisible();
   await page.goto('./#/polls/2016/forecast');
   await expect(page.getByRole('heading', { name: 'President', exact: true })).toBeVisible();
   const headline = await page.locator('.fc-card').first().innerText();

@@ -107,6 +107,25 @@ Levers, in order:
 4. keep fewer full records for never-elected legislative candidates;
 5. compact per-contest archives for legislative seats.
 
+### Measured after the speed work (see [../speed-report.md](../speed-report.md))
+
+The simulation is unchanged (every table's content is identical for 2016 and from a 2036 universe). Chromium on
+this 4-core server, January 1 → December 26, 2016 in "+1 month" steps, with an on-disk browser profile as a user
+has (Playwright's default in-memory profile makes storage writes far slower than they are for a user):
+
+| Measurement | Phase 6 | After |
+|---|---|---|
+| The year, January 1 → December 26, 2016 | 77.5–82.2 s | **40.5–41.2 s** |
+| A month without an election day (30 days) | 1.8–6.2 s | 1.0–3.6 s |
+| November (Election Day and the canvass) | 24.6–26.1 s | 15.0–15.5 s |
+| December (certification) | 18.3–18.8 s | 5.0 s |
+| CI runner: January 1 → the 2016 ballot lock | 93 s | 43–58 s |
+| CI runner: auditing the 2016 archive | 153 s | 94–136 s |
+
+**Still over budget:** about 1–2 minutes for a year with a general election on a Chromebook (1.5–3× slower)
+against 40 s. The remaining cost is the kernel and night jobs in the compute workers (November) and the
+engine's daily season (forecasts, polls, campaigns) in the other months.
+
 ## 11.3 Likely bottlenecks and mitigations
 
 | Bottleneck | Mitigation |
@@ -117,7 +136,7 @@ Levers, in order:
 | Count plan + desk evaluation | Hypergeometric chunking in the pool; desks evaluate analytically in O(RJs in contest) per update, with Monte Carlo only near thresholds; evaluation throttled to at most once per simulated minute per contest |
 | Map rendering on weak GPUs | Pre-projected quantized geometry; Path2D cache; redraw-on-change; cached bitmaps during motion; LOD by zoom; viewport culling with flatbush; WebGL2 texture-based recolor for ≥ 10k features |
 | Geography download size | Per-state lazy loading; service-worker cache; an optional "make available offline" prefetch |
-| SQLite write amplification | Blobs, not rows, for numeric mass; one transaction per simulated day or batch; 8–16 KB page size (benchmarked in Phase 1); hot-state checkpoints only for changed keys |
+| SQLite write amplification | Blobs, not rows, for numeric mass; one transaction per batch of simulated days (committed at most every 10 s of wall time during an advance); prepared statements cached; 8–16 KB page size (benchmarked in Phase 1); hot-state checkpoints only for changed keys |
 | Archive query latency | Materialized rollups per (election, state); `contest_geo` index; LRU of decoded blobs in the engine worker |
 | React re-render storms during a night | Worker-side diffing; ≤ 10 Hz updates; memoized panels; virtualized tables; no React inside the map |
 | GC pauses | Transferable buffers instead of structured clones; preallocated typed arrays in kernels; no per-frame allocation in renderers |

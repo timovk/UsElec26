@@ -170,7 +170,7 @@ Evolving state lives in `state_blob` rows: `demography.state` (county × band st
 
 | Concern | Mechanism |
 |---|---|
-| **Autosave** | Hot state checkpoints to `state_blob` at the end of each simulated day while running (batched: at most once per 2 s of wall time), on pause, before and after every election finalization, and on `visibilitychange`/`pagehide`. History rows commit in the same transaction as the event that produced them. |
+| **Autosave** | Hot state checkpoints to `state_blob` at the end of each simulated day while running (batched: an advance holds one transaction across days and commits it to storage at most every 10 s of wall time, between days, and when the advance stops), on pause, before and after every election finalization, and on `visibilitychange`/`pagehide`. History rows commit in the same transaction as the event that produced them. |
 | **Crash safety** | SQLite transactions (rollback journal; the sahpool VFS does not use WAL). `op_journal` covers multi-transaction operations. After a crash the universe reopens at the last committed simulated day. Deterministic re-execution makes the lost interval reproducible. |
 | **Manual saves / slots** | A *save slot* is a universe DB. "Save as…" makes a `VACUUM INTO` copy (consistent snapshot). Each slot is one continuous universe (spec §2.3). |
 | **Backups** | Automatic rolling backups before each general election and every January 1 (keep the latest 3 of each), plus on demand. Before any schema migration a backup is mandatory. |

@@ -14,6 +14,7 @@ fictional electorate, set in real American geography and institutions, beginning
 | 4 | Broadcast interface: Broadcast Mode, magic-wall maps and map modes, alerts and commentary, Analyst mode, Results Explorer | ✅ approved ([report](docs/phase-4-report.md)) |
 | 5 | Campaigns, polling and forecasts: campaigns and events, fictional pollsters, polling averages, Monte Carlo forecasts, presidential primaries with delegates and conventions, debates and endorsements | ✅ approved ([report](docs/phase-5-report.md)) |
 | 6 | Political evolution: demography, an evolving electorate, economy and approval, careers and succession, Congress and state government, census, apportionment, redistricting, state legislative elections | ✅ implemented, awaiting approval ([report](docs/phase-6-report.md)) |
+| — | Speed: faster simulated years (deferred from Phases 5 and 6); the year 2016 takes about half as long | ✅ implemented, awaiting approval ([report](docs/speed-report.md)) |
 | 7–10 | Full coverage, archive, advanced systems, polish | [roadmap](docs/architecture/10-roadmap.md) |
 
 ## Using it (Chromebook)
@@ -59,6 +60,7 @@ Key documents:
 - [Phase 4 report](docs/phase-4-report.md)
 - [Phase 5 report](docs/phase-5-report.md)
 - [Phase 6 report](docs/phase-6-report.md)
+- [Speed report](docs/speed-report.md)
 - [Geography pack format](docs/data/geo-pack-format.md)
 - [Geography validation](docs/data/geo-pack-2016.1-validation.md)
 - [Data sources and licenses](docs/data-sources.md)
