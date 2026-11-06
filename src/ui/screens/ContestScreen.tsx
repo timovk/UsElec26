@@ -17,6 +17,8 @@ export function ContestScreen({ id }: { id: number }) {
   if (c === null) return <p className="muted">Loading…</p>;
   if (!c) return <p>No such contest.</p>;
   const valid = c.candidates.reduce((a, x) => a + (x.votes ?? 0), 0);
+  // Short column labels: surnames, or Yes / No on a retention vote.
+  const label = (x: { name: string; party: number }) => (c.retention ? (x.party === 0 ? 'No' : 'Yes') : surname(x.name));
   return (
     <>
       <a className="small" href={`#/results/${c.label.slice(0, 4)}`}>‹ {c.label.slice(0, 4)} results</a>
@@ -69,7 +71,7 @@ export function ContestScreen({ id }: { id: number }) {
                   <tbody>
                     {c.candidates.map((x) => (
                       <tr key={x.candidacyId}>
-                        <td><span className="row"><PartyBadge party={x.party} />{surname(x.name)}</span></td>
+                        <td><span className="row">{!(c.retention && x.party === 0) && <PartyBadge party={x.party} />}{label(x)}</span></td>
                         {c.rcv!.map((r) => { const e = r.candidates.find((k) => k.candidacyId === x.candidacyId); const tot = r.candidates.reduce((a, k) => a + k.votes, 0);
                           return <td key={r.round} className="num small">{e ? <>{fmtInt(e.votes)} <span className="muted tiny">{tot ? `${(100 * e.votes / tot).toFixed(1)}%` : ''}</span>{e.status === 'elected' ? ' ✔' : e.status === 'eliminated' ? ' ✕' : ''}</> : <span className="muted">—</span>}</td>; })}
                       </tr>
@@ -85,7 +87,7 @@ export function ContestScreen({ id }: { id: number }) {
         <section className="card">
           <h2>By method of voting</h2>
           {c.modes.length === 0 ? <p className="muted small">Not recorded for this contest.</p> : (
-            <table className="data"><thead><tr><th>Method</th>{c.candidates.map((x) => <th key={x.candidacyId}>{surname(x.name)}</th>)}</tr></thead>
+            <table className="data"><thead><tr><th>Method</th>{c.candidates.map((x) => <th key={x.candidacyId}>{label(x)}</th>)}</tr></thead>
               <tbody>{c.modes.map((m) => { const t = m.votes.reduce((a, b) => a + b, 0); return <tr key={m.mode}><td>{m.mode}</td>{m.votes.map((v, i) => <td key={i} className="num">{fmtInt(v)} <span className="muted tiny">{t ? `${(100 * v / t).toFixed(0)}%` : ''}</span></td>)}</tr>; })}</tbody></table>
           )}
           <p className="tiny muted">How these ballots were cast{c.counting ? ' (counted so far)' : ''}. On election night some states release early and mail ballots first, others count them last.</p>

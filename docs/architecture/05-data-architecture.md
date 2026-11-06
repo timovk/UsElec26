@@ -110,6 +110,11 @@ CREATE TABLE rcv_round     (contest_id INTEGER, rev INTEGER, round INTEGER, cand
 -- continuing | eliminated | elected | defeated | exhausted); election_law(law_id, state_idx, enacted, effective_day,
 -- source, change_json, summary) holds the changes enacted in the universe (the 2016 baseline is code), and
 -- contest.nonpartisan marks ballots without party labels.
+-- Schema 8 (Phase 7.2): office_seat(office_id, body, seat, district, cycle_year, term_years) for the seats of
+-- down-ballot offices, elected boards and state courts (body = its key in rules/downballot2016; district 0 =
+-- statewide; cycle_year = an election year, or the year an appointed court's term ends, moved by appointments).
+-- Retention votes are contests of kind 'retention' (method retention_<share>) with two candidacies: the judge
+-- (yes) and "no" (party 0). Wisconsin's spring elections are elections of kind 'spring' and 'spring_primary'.
 CREATE TABLE electoral_vote(election_id INTEGER, contest_id INTEGER, candidacy_id INTEGER, ev INTEGER, kind TEXT);
 CREATE TABLE recount       (recount_id INTEGER PRIMARY KEY, contest_id INTEGER, trigger TEXT, requested INTEGER,
                             completed INTEGER, from_rev INTEGER, to_rev INTEGER, net_change_json TEXT);

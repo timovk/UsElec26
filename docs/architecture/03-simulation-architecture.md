@@ -166,7 +166,20 @@ Ballots are cast over weeks (mail and early voting), not in an instant:
   may adopt ranked-choice voting (for party primaries and for Congress or every office but President), repeal it,
   or switch among open, semi-closed and closed primaries. A top-two state adopts it as a top-four primary with a
   ranked general (a ranked count of two candidates would change nothing); repealing a top-four primary restores
-  the primary system it replaced. Louisiana's November all-candidate ballot is not changed. Adoption has a small base rate (0.3% per state-year),
+  the primary system it replaced. Louisiana's November all-candidate ballot is not changed.
+- **Down-ballot offices, boards and courts** (Phase 7.2, `rules/downballot2016.ts`, `engine/downballot.ts`): every
+  state's other elected statewide officers, its elected commissions, boards of education and university boards,
+  its supreme court(s) and the appellate courts elected statewide, as in its law of 2016 — one office per seat,
+  each with a cycle and a term. Seats are filled by partisan elections (by the state's primary system, or by
+  party convention), party-nominated nonpartisan ballots (Michigan's and Ohio's Supreme Courts), nonpartisan
+  elections (a nonpartisan primary narrows the field to two; on primary day a majority may win outright; West
+  Virginia decides its court on primary day; Mississippi's needs a majority), retention votes (yes/no, 50%, 57% or
+  60% to keep the seat) and partisan-then-retention systems (Illinois, New Mexico, Pennsylvania); appointed courts
+  are reappointed when terms end. Wisconsin votes in April, Pennsylvania's courts in odd years. Vacancies are
+  filled by the governor (often from a nominating commission's list) or the legislature, an appointee's seat
+  moving to its first election; judges leave at their court's mandatory retirement age. Board districts are drawn
+  by the simulation from the year's state house districts (`geo/bodyDistricts.ts`). Down-ballot races are neither
+  polled nor forecast; statewide officers and supreme court seats elected statewide are on the broadcast night. Adoption has a small base rate (0.3% per state-year),
   rises after "spoiler" outcomes (a winner below 50% while a minor candidate took more than the margin), and
   rises again when the harmed party controls the state. Repeal is likeliest after ranked ballots overturned a
   first-round leader whose party now governs. Nothing from the real world after 2016 is imported. Ballot

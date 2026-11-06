@@ -4,7 +4,7 @@
  * legislatures, the census and apportionment, and district plans. Read-only.
  */
 import { decodeBundle } from '../core/codec';
-import { ageOn, daysToCivil, easternDay, formatDay } from '../core/time';
+import { ageOn, civilToDays, daysToCivil, easternDay, formatDay, generalElectionDay } from '../core/time';
 import { NONE16 } from '../geo/pack';
 import { fullName, PARTY_D, PARTY_R, type Office } from '../institutions/model';
 import type { DistrictKind } from './districts';
@@ -245,7 +245,9 @@ function stateOffices(u: Universe, state?: number): StateOfficesDto {
   const comp = (offs: { party: number | null }[]) => { const m = new Map<number, number>(); for (const x of offs) m.set(x.party ?? 0, (m.get(x.party ?? 0) ?? 0) + 1); return [...m].map(([party, seats]) => ({ party, seats })).sort((a, b) => b.seats - a.seats || a.party - b.party); };
   const nextUp = (o: { seat?: { cycle: number; termYears: number } }, b: BodyDef): string | null => {
     if (!o.seat || o.seat.termYears <= 0) return b.retireAt ? `serves to age ${b.retireAt}` : 'life tenure';
-    for (let y = year; y < year + 16; y++) if (seatUp(o.seat.cycle, o.seat.termYears, y)) return elected(b) ? `${y}` : `term ends ${y}`;
+    // This year's election counts only until it has been held (Wisconsin votes in April, the rest in November).
+    const first = elected(b) && day > (b.spring ? civilToDays(year, 4, 7) : generalElectionDay(year)) ? year + 1 : year;
+    for (let y = first; y < year + 16; y++) if (seatUp(o.seat.cycle, o.seat.termYears, y)) return elected(b) ? `${y}` : `term ends ${y}`;
     return null;
   };
   const bodies = (DOWNBALLOT_2016[st.usps] ?? []).map((b) => {
