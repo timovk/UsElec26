@@ -66,12 +66,22 @@ export class SqliteDb implements Db {
     finally { this.depth--; }
   }
 
+  /** Open a transaction; inside another one it is a savepoint (closed by the matching `end` or `abort`). */
   begin(): void {
-    if (this.depth > 0) throw new Error('begin: a transaction is already open');
+    if (this.depth > 0) { this.db.exec(`SAVEPOINT sp${this.depth}`); this.depth++; return; }
     this.depth++; this.db.exec('BEGIN IMMEDIATE');
   }
-  end(): void { this.db.exec('COMMIT'); this.depth--; }
-  abort(): void { try { this.db.exec('ROLLBACK'); } catch { /* already rolled back */ } this.depth--; }
+  end(): void {
+    this.depth--;
+    if (this.depth > 0) this.db.exec(`RELEASE sp${this.depth}`); else this.db.exec('COMMIT');
+  }
+  abort(): void {
+    this.depth--;
+    if (this.depth > 0) { try { this.db.exec(`ROLLBACK TO sp${this.depth}; RELEASE sp${this.depth}`); } catch { /* already rolled back */ } return; }
+    try { this.db.exec('ROLLBACK'); } catch { /* already rolled back */ }
+  }
+  /** Whether a transaction is open. */
+  get inTransaction(): boolean { return this.depth > 0; }
 
   lastInsertRowid(): number {
     return Number(this.sqlite3.capi.sqlite3_last_insert_rowid(this.db.pointer!));

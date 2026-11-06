@@ -48,6 +48,9 @@ export class OpfsStorage implements Storage {
 
   open(name: string): Db {
     const db = new this.pool.OpfsSAHPoolDb(name);
+    // A 64 MB page cache: a batch of simulated days (see Universe.advance) keeps its dirty pages in memory and
+    // writes each once at commit; reads of a large universe stop going back to storage. The default is 2 MB.
+    db.exec('PRAGMA cache_size = -65536');
     return new SqliteDb(this.sqlite3, db);
   }
 

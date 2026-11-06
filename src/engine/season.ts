@@ -144,8 +144,9 @@ export class Season {
 
   private buildRaces(year: number, day: DayNumber): Race[] {
     const w = this.w, out: Race[] = [];
-    const rows = this.db.all<ContestRow & { eday: number }>(`SELECT c.*, e.day AS eday FROM contest c JOIN election e ON e.election_id = c.election_id
-      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND c.kind IN ('general','special','pres_state','primary','top_two','pres_primary') ORDER BY c.contest_id`, [year, day]);
+    // State legislative contests are neither polled nor forecast: leave them out in SQL (about 6,000 a year).
+    const rows = this.db.all<ContestRow & { eday: number }>(`SELECT c.*, e.day AS eday FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
+      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND c.kind IN ('general','special','pres_state','primary','top_two','pres_primary') AND (o.kind IS NULL OR o.kind NOT IN ('state_senator','state_representative')) ORDER BY c.contest_id`, [year, day]);
     const opt = (cand: CandidacyRow, p: Person): Opt => ({ key: `p${p.id}`, label: fullName(p), party: cand.party_id, personId: p.id });
     // A general election is not a race to poll until every primary (and runoff) feeding it has chosen its nominee.
     const awaiting = new Map<number, number[]>();
@@ -154,8 +155,8 @@ export class Season {
     }
     // Every candidacy of those contests in one query.
     const byContest = new Map<number, { cand: CandidacyRow; person: Person }[]>();
-    for (const k of this.db.all<CandidacyRow>(`SELECT k.* FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id JOIN election e ON e.election_id = c.election_id
-      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND k.status NOT IN ('withdrew') ORDER BY k.contest_id, k.ballot_order, k.candidacy_id`, [year, day])) {
+    for (const k of this.db.all<CandidacyRow>(`SELECT k.* FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
+      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND k.status NOT IN ('withdrew') AND (o.kind IS NULL OR o.kind NOT IN ('state_senator','state_representative')) ORDER BY k.contest_id, k.ballot_order, k.candidacy_id`, [year, day])) {
       const p = w.persons.get(k.person_id); if (!p) continue;
       const a = byContest.get(k.contest_id) ?? []; a.push({ cand: k, person: p }); byContest.set(k.contest_id, a);
     }
@@ -687,7 +688,7 @@ export class Season {
 
   private holdovers(year: number, party: number): number {
     const w = this.w;
-    const up = new Set(this.db.all<{ office_id: number }>("SELECT c.office_id FROM contest c WHERE c.year = ? AND c.kind IN ('general','special') AND c.office_id IS NOT NULL", [year]).map((r) => r.office_id));
+    const up = new Set(this.db.all<{ office_id: number }>("SELECT c.office_id FROM contest c JOIN office o ON o.office_id = c.office_id WHERE c.year = ? AND c.kind IN ('general','special') AND o.kind = 'us_senator'", [year]).map((r) => r.office_id));
     return w.offices.filter((o) => o.kind === 'us_senator' && !up.has(o.id) && w.current.get(o.id)?.partyId === party).length;
   }
 

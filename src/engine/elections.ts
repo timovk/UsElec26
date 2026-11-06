@@ -234,7 +234,18 @@ export class ElectionEngine {
     return this.runCache.ids;
   }
 
-  quality(p: Person, background = 0): number { return candidateQuality(p, heldKinds(this.w.current, this.w.officeById, p.id), background); }
+  quality(p: Person, background = 0): number { return candidateQuality(p, this.heldIndex?.get(p.id) ?? (this.heldIndex ? [] : heldKinds(this.w.current, this.w.officeById, p.id)), background); }
+  /** During filing (when no term starts or ends), offices held by each person, in the order heldKinds gives them. */
+  private heldIndex: Map<number, import('../institutions/model').OfficeKind[]> | null = null;
+  private withHeldIndex<T>(fn: () => T): T {
+    const outer = this.heldIndex === null;
+    if (outer) {
+      const m = new Map<number, import('../institutions/model').OfficeKind[]>();
+      for (const [oid, t] of this.w.current) { const a = m.get(t.personId); const k = this.w.officeById.get(oid)!.kind; if (a) a.push(k); else m.set(t.personId, [k]); }
+      this.heldIndex = m;
+    }
+    try { return fn(); } finally { if (outer) this.heldIndex = null; }
+  }
 
   /** Consecutive terms the person has served in an office (for term limits). */
   private consecutiveTerms(o: Office, p: Person, year: number): number {
@@ -305,7 +316,8 @@ export class ElectionEngine {
   }
 
   /** Candidate emergence for a state's races of the year; creates general, primary and minor-party candidacies. */
-  filing(year: number, stateIdx: number): void {
+  filing(year: number, stateIdx: number): void { this.withHeldIndex(() => this.fileState(year, stateIdx)); }
+  private fileState(year: number, stateIdx: number): void {
     const w = this.w; const st = w.pack.states[stateIdx]!; const rules = ELECTION_RULES_2016[st.usps]!;
     const generalId = this.electionOf(year, 'general', stateIdx);
     if (generalId === null) return;

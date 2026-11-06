@@ -50,30 +50,39 @@ export interface Marginals {
   collegeByAge: Float64Array; // 4 probabilities
 }
 
-/** Rake `cells` (64, in place) to the given marginals. */
+/**
+ * Rake `cells` (64, in place) to the given marginals. Cohort k = race + 4·(edu + 2·(sex + 2·age)), so an age
+ * band is 16 consecutive cells, sex is bit 3, education bit 2 and race the low two bits. The arithmetic is the
+ * same, in the same order, as the plain loops it replaces (results are bit-identical); it is the kernel's
+ * hottest function, run for every base unit of every election.
+ */
+const RAKE_TMP = new Float64Array(4);
 export function rake(cells: Float64Array, m: Marginals, iterations = 6): void {
-  const tmp = new Float64Array(4);
+  const tmp = RAKE_TMP;
   for (let it = 0; it < iterations; it++) {
     // age
     let tot = 0;
-    tmp.fill(0); for (let k = 0; k < N_COHORTS; k++) { tmp[cohortAge(k)]! += cells[k]!; tot += cells[k]!; }
-    for (let k = 0; k < N_COHORTS; k++) { const t = tmp[cohortAge(k)]!; cells[k] = t > 0 ? cells[k]! * m.age[cohortAge(k)]! * tot / t : 0; }
+    tmp[0] = 0; tmp[1] = 0; tmp[2] = 0; tmp[3] = 0;
+    for (let k = 0; k < 64; k++) { const c = cells[k]!; tmp[k >> 4]! += c; tot += c; }
+    for (let a = 0; a < 4; a++) { const t = tmp[a]!, f = m.age[a]!; for (let k = a << 4, e = k + 16; k < e; k++) cells[k] = t > 0 ? cells[k]! * f * tot / t : 0; }
     // sex
     let male = 0; tot = 0;
-    for (let k = 0; k < N_COHORTS; k++) { tot += cells[k]!; if (cohortSex(k) === 0) male += cells[k]!; }
+    for (let k = 0; k < 64; k++) { const c = cells[k]!; tot += c; if (((k >> 3) & 1) === 0) male += c; }
     const fm = male > 0 ? m.male * tot / male : 0, ff = tot - male > 0 ? (1 - m.male) * tot / (tot - male) : 0;
-    for (let k = 0; k < N_COHORTS; k++) cells[k]! *= cohortSex(k) === 0 ? fm : ff;
+    for (let k = 0; k < 64; k++) cells[k]! *= ((k >> 3) & 1) === 0 ? fm : ff;
     // race
-    tmp.fill(0); tot = 0; for (let k = 0; k < N_COHORTS; k++) { tmp[cohortRace(k)]! += cells[k]!; tot += cells[k]!; }
-    for (let k = 0; k < N_COHORTS; k++) { const t = tmp[cohortRace(k)]!; cells[k] = t > 0 ? cells[k]! * m.race[cohortRace(k)]! * tot / t : 0; }
+    tmp[0] = 0; tmp[1] = 0; tmp[2] = 0; tmp[3] = 0; tot = 0;
+    for (let k = 0; k < 64; k++) { const c = cells[k]!; tmp[k & 3]! += c; tot += c; }
+    for (let k = 0; k < 64; k++) { const t = tmp[k & 3]!; cells[k] = t > 0 ? cells[k]! * m.race[k & 3]! * tot / t : 0; }
     // education within age band
     for (let a = 0; a < 4; a++) {
       let col = 0, all = 0;
-      for (let k = 0; k < N_COHORTS; k++) if (cohortAge(k) === a) { all += cells[k]!; if (cohortEdu(k)) col += cells[k]!; }
+      const k0 = a << 4, k1 = k0 + 16;
+      for (let k = k0; k < k1; k++) { const c = cells[k]!; all += c; if ((k >> 2) & 1) col += c; }
       if (all <= 0) continue;
       const target = m.collegeByAge[a]!;
       const fc = col > 0 ? target * all / col : 0, fn = all - col > 0 ? (1 - target) * all / (all - col) : 0;
-      for (let k = 0; k < N_COHORTS; k++) if (cohortAge(k) === a) cells[k]! *= cohortEdu(k) ? fc : fn;
+      for (let k = k0; k < k1; k++) cells[k]! *= (k >> 2) & 1 ? fc : fn;
     }
   }
   let tot = 0; for (let k = 0; k < N_COHORTS; k++) tot += cells[k]!;

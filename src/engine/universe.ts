@@ -32,6 +32,8 @@ import { SIM_START } from '../core/time';
 
 const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
 export const ENGINE_VERSION = '0.6.0';
+/** How often (wall time) a long advance commits its batched writes to storage. */
+const COMMIT_INTERVAL_MS = 10000;
 
 export type AdvanceTarget = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number } | { kind: 'nextElection' };
 
@@ -220,6 +222,12 @@ export class Universe {
     let stopAfter: number | null = null;
     const produced: NewsItem[] = [];
     this.newsSink = produced;
+    // Storage writes are batched: one transaction is held across days and committed to storage at most every
+    // COMMIT_INTERVAL_MS of wall time, between days (where today's per-day transactions would also have
+    // committed), and at the end. The database content is the same; the browser writes each page once per
+    // batch instead of once per simulated day (writes to OPFS were most of a simulated month's cost).
+    this.db.begin();
+    let lastCommit = performance.now(), ok = false;
     try {
       for (;;) {
         const tick = Universe.nextDailyTick(w.time);
@@ -232,13 +240,18 @@ export class Universe {
           this.queue.shift(); await this.runEvent(ev);
           if (target.kind === 'nextElection' && ELECTION_EVENTS.has(ev.kind)) stopAfter = ev.time;
         } else await this.dailyTick(easternDay(next));
+        if (performance.now() - lastCommit > COMMIT_INTERVAL_MS) { this.db.end(); this.db.begin(); lastCommit = performance.now(); }
         if (target.kind === 'nextEvent' && produced.length > n0) break;
       }
-    } finally { this.newsSink = null; }
-    if (stopAfter !== null) until = w.time;
-    if (target.kind !== 'nextEvent' || produced.length === 0) w.time = Math.max(w.time, until);
-    if (target.kind === 'nextEvent' && produced.length === 0) w.time = until;
-    await this.flush(command ? target : null);
+      if (stopAfter !== null) until = w.time;
+      if (target.kind !== 'nextEvent' || produced.length === 0) w.time = Math.max(w.time, until);
+      if (target.kind === 'nextEvent' && produced.length === 0) w.time = until;
+      await this.flush(command ? target : null);
+      ok = true;
+    } finally {
+      this.newsSink = null;
+      if (ok) this.db.end(); else this.db.abort();
+    }
     return produced;
   }
 
