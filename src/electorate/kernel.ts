@@ -206,7 +206,6 @@ export function typeUtilities(inp: Pick<ShardInput, 'homeStateBonus' | 'homeCoun
 /** Run the kernel for one shard (a state). */
 export function runShard(inp: ShardInput): ShardOutput {
   const n = inp.bus.count;
-  const C = inp.contests.length;
   const ballots = new Int32Array(n), ballotsByMode = new Int32Array(n * N_MODES), eligible = new Int32Array(n);
   // Mode shares by (age band, z bin).
   const modeP = new Float64Array(4 * ZG * N_MODES);
@@ -256,7 +255,28 @@ export function runShard(inp: ShardInput): ShardOutput {
     return t;
   };
 
-  const geoOf = inp.contests.map((c) => (c.geo === 1 ? inp.bus.sldu! : c.geo === 2 ? inp.bus.sldl! : inp.bus.cd));
+  // Contests by geography: statewide ones are on every ballot, the others by the unit's district. A unit's
+  // contests are taken in ascending contest order, as a scan of every contest would (the random draws, and so
+  // the results, are the same); a state can have 150+ contests, of which a unit votes in five or six.
+  const statewide: number[] = [];
+  const byDistrict: Map<number, number[]>[] = [new Map(), new Map(), new Map()];
+  inp.contests.forEach((c, ci) => {
+    if (c.cd < 0) { statewide.push(ci); return; }
+    const m = byDistrict[c.geo ?? 0]!; const l = m.get(c.cd); if (l) l.push(ci); else m.set(c.cd, [ci]);
+  });
+  const geoArrays = [inp.bus.cd, inp.bus.sldu, inp.bus.sldl];
+  const mine: number[] = [];
+  const unitContests = (i: number): number[] => {
+    mine.length = 0;
+    for (const ci of statewide) mine.push(ci);
+    for (let g = 0; g < 3; g++) { const m = byDistrict[g]!; if (!m.size) continue; const l = m.get(geoArrays[g]![i]!); if (l) for (const ci of l) mine.push(ci); }
+    if (mine.length > 1) mine.sort((a, b) => a - b);
+    return mine;
+  };
+  // Scratch per contest (zeroed before each use) and per unit.
+  const totS = inp.contests.map((c) => new Int32Array(c.options.length + 1));
+  const byModeS = night ? inp.contests.map((c) => new Int32Array(N_MODES * (c.options.length + 1))) : null;
+  const lm = new Float64Array(N_MODES), bmS = new Int32Array(N_MODES);
   for (let i = 0; i < n; i++) {
     const b = inp.bus.start + i;
     const county = inp.bus.county[i]!;
@@ -264,9 +284,8 @@ export function runShard(inp: ShardInput): ShardOutput {
     const E = Math.round(inp.bus.vep[i]!);
     eligible[i] = E;
     if (E <= 0) continue;
-    let onBallot = false;
-    for (let ci = 0; ci < C; ci++) { const cd = inp.contests[ci]!.cd; if (cd < 0 || cd === geoOf[ci]![i]) { onBallot = true; break; } }
-    if (!onBallot) { eligible[i] = 0; continue; } // no election here: no ballots, and the unit is not in this electorate
+    const list = unitContests(i);
+    if (!list.length) { eligible[i] = 0; continue; } // no election here: no ballots, and the unit is not in this electorate
     // 1. Voter types (shared with the measurement port).
     unitTypes(inp, i, E, sc);
     V.fill(0);
@@ -277,25 +296,25 @@ export function runShard(inp: ShardInput): ShardOutput {
     }
     // 2. Ballots: drawn once per unit, split by mode.
     const r = Rng.stream(inp.seedKey, 'bu', b);
-    let lambda = 0; const lm = new Float64Array(N_MODES);
+    let lambda = 0;
     for (let m = 0; m < N_MODES; m++) { let s = 0; for (let ty = 0; ty < N_TYPES; ty++) s += V[m * N_TYPES + ty]!; lm[m] = s; lambda += s; }
     expectedBallots += lambda;
     const unitPart = night ? night.of[i]! : -1;
     if (expBallotsPartMode) for (let m = 0; m < N_MODES; m++) expBallotsPartMode[unitPart * N_MODES + m]! += lm[m]!;
     const B = r.binomial(E, Math.min(1, lambda / E));
-    const bm = r.multinomial(B, lm, new Int32Array(N_MODES));
+    const bm = r.multinomial(B, lm, bmS);
     ballots[i] = B;
     for (let m = 0; m < N_MODES; m++) ballotsByMode[i * N_MODES + m] = bm[m]!;
     // 3. Contests on this unit's ballot.
     const rjLocal = inp.bus.rj[i]! - inp.rjFirst;
-    for (let ci = 0; ci < C; ci++) {
+    for (let li = 0; li < list.length; li++) {
+      const ci = list[li]!;
       const c = inp.contests[ci]!;
-      if (c.cd >= 0 && c.cd !== geoOf[ci]![i]) continue;
       const J = c.options.length, K = J + 1;
       const P = probTable(ci, county);
       const out = outs[ci]!;
-      const tot = new Int32Array(K);
-      const byMode = night ? new Int32Array(N_MODES * K) : null;
+      const tot = totS[ci]!; tot.fill(0);
+      const byMode = byModeS ? byModeS[ci]! : null; if (byMode) byMode.fill(0);
       for (let m = 0; m < N_MODES; m++) {
         if (lm[m]! <= 0) continue;
         pbar.fill(0, 0, K);

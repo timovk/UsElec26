@@ -27,27 +27,73 @@ export interface Db {
   close(): void;
 }
 
+type Stmt = ReturnType<Database['prepare']>;
+/** Prepared statements kept per connection (the engine issues a few hundred distinct statements). */
+const STMT_CACHE = 512;
+
 export class SqliteDb implements Db {
   private depth = 0;
+  /**
+   * Prepared statements by SQL text. Preparing (and copying the SQL into WebAssembly memory) for every call was
+   * a large share of the engine's SQL time; a cached statement is reset, and its bindings cleared, after every
+   * use. Text with a semicolon (possibly several statements) takes the uncached path. Results are the same as
+   * the uncached calls': parameters are bound only to a statement that has some, `run` steps once, `all` rows
+   * are null-prototype objects in column order and `get` rows plain objects.
+   */
+  private stmts = new Map<string, Stmt>();
   constructor(private readonly sqlite3: Sqlite3Static, readonly db: Database) {}
+
+  private prepared(sql: string): Stmt | null {
+    let s = this.stmts.get(sql);
+    if (s) return s;
+    if (sql.includes(';')) return null;
+    s = this.db.prepare(sql);
+    if (this.stmts.size >= STMT_CACHE) { const [k, old] = this.stmts.entries().next().value!; this.stmts.delete(k); old.finalize(); }
+    this.stmts.set(sql, s);
+    return s;
+  }
+  private static bind(s: Stmt, params: Params): void { if (params && s.parameterCount) s.bind(params); }
+  private static done(s: Stmt): void { try { s.reset(true); } catch { /* the step's error has been thrown already */ } }
 
   exec(sql: string): void { this.db.exec(sql); }
 
   run(sql: string, params?: Params): number {
-    this.db.exec({ sql, bind: params });
+    const s = this.prepared(sql);
+    if (!s) { this.db.exec({ sql, bind: params }); return this.db.changes(); }
+    try { SqliteDb.bind(s, params); s.step(); } finally { SqliteDb.done(s); }
     return this.db.changes();
   }
 
   all<T = Row>(sql: string, params?: Params): T[] {
-    return this.db.selectObjects(sql, params) as T[];
+    const s = this.prepared(sql);
+    if (!s) return this.db.selectObjects(sql, params) as T[];
+    try {
+      SqliteDb.bind(s, params);
+      const out: T[] = [];
+      if (!s.columnCount) { s.step(); return out; }
+      let names: string[] | null = null;
+      const row: SqlValue[] = [];
+      while (s.step()) {
+        names ??= s.getColumnNames([]);
+        s.get(row);
+        const o = Object.create(null) as Record<string, SqlValue>;
+        for (let i = 0; i < names.length; i++) o[names[i]!] = row[i]!;
+        out.push(o as T);
+      }
+      return out;
+    } finally { SqliteDb.done(s); }
   }
 
   get<T = Row>(sql: string, params?: Params): T | undefined {
-    return (this.db.selectObject(sql, params) as T | undefined) ?? undefined;
+    const s = this.prepared(sql);
+    if (!s) return (this.db.selectObject(sql, params) as T | undefined) ?? undefined;
+    try { SqliteDb.bind(s, params); return s.step() ? (s.get({}) as T) : undefined; } finally { SqliteDb.done(s); }
   }
 
   value<T extends SqlValue = SqlValue>(sql: string, params?: Params): T | undefined {
-    return (this.db.selectValue(sql, params) as T | undefined) ?? undefined;
+    const s = this.prepared(sql);
+    if (!s) return (this.db.selectValue(sql, params) as T | undefined) ?? undefined;
+    try { SqliteDb.bind(s, params); return s.step() ? ((s.get(0) as T | undefined) ?? undefined) : undefined; } finally { SqliteDb.done(s); }
   }
 
   tx<T>(fn: () => T): T {
@@ -98,7 +144,11 @@ export class SqliteDb implements Db {
     return this.sqlite3.capi.sqlite3_js_db_export(this.db.pointer!);
   }
 
-  close(): void { this.db.close(); }
+  close(): void {
+    for (const st of this.stmts.values()) { try { st.finalize(); } catch { /* closing anyway */ } }
+    this.stmts.clear();
+    this.db.close();
+  }
 }
 
 /** Load a serialized database image into a fresh in-memory database. */

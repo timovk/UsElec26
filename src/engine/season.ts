@@ -139,7 +139,7 @@ export class Season {
   }
   private raceCache: { year: number; races: Race[] } | null = null;
   /** Anything that changes contests or candidates goes through a commit: rebuild the race list after one. */
-  invalidate(): void { this.contestCache = { day: -1, m: new Map() }; this.raceCache = null; this.dayRaces = null; this.fieldCache.clear(); this.gDayCache.clear(); this.incCache.clear(); }
+  invalidate(): void { this.contestCache = { day: -1, m: new Map() }; this.raceCache = null; this.dayRaces = null; this.fieldCache.clear(); this.campIndex = null; this.gDayCache.clear(); this.incCache.clear(); }
   private incCache = new Map<number, { party_id: number }[]>();
 
   private buildRaces(year: number, day: DayNumber): Race[] {
@@ -226,12 +226,27 @@ export class Season {
   campaignFn(row: ContestRow): (cand: CandidacyRow, person: Person, stateIdx: number) => { valence: number; recognition: number } | null {
     const key = row.kind === 'pres_state' ? `PRES:${row.year}` : row.kind === 'pres_primary' ? `NOM:${row.year}:${row.party_id}` : `C:${row.contest_id}`;
     let field = this.fieldCache.get(key);
-    if (!field) { field = Object.entries(this.st.campaigns).filter(([k]) => k.startsWith(`${key}|`)).map(([, v]) => v); this.fieldCache.set(key, field); }
+    if (!field) { field = this.campaignsOf(key); this.fieldCache.set(key, field); }
     if (!field.length) return () => null;
     return (_cand, person, stateIdx) => {
       const c = this.st.campaigns[`${key}|${person.id}`]; if (!c) return null;
       return { valence: valenceOf(c, field, row.kind === 'pres_state' ? stateIdx : undefined), recognition: c.recognition };
     };
+  }
+
+  /**
+   * Campaigns by race key, in the order of the campaign table (the same order, and so the same sums, as
+   * filtering the whole table). Every contest built for the kernel asks, including thousands of state
+   * legislative contests that have none: scanning the table each time was most of the day's campaign cost.
+   */
+  private campIndex: Map<string, CampaignState[]> | null = null;
+  private campaignsOf(key: string): CampaignState[] {
+    if (!this.campIndex) {
+      const m = new Map<string, CampaignState[]>();
+      for (const [k, v] of Object.entries(this.st.campaigns)) { const ck = k.slice(0, k.lastIndexOf('|')); const l = m.get(ck); if (l) l.push(v); else m.set(ck, [v]); }
+      this.campIndex = m;
+    }
+    return this.campIndex.get(key) ?? [];
   }
 
   private campaigns(day: DayNumber, races: Race[]): void {
@@ -247,12 +262,12 @@ export class Season {
       const inc = r.contestId !== null ? !!this.db.value<number>('SELECT incumbent FROM candidacy WHERE contest_id = ? AND person_id = ?', [r.contestId, p.id]) : false;
       st.campaigns[key] = initCampaign(p.id, o.party, this.campaignOffice(r.office), r.kind === 'primary' || r.kind.startsWith('nom'), this.traits(p, inc, this.E.quality(p)), ck.startsWith('PRES:') ? w.pack.states.length : 0);
       st.campaigns[key]!.incumbent = inc;
-      this.fieldCache.delete(ck);
+      this.fieldCache.delete(ck); this.campIndex = null;
     }
     // Retire campaigns whose race is over (keeps the state small): their effects already entered the ballot.
     for (const k of Object.keys(st.campaigns)) {
       const ck = k.slice(0, k.lastIndexOf('|'));
-      if (!byKey.has(ck) && !(ck.startsWith('PRES:') && Number(ck.slice(5)) === year && day <= (this.generalDay(year) ?? 0))) { delete st.campaigns[k]; this.fieldCache.delete(ck); }
+      if (!byKey.has(ck) && !(ck.startsWith('PRES:') && Number(ck.slice(5)) === year && day <= (this.generalDay(year) ?? 0))) { delete st.campaigns[k]; this.fieldCache.delete(ck); this.campIndex = null; }
     }
     // Presidential attention by state, from the campaign's view (the public forecast, else the lean index).
     const lean = this.leanIndex(year);

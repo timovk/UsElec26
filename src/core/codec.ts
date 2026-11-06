@@ -2,8 +2,13 @@
  * Binary codecs.
  *  - ENA1: columnar integer blobs (LEB128 varints, optional zig-zag delta, deflate-raw, CRC32).
  *  - Typed bundles: named typed arrays with a JSON header (hot-state checkpoints, pack files).
- * Compression uses the platform CompressionStream (browsers, Node ≥ 18) — no dependencies.
+ * Compression: small inputs (every simulation blob) use fflate's synchronous deflate, which avoids the
+ * per-call cost of platform streams (a Blob, a stream and a Response for each of thousands of small arrays,
+ * which was the largest single cost in the compute workers) and gives the same bytes in every browser and in
+ * Node. Large inputs (whole-universe exports and imports) use the platform CompressionStream, which works in
+ * chunks. Either inflater reads either output: both are standard deflate.
  */
+import { deflateSync, gunzipSync, gzipSync, inflateSync } from 'fflate';
 
 export type TypedArray = Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array;
 
@@ -33,10 +38,16 @@ async function pipeThrough(bytes: Uint8Array, stream: CompressionStream | Decomp
 
 /** True if the bytes start with the gzip magic number. */
 export const isGzip = (b: Uint8Array): boolean => b.length > 2 && b[0] === 0x1f && b[1] === 0x8b;
-export const deflate = (b: Uint8Array) => pipeThrough(b, new CompressionStream('deflate-raw'));
-export const inflate = (b: Uint8Array) => pipeThrough(b, new DecompressionStream('deflate-raw'));
-export const gzip = (b: Uint8Array) => pipeThrough(b, new CompressionStream('gzip'));
-export const gunzip = (b: Uint8Array) => pipeThrough(b, new DecompressionStream('gzip'));
+/** Inputs at least this large go through platform streams (chunked) instead of fflate (one call). */
+const STREAM_BYTES = 8 << 20;
+const sync = <T>(what: string, fn: () => T): Promise<T> => {
+  try { return Promise.resolve(fn()); }
+  catch (e) { return Promise.reject(new Error(`${what} failed — the data is corrupted or not in the expected format (${(e as Error).message}).`, { cause: e })); }
+};
+export const deflate = (b: Uint8Array) => (b.length >= STREAM_BYTES ? pipeThrough(b, new CompressionStream('deflate-raw')) : sync('Compression', () => deflateSync(b, { level: 6 })));
+export const inflate = (b: Uint8Array) => (b.length >= STREAM_BYTES ? pipeThrough(b, new DecompressionStream('deflate-raw')) : sync('Decompression', () => inflateSync(b)));
+export const gzip = (b: Uint8Array) => (b.length >= STREAM_BYTES ? pipeThrough(b, new CompressionStream('gzip')) : sync('Compression', () => gzipSync(b, { level: 6, mtime: 0 })));
+export const gunzip = (b: Uint8Array) => (b.length >= STREAM_BYTES ? pipeThrough(b, new DecompressionStream('gzip')) : sync('Decompression', () => gunzipSync(b)));
 
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as BufferSource));
