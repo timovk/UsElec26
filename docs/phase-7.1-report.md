@@ -81,7 +81,7 @@ history, a "historical reforms" option is easy to add; see §8.
 | Typecheck, ESLint and module boundaries (`npm run lint`) | pass: no dependency violations (129 modules, 568 dependencies) |
 | Unit, property and real-data tests (`npx vitest run tests/unit`) | **123 passed**, 12 skipped (opt-in long runs), 210 s (13 new tests) |
 | End-to-end, Chromium (`npx playwright test`), this server | **4/4 passed** in 6.6 min; the final 2016 forecast and the Brier score are unchanged (73% / 304 EV, 0.031) |
-| CI on the final commit | CI_RESULT |
+| CI (GitHub Actions) on `04a3513` and `68613b5` | pass: typecheck, lint, unit, build, 4/4 E2E |
 
 ### 4.2 New tests
 
