@@ -10,7 +10,9 @@ import { NONE16, cdCode } from '../geo/pack';
 import { PARTY_D, PARTY_G, PARTY_L, PARTY_R, SIMULATED, fullName, isLegislator, type Office, type OfficeKind, type Person, type Term } from '../institutions/model';
 import { SENATE_CLASS_NEXT_ELECTION, STATES_2016 } from '../rules/states2016';
 import { DISTRICT_EV_STATES, ELECTION_RULES_2016, ELECTORS_MEET, electoralVotes, ruleDay } from '../rules/elections2016';
+import { advancingFromPrimary, generalMethod, partyPrimaryMethod, type StateLaw } from '../rules/electionLaw';
 import { cohortClasses } from '../electorate/kernel';
+import type { RcvOutcome } from './nightJob';
 import { buildShard, stateRanges, type StateRange } from '../electorate/shards';
 import { retirementExtra } from '../careers/model';
 import { legislativeField, legislativeSeatUp, sldLean } from './legislatures';
@@ -153,7 +155,8 @@ export class ElectionEngine {
     this.state.plannedYears = this.state.plannedYears.filter((y) => y >= year - 3);
     this.h.commit(() => {
       for (const s of [...statesWith].sort((a, b) => a - b)) {
-        const st = w.pack.states[s]!, rules = ELECTION_RULES_2016[st.usps]!;
+        // The law in force on election day (changes take effect on a January 1, so the whole cycle shares it).
+        const st = w.pack.states[s]!, rules = w.law.on(s, gDay);
         this.insertElection(gDay, 'general', s, null, year, `${year} ${st.name} general election`);
         const jungle = rules.primaryType === 'jungle';
         const stateRaces = races.filter((r) => r.office.stateIdx === s);
@@ -323,10 +326,15 @@ export class ElectionEngine {
   /** Candidate emergence for a state's races of the year; creates general, primary and minor-party candidacies. */
   filing(year: number, stateIdx: number): void { this.withHeldIndex(() => this.fileState(year, stateIdx)); }
   private fileState(year: number, stateIdx: number): void {
-    const w = this.w; const st = w.pack.states[stateIdx]!; const rules = ELECTION_RULES_2016[st.usps]!;
+    const w = this.w; const st = w.pack.states[stateIdx]!;
     const generalId = this.electionOf(year, 'general', stateIdx);
     if (generalId === null) return;
     const primaryId = this.electionOf(year, 'primary', stateIdx);
+    // The law in force on each election's day (Phase 7.1): the general's method and the primary's.
+    const dayOf = (id: number) => this.db.value<number>('SELECT day FROM election WHERE election_id = ?', [id])!;
+    const rules = w.law.on(stateIdx, dayOf(generalId));
+    const lawP: StateLaw = primaryId !== null ? w.law.on(stateIdx, dayOf(primaryId)) : rules;
+    const advance = advancingFromPrimary(lawP);
     const allRaces = this.regularRaces(year).filter((r) => r.office.stateIdx === stateIdx);
     const legRaces = allRaces.filter((r) => isLegislator(r.office.kind));
     const races = allRaces.filter((r) => !isLegislator(r.office.kind));
@@ -357,10 +365,10 @@ export class ElectionEngine {
         const o = race.office, r = this.rng('filing', year, o.id);
         const cd = o.kind === 'us_representative' ? this.districtFor(o, year, race.special) : null;
         const margin = cd !== null ? this.cdMargin(cd, year) : this.stateMargin(stateIdx, year);
-        const method = rules.primaryType === 'jungle' ? 'jungle' : st.usps === 'GA' ? 'majority' : rules.primaryType === 'top_two' ? 'top_two_general' : 'plurality';
+        const method = generalMethod(rules, o.kind);
         const label = `${year}${race.special ? ' special' : ''} ${o.title.replace('U.S. Representative, ', 'U.S. House, ')}`;
-        this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-          [generalId, o.id, race.special ? 'special' : 'general', null, stateIdx, cd, method, label, 'filing', null, null, race.special ? null : race.termStart, null, null, null, year]);
+        this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year, nonpartisan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          [generalId, o.id, race.special ? 'special' : 'general', null, stateIdx, cd, method, label, 'filing', null, null, race.special ? null : race.termStart, null, null, null, year, rules.nonpartisan.includes(o.kind) ? 1 : 0]);
         const general = Number(this.db.value('SELECT last_insert_rowid()'));
         if (race.special) this.db.run('DELETE FROM pending_special WHERE office_id = ?', [o.id]);
         // Incumbent decision.
@@ -430,17 +438,19 @@ export class ElectionEngine {
         const insertCand = (contest: number, p: Person, party: number, order: number, incumbent: boolean, quality: number, status: string) =>
           this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [contest, p.id, party, order, incumbent ? 1 : 0, null, status, quality]);
         const everyone = [...field.get(PARTY_D)!.map((x) => ({ ...x, party: PARTY_D })), ...field.get(PARTY_R)!.map((x) => ({ ...x, party: PARTY_R }))];
-        if (method === 'jungle' || race.special && method !== 'top_two_general') {
+        const allCandidatePrimary = advance > 0 && (method === 'top_two_general' || method === 'rcv');
+        if (method === 'jungle' || race.special && !allCandidatePrimary) {
           // Jungle (Louisiana) and special elections: no separate primary in Phase 2 — every candidate on the general ballot.
           const all = method === 'jungle' ? [...everyone, ...minors.map((m) => ({ ...m, incumbent: false }))] : [...this.trimForSpecial(everyone), ...minors.map((m) => ({ ...m, incumbent: false }))];
           all.forEach((c, i) => insertCand(general, c.person, c.party, i, c.incumbent, c.quality, 'running'));
           this.db.run("UPDATE contest SET status = 'set' WHERE contest_id = ?", [general]);
-        } else if (method === 'top_two_general' && primaryId !== null) {
+        } else if (allCandidatePrimary && primaryId !== null) {
+          // Top-two (California, Washington) and top-four (a ranked general follows) primaries: every candidate on one ballot.
           const all = [...everyone, ...minors.map((m) => ({ ...m, incumbent: false }))];
-          if (all.length <= 2) { all.forEach((c, i) => insertCand(general, c.person, c.party, i, c.incumbent, c.quality, 'running')); this.db.run("UPDATE contest SET status = 'set' WHERE contest_id = ?", [general]); }
+          if (all.length <= advance) { all.forEach((c, i) => insertCand(general, c.person, c.party, i, c.incumbent, c.quality, 'running')); this.db.run("UPDATE contest SET status = 'set' WHERE contest_id = ?", [general]); }
           else {
-            this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-              [primaryId, o.id, 'top_two', null, stateIdx, cd, 'top_two', `${label} top-two primary`, 'set', null, null, null, null, general, null, year]);
+            this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year, nonpartisan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+              [primaryId, o.id, 'top_two', null, stateIdx, cd, advance === 4 ? 'top_four' : 'top_two', `${label} ${advance === 4 ? 'top-four' : 'top-two'} primary`, 'set', null, null, null, null, general, null, year, lawP.nonpartisan.includes(o.kind) ? 1 : 0]);
             const prim = Number(this.db.value('SELECT last_insert_rowid()'));
             all.forEach((c, i) => insertCand(prim, c.person, c.party, i, c.incumbent, c.quality, 'running'));
           }
@@ -449,9 +459,8 @@ export class ElectionEngine {
             const f = field.get(party)!;
             if (f.length === 1) { insertCand(general, f[0]!.person, party, BALLOT_ORDER(party), f[0]!.incumbent, f[0]!.quality, 'running'); if (o.kind === 'governor') this.pickRunningMate(general, f[0]!.person, stateIdx, year); }
             else if (f.length > 1 && primaryId !== null) {
-              const runoff = rules.primaryRunoff;
               this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                [primaryId, o.id, 'primary', party, stateIdx, cd, runoff ? `runoff_${runoff.threshold}` : 'plurality', `${label} ${PARTY_NAME[party]} primary`, 'set', null, null, null, null, general, null, year]);
+                [primaryId, o.id, 'primary', party, stateIdx, cd, partyPrimaryMethod(lawP), `${label} ${PARTY_NAME[party]} primary`, 'set', null, null, null, null, general, null, year]);
               const prim = Number(this.db.value('SELECT last_insert_rowid()'));
               f.forEach((c, i) => insertCand(prim, c.person, party, i, c.incumbent, c.quality, 'running'));
             }
@@ -473,6 +482,7 @@ export class ElectionEngine {
     const env = this.environmentFor(year);
     const swing = 100 * 0.17 * env.national * 2;
     let retirements = 0;
+    const law = w.law.on(stateIdx, this.db.value<number>('SELECT day FROM election WHERE election_id = ?', [generalId])!);
     this.h.commit(() => {
       for (const race of races) {
         const o = race.office, sld = o.kind === 'state_senator' ? 'sldu' : 'sldl';
@@ -481,8 +491,10 @@ export class ElectionEngine {
         const margin = (lean[sld][district] ?? 0) + swing;
         const { field, retired } = legislativeField(w, r, o, margin, year, (party) => this.h.newPerson(r, 'C', party, stateIdx, { homeCounty: this.homeCountyLeg(r, stateIdx, sld, district, year), ageMean: 48, prominence: 0.02 }), (p, b) => this.quality(p, b), this.runningIn(year));
         if (retired) retirements++;
-        this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-          [generalId, o.id, 'general', null, stateIdx, district, 'plurality', `${year} ${o.title}`, 'set', null, null, race.termStart, null, null, null, year]);
+        // One nominee per party (no legislative primaries yet), so only a ranked general changes the method.
+        const method = generalMethod(law, o.kind) === 'rcv' ? 'rcv' : 'plurality';
+        this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year, nonpartisan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          [generalId, o.id, 'general', null, stateIdx, district, method, `${year} ${o.title}`, 'set', null, null, race.termStart, null, null, null, year, law.nonpartisan.includes(o.kind) ? 1 : 0]);
         const cid = Number(this.db.value('SELECT last_insert_rowid()'));
         field.forEach((c) => this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [cid, c.person.id, c.party, BALLOT_ORDER(c.party), c.incumbent ? 1 : 0, null, 'running', c.quality]));
       }
@@ -628,8 +640,9 @@ export class ElectionEngine {
     const tauE = this.ensureTurnout() + turnoutOffset;
     const env = this.state.env[String(year)] ? this.environmentFor(year) : null;
     const cdOf = this.w.districts.assignment('cd', year, key.startsWith('special|'));
+    const today = easternDay(this.w.time);
     const ctx = { seed: this.w.seed, electionKey: key, pack: this.w.pack, pop: this.w.pop, electorate: this.w.electorate, env, tauE, ranges: this.ranges, cdOf,
-      slduOf: this.w.districts.assignment('sldu', year), sldlOf: this.w.districts.assignment('sldl', year) };
+      slduOf: this.w.districts.assignment('sldu', year), sldlOf: this.w.districts.assignment('sldl', year), primaryTypeOf: (s: number) => this.w.law.on(s, today).primaryType };
     const kctx = { classCentroids: this.cls.centroids, platforms: this.w.electorate.params.platforms };
     this.h.progress('Preparing the electorate', 0);
     const inputs = groups.filter((g) => g.contests.length).map((g) => {
@@ -664,6 +677,8 @@ export class ElectionEngine {
     const outputs = await this.h.runner.run(inputs, (d, t) => this.h.progress('Counting ballots', d / t));
     this.lastNights = new Map();
     outputs.forEach((o) => { if (o.night) this.lastNights.set(o.night.stateIdx, o.night); });
+    this.lastRcv = new Map();
+    for (const o of outputs) for (const x of o.rcv ?? []) this.lastRcv.set(x.id, x);
     const meta = new Map<number, { candidacyIds: number[]; grain: 'bu' | 'cpart' }>();
     for (const g of groups) for (const c of g.contests) meta.set(c.row.contest_id, { candidacyIds: c.cands.map((x) => x.cand.candidacy_id), grain: g.kind === 'general' ? 'bu' : 'cpart' });
     this.h.progress('Tallying results', 1);
@@ -682,6 +697,45 @@ export class ElectionEngine {
   }
   private lastTurnout: { stateIdx: number; kind: string; start: number; out: import('../electorate/kernel').ShardOutput }[] = [];
   private lastSealed = new Map<number, SealedContest>();
+  /** Ranked-choice tabulations from the last kernel run (by contest). */
+  private lastRcv = new Map<number, RcvOutcome>();
+
+  /**
+   * Write a ranked-choice tabulation, round by round: every candidate still in the count (status continuing,
+   * eliminated at the end of the round, elected or defeated in the final round) and the exhausted ballots so far.
+   * Counted general elections write it at the ballot lock as `rev` 3 (tabulated on the ballots that will be
+   * certified); it is shown once the contest is decided.
+   */
+  private writeRcv(contestId: number, rev: number): void {
+    const o = this.lastRcv.get(contestId); if (!o) return;
+    const ids = this.cands(contestId).map((x) => x.cand.candidacy_id);
+    const out = new Set<number>();
+    o.rounds.forEach((r, i) => {
+      r.tallies.forEach((v, j) => {
+        if (out.has(j)) return;
+        const status = r.elected === j ? 'elected' : r.elected !== null ? 'defeated' : r.eliminated.includes(j) ? 'eliminated' : 'continuing';
+        this.db.run('INSERT INTO rcv_round VALUES (?,?,?,?,?,?)', [contestId, rev, i + 1, ids[j] ?? null, v, status]);
+      });
+      this.db.run('INSERT INTO rcv_round VALUES (?,?,?,?,?,?)', [contestId, rev, i + 1, null, r.exhausted, 'exhausted']);
+      for (const e of r.eliminated) out.add(e);
+    });
+  }
+
+  /** The tabulation of a ranked-choice contest: from the last kernel run, else from the archive (after a reload). */
+  private rcvOutcome(contestId: number, candidacyIds: number[]): { winner: number; runnerUp: number | null; rounds: number; finalShare: number } | null {
+    const o = this.lastRcv.get(contestId);
+    if (o) {
+      const fin = o.rounds[o.rounds.length - 1]!, sum = fin.tallies.reduce((a, b) => a + b, 0);
+      return { winner: o.winner, runnerUp: o.runnerUp, rounds: o.rounds.length, finalShare: sum > 0 ? fin.tallies[o.winner]! / sum : 0 };
+    }
+    const rows = this.db.all<{ round: number; candidacy_id: number | null; votes: number; status: string }>('SELECT round, candidacy_id, votes, status FROM rcv_round WHERE contest_id = ? AND rev = (SELECT MAX(rev) FROM rcv_round WHERE contest_id = ?) ORDER BY round DESC', [contestId, contestId]);
+    if (!rows.length) return null;
+    const last = rows.filter((r) => r.round === rows[0]!.round && r.candidacy_id !== null);
+    const won = last.find((r) => r.status === 'elected'); if (!won) return null;
+    const others = last.filter((r) => r !== won).sort((a, b) => b.votes - a.votes);
+    const sum = last.reduce((a, r) => a + r.votes, 0);
+    return { winner: candidacyIds.indexOf(won.candidacy_id!), runnerUp: others.length ? candidacyIds.indexOf(others[0]!.candidacy_id!) : null, rounds: rows[0]!.round, finalShare: sum > 0 ? won.votes / sum : 0 };
+  }
   private lastSealedTurnout = new Map<number, Uint8Array>();
   private lastSealedRejected = new Map<number, Uint8Array>();
   private lastNights = new Map<number, StateNight>();
@@ -790,7 +844,7 @@ export class ElectionEngine {
     const cands = this.cands(contestId);
     const ev = row.kind === 'pres_state' ? (cd >= 0 ? 1 : row.method === 'district_ev' ? 2 : row.ev ?? 0) : 0;
     const label = cd >= 0 ? `${row.label} — ${cdCode({ states: this.w.pack.states, cds: this.w.districts.cds }, cd)}` : row.label;
-    return { candidacyIds: cands.map((x) => x.cand.candidacy_id), parties: cands.map((x) => x.cand.party_id), office: this.officeKindOf(row), ev, label };
+    return { candidacyIds: cands.map((x) => x.cand.candidacy_id), parties: cands.map((x) => x.cand.party_id), office: this.officeKindOf(row), ev, label, ...(row.method === 'rcv' ? { rcv: true } : {}) };
   }
 
   /** Seats of each chamber not up in this election, by the current holder's party (0 = vacant). */
@@ -911,7 +965,7 @@ export class ElectionEngine {
         if (p.rollup) this.db.run('INSERT OR REPLACE INTO county_rollup VALUES (?,?,?)', [p.el.election_id, p.el.state_idx, p.rollup]);
         if (p.turnoutBlob) this.db.run('INSERT OR REPLACE INTO election_turnout VALUES (?,?,?,?,?)', [p.el.election_id, p.el.state_idx, p.ballots, p.eligible, p.turnoutBlob]);
         for (const r of p.rejected) this.db.run('INSERT INTO result_blob VALUES (?,?,?,?,?)', [r.contestId, 0, 'rejected', r.payload, crc32(r.payload)]);
-        for (const c of p.eRows) this.db.run("UPDATE contest SET status = 'counting' WHERE contest_id = ?", [c.contest_id]);
+        for (const c of p.eRows) { this.db.run("UPDATE contest SET status = 'counting' WHERE contest_id = ?", [c.contest_id]); this.writeRcv(c.contest_id, 3); }
         this.db.run("UPDATE election SET status = 'counting', held_time = ?, env_json = ? WHERE election_id = ?", [now, env ? JSON.stringify({ national: env.national, fundamentals: env.fundamentals, classSwing: env.classSwing, enthusiasm: env.enthusiasm }) : null, p.el.election_id]);
       }
       this.db.run('INSERT INTO night(day, kind, label, lock_time, coverage_start, night_end, feed_end, created_time, sha256, payload) VALUES (?,?,?,?,?,?,?,?,?,?)',
@@ -1075,14 +1129,25 @@ export class ElectionEngine {
           continue;
         }
         const { order, share } = this.rank(res, this.rng('tiebreak', c.contest_id));
-        const win = cands[order[0]!]!, second = order.length > 1 ? cands[order[1]!]! : null;
-        const top = share[order[0]!]!;
+        let win = cands[order[0]!]!, second = order.length > 1 ? cands[order[1]!]! : null;
+        let top = share[order[0]!]!;
+        // Ranked-choice: without a first-choice majority, the instant runoff decides (Phase 7.1).
+        if (c.method === 'rcv') {
+          if (!certifying) this.writeRcv(c.contest_id, 0);
+          const o = top <= 0.5 ? this.rcvOutcome(c.contest_id, cands.map((x) => x.cand.candidacy_id)) : null;
+          if (o && o.winner >= 0) {
+            const flipped = cands[o.winner] !== win;
+            win = cands[o.winner]!; second = o.runnerUp !== null && o.runnerUp >= 0 ? cands[o.runnerUp]! : null; top = o.finalShare;
+            this.h.news('rcv', `${c.label}: ${fullName(win.person)} wins after ${o.rounds} rounds of ranked-choice counting`,
+              `${fullName(win.person)} (${this.abbr(win.cand.party_id)}) finished with ${(100 * top).toFixed(1)}% of the continuing ballots${flipped ? ', overtaking the first-round leader' : ''}.`, { contestId: c.contest_id, personId: win.person.id });
+          }
+        }
         const setStatus = (cand: CandidacyRow, s: string) => this.db.run('UPDATE candidacy SET status = ? WHERE candidacy_id = ?', [s, cand.candidacy_id]);
         const needRunoff = (c.method.startsWith('runoff_') && top < Number(c.method.slice(7))) || ((c.method === 'majority' || c.method === 'jungle') && top < 0.5);
         if (needRunoff && second) {
-          const st = w.pack.states[c.state_idx!]!; const rules = ELECTION_RULES_2016[st.usps]!;
+          const st = w.pack.states[c.state_idx!]!; const rules = w.law.on(c.state_idx!, opts.electionDay ?? easternDay(now));
           const isPrim = c.kind === 'primary';
-          const days = isPrim ? rules.primaryRunoff!.daysAfter : (['us_senator', 'us_representative'].includes(this.officeKindOf(c)) ? rules.generalRunoff?.federalDaysAfter ?? 32 : rules.generalRunoff?.daysAfter ?? 28);
+          const days = isPrim ? rules.primaryRunoff?.daysAfter ?? 42 : (['us_senator', 'us_representative'].includes(this.officeKindOf(c)) ? rules.generalRunoff?.federalDaysAfter ?? 32 : rules.generalRunoff?.daysAfter ?? 28);
           let rd = (opts.electionDay ?? easternDay(now)) + days; while (weekday(rd) !== (st.usps === 'LA' ? 6 : 2)) rd++;
           const kind = isPrim ? 'primary_runoff' : 'general_runoff';
           let rid = this.db.value<number>('SELECT election_id FROM election WHERE kind = ? AND state_idx = ? AND day = ?', [kind, c.state_idx, rd]);
@@ -1097,7 +1162,8 @@ export class ElectionEngine {
           continue;
         }
         if (c.kind === 'top_two') {
-          const adv = [win, second].filter((x): x is NonNullable<typeof x> => !!x);
+          // All-candidate primary: the top two advance (top four after a top-four primary).
+          const adv = order.slice(0, c.method === 'top_four' ? 4 : 2).map((j) => cands[j]!);
           adv.forEach((x, i) => this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [c.next_contest, x.person.id, x.cand.party_id, i, x.cand.incumbent, null, 'running', x.cand.quality]));
           cands.forEach((x) => setStatus(x.cand, adv.includes(x) ? 'advanced' : 'eliminated'));
           this.db.run("UPDATE contest SET status = 'decided', winner_candidacy = ?, runner_up_candidacy = ? WHERE contest_id = ?", [win.cand.candidacy_id, second?.cand.candidacy_id ?? null, c.contest_id]);

@@ -181,7 +181,7 @@ function callText(m: NightMetaDto['races'][number], f: NightRaceFrame | undefine
 function Status({ f, m }: { f: NightRaceFrame | undefined; m: NightMetaDto['races'][number] }) {
   if (!f || f.s === ST.NONE) return <span className="tiny muted">Polls open</span>;
   if (f.s === ST.CALLED) { const c = m.candidates[f.o]; return <span className="badge" title={f.pc ? 'Projected as polls closed' : 'Projected from the count'} style={{ background: PARTY_COLORS[c?.party ?? 5], color: 'white' }}>✓ {f.pc ? 'At close' : 'Projected'}</span>; }
-  if (f.s === ST.RUNOFF) return <span className="badge">Runoff</span>;
+  if (f.s === ST.RUNOFF) return <span className="badge" title={m.rcv ? 'No first-choice majority: decided by the ranked-choice count' : 'Runoff projected'}>{m.rcv ? 'RCV count' : 'Runoff'}</span>;
   return <span className={`tiny ${f.s === ST.CLOSE ? '' : 'muted'}`} title={STATUS_LABEL[f.s]} style={{ whiteSpace: 'nowrap' }}>{SHORT_STATUS[f.s]}</span>;
 }
 

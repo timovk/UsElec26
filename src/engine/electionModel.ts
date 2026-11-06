@@ -11,6 +11,8 @@ export interface ContestRow {
   contest_id: number; election_id: number; office_id: number | null; kind: string; party_id: number | null; state_idx: number | null;
   district_idx: number | null; method: string; label: string; status: string; winner_candidacy: number | null; runner_up_candidacy: number | null;
   term_start: number | null; parent_contest: number | null; next_contest: number | null; ev: number | null; year: number;
+  /** 1 when the ballot carries no party labels (schema 7; absent on synthesized rows). */
+  nonpartisan?: number;
 }
 export interface CandidacyRow { candidacy_id: number; contest_id: number; person_id: number; party_id: number; ballot_order: number; incumbent: number; running_mate: number | null; status: string; quality: number }
 
@@ -42,12 +44,17 @@ export interface Ctx {
 }
 
 const dist2 = (a: readonly number[], b: readonly number[]) => a.reduce((s, x, i) => s + (x - b[i]!) ** 2, 0);
+/** Weight of ideological distance on a nonpartisan ballot (voters' only cue besides the candidates themselves). */
+const NONPARTISAN_FIT = 0.25;
 
 /** Build the kernel representation of a contest (valence, ideology fit by cohort class, minor-party appeal). */
 export function kernelContest(seed: string, c: ContestRow, cands: { cand: CandidacyRow; person: Person }[], officeKind: string, stateIdx: number, primary: boolean, ctx: Ctx): KernelContest {
   // Unmodelled candidate-specific appeal; a presidential state race keys it by year and state, so pre-convention matchup polls and the November ballot share it.
   const r = c.kind === 'pres_state' ? Rng.stream(seed, 'campaign', 'pres', c.year, stateIdx) : Rng.stream(seed, 'campaign', c.contest_id);
   const majorCount = cands.filter((x) => x.cand.party_id === PARTY_D || x.cand.party_id === PARTY_R).length;
+  // A nonpartisan ballot (Phase 7.1) carries no party label: no partisan weight (docs/architecture/04 §4.5), and
+  // voters judge each candidate's visible ideology directly rather than relative to a party's platform.
+  const nonpartisan = !primary && c.nonpartisan === 1;
   const options = cands.map(({ cand, person }) => {
     const party = cand.party_id;
     const major = party === PARTY_D || party === PARTY_R;
@@ -55,6 +62,7 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
     const lambda = primary ? 0.3 : 0.12;
     const classFit = Array.from({ length: N_CLASS }, (_, h) => {
       const cen = ctx.classCentroids[h]!;
+      if (nonpartisan) return -NONPARTISAN_FIT * dist2(cen, person.traits.ideology);
       return major ? -lambda * (dist2(cen, person.traits.ideology) - dist2(cen, plat)) : 0;
     });
     let base: number;
@@ -65,8 +73,8 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
     else base = (party === 3 ? -2.3 : party === 4 ? -3.0 : -2.7) + (officeKind === 'president' ? 0.3 : 0) + 1.2 * (cand.quality - 0.4) + (majorCount < 2 ? 1.2 : 0) + r.normal(0, 0.15);
     if (camp) base += primary ? 2.5 * camp.valence : camp.valence;
     return {
-      partySign: primary ? 0 : party === PARTY_D ? 0.5 : party === PARTY_R ? -0.5 : 0,
-      base, classFit, minorAppeal: !primary && !major ? 0.55 : 0,
+      partySign: primary || nonpartisan ? 0 : party === PARTY_D ? 0.5 : party === PARTY_R ? -0.5 : 0,
+      base, classFit, minorAppeal: !primary && !major && !nonpartisan ? 0.55 : 0,
       homeCounty: person.homeCounty ?? -1, homeState: person.homeState === stateIdx,
     };
   });
@@ -74,7 +82,8 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
   return {
     id: c.contest_id, cd: (officeKind === 'us_representative' || officeKind === 'state_senator' || officeKind === 'state_representative') && c.district_idx !== null ? c.district_idx : -1,
     geo: officeKind === 'state_senator' ? 1 : officeKind === 'state_representative' ? 2 : 0,
-    weight: primary ? 0 : officeWeight(officeKind), abstain: (primary ? -2.2 : officeAbstain(officeKind)) + (uncontested ? 1.6 : majorCount < 2 ? 0.5 : 0),
+    ...(c.method === 'rcv' ? { rcv: true } : {}),
+    weight: primary || nonpartisan ? 0 : officeWeight(officeKind), abstain: (primary ? -2.2 : officeAbstain(officeKind)) + (uncontested ? 1.6 : majorCount < 2 ? 0.5 : 0),
     options,
   };
 }

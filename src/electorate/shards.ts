@@ -6,7 +6,7 @@ import { MARG_STRIDE, type Population } from '../population/population';
 import type { Electorate } from './model';
 import type { Environment } from './environment';
 import { N_MODES, cohortClasses, type KernelContest, type ShardInput } from './kernel';
-import { ELECTION_RULES_2016, MODE_USAGE_2016 } from '../rules/elections2016';
+import { ELECTION_RULES_2016, MODE_USAGE_2016, type PrimaryType } from '../rules/elections2016';
 
 export interface StateRange { buStart: number; buEnd: number; countyFirst: number; countyEnd: number; rjFirst: number; rjCount: number }
 
@@ -45,6 +45,8 @@ export interface ShardContext {
   cdOf?: Uint16Array;
   /** BU → state senate / state house district (plans in effect), when the ballot has legislative contests. */
   slduOf?: Uint16Array; sldlOf?: Uint16Array;
+  /** The primary system in force for this election (Phase 7.1 election law); the 2016 baseline when absent. */
+  primaryTypeOf?: (stateIdx: number) => PrimaryType;
 }
 
 let classCache: { key: unknown; classOf: Uint8Array } | null = null;
@@ -80,7 +82,7 @@ export function buildShard(ctx: ShardContext, stateIdx: number, kind: ShardInput
   const joint = pop.countyJoint.slice(rg.countyFirst * N_COHORTS, rg.countyEnd * N_COHORTS);
   const offset = kind === 'general' || kind === 'allparty' ? 0 : 0;
   const tau = Float64Array.from({ length: N_COHORTS }, (_, k) => ctx.tauE + offset + e.params.turnoutBase[k]! + (kind === 'primary' ? 0.35 * (cohortAge(k) - 1.5) : 0));
-  const primaryType = ELECTION_RULES_2016[state.usps]?.primaryType ?? 'open';
+  const primaryType = ctx.primaryTypeOf?.(stateIdx) ?? ELECTION_RULES_2016[state.usps]?.primaryType ?? 'open';
   return {
     seedKey: `${ctx.seed}|${ctx.electionKey}|${stateIdx}|${primaryParty}`, kind, primaryParty,
     crossover: primaryType === 'closed' ? 0.03 : primaryType === 'semi' ? 0.12 : 0.22,

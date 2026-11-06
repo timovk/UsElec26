@@ -19,7 +19,7 @@ import { runForecast, type ForecastInput, type ForecastOutput, type ForecastRace
 import { kernelContest, officeAbstain, officeWeight, type CandidacyRow, type ContestRow } from './electionModel';
 import { leanMargin } from './world';
 import type { ElectionEngine } from './elections';
-import { ELECTION_RULES_2016, electoralVotes } from '../rules/elections2016';
+import { electoralVotes } from '../rules/elections2016';
 
 const ET = 'America/New_York' as const;
 const at = (day: DayNumber, h: number, m = 0): SimTime => { const c = daysToCivil(day); return zonedToUtc(c.y, c.m, c.d, h, m, ET); };
@@ -400,10 +400,9 @@ export class Season {
   private primaryCache = new Map<string, PieceTypes[]>();
   /** Likely primary voters of a party (0 = all-party top-two) from the general electorate's types. */
   private primaryTypes(pieces: PieceTypes[], s: number, party: number): PieceTypes[] {
-    const key = `${s}:${party}:${pieces.length}`;
+    const ptype = this.w.law.on(s, easternDay(this.w.time)).primaryType; // the primary system can change with the law
+    const key = `${s}:${party}:${pieces.length}:${ptype}`;
     const hit = this.primaryCache.get(key); if (hit && hit.length === pieces.length) return hit;
-    const usps = this.w.pack.states[s]!.usps;
-    const ptype = ELECTION_RULES_2016[usps]?.primaryType ?? 'open';
     const crossover = ptype === 'closed' ? 0.03 : ptype === 'semi' ? 0.12 : 0.22;
     const w = new Float64Array(ZG), e = new Float64Array(ZG);
     for (let g = 0; g < ZG; g++) {

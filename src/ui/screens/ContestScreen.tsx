@@ -5,6 +5,11 @@ import { PARTY_COLORS, PartyBadge, fmtInt } from '../components/common';
 import { MiniMap } from '../components/MiniMap';
 
 const COUNT_STATUS = ['Polls open', 'Too early to call', 'Too close to call', 'Projected', 'Projection withdrawn', 'Runoff projected'];
+/** How a contest is decided (contest methods; Phase 7.1 adds ranked-choice voting and top-four primaries). */
+const METHOD_LABEL: Record<string, string> = {
+  rcv: 'Ranked-choice voting', top_two: 'Top-two primary', top_four: 'Top-four primary', majority: 'Majority required (runoff otherwise)',
+  jungle: 'All-candidate ballot, majority required', top_two_general: 'General between the top-two finishers',
+};
 
 export function ContestScreen({ id }: { id: number }) {
   const c = useQuery<ContestDetail | null>({ kind: 'contest', id }, [id]);
@@ -17,6 +22,7 @@ export function ContestScreen({ id }: { id: number }) {
       <div className="kicker" style={{ marginTop: 8 }}>{c.electionLabel} · {c.date}</div>
       <h1 className="screen-title">{c.label.replace(/^\d{4} /, '')}</h1>
       <p className="screen-sub">{c.office ?? 'President of the United States'}{c.districtLabel ? ` · ${c.districtLabel}` : ''}{c.ev ? ` · ${c.ev} electoral votes` : ''}
+        {METHOD_LABEL[c.method] && <> · {METHOD_LABEL[c.method]}</>}{c.nonpartisan && <> · nonpartisan ballot</>}
         {c.nightId !== null && !c.counting && <> · <a href={`#/night/${c.nightId}`}>★ Watch this election night</a></>}
         {c.parent && <> · <a href={`#/contest/${c.parent}`}>first round</a></>}{c.next && <> · <a href={`#/contest/${c.next}`}>{c.status === 'runoff' ? 'runoff' : 'next round'}</a></>}</p>
       <div className="grid cols-2">
@@ -50,8 +56,31 @@ export function ContestScreen({ id }: { id: number }) {
                 : <tr><td className="muted">Archive</td><td className="tiny">{c.revisionKind} · grain {c.grain} · seal <code>{c.seal?.slice(0, 16)}…</code>{c.revisions.length > 1 && <div>Revisions: {c.revisions.map((r) => `${r.rev} ${r.kind}`).join(' · ')}</div>}</td></tr>}
             </tbody></table>
           )}
-          <p className="tiny muted">{c.note}</p>
+          <p className="tiny muted">{c.note}{c.nonpartisan ? ' The ballot carried no party labels; parties shown are the candidates’ affiliations.' : ''}</p>
         </section>
+        {c.method === 'rcv' && (
+          <section className="card">
+            <h2>Ranked-choice count</h2>
+            {!c.rcv ? <p className="muted small">{c.counting || c.status === 'counting' ? 'The first choices are being counted. If nobody wins a majority of them, the ranked-choice count follows certification: the last-placed candidate is eliminated and those ballots move to their next choice, round by round.' : 'Not tabulated.'}</p> : (
+              <>
+                <table className="data">
+                  <thead><tr><th>Candidate</th>{c.rcv.map((r) => <th key={r.round} className="num">Round {r.round}</th>)}</tr></thead>
+                  <tbody>
+                    {c.candidates.map((x) => (
+                      <tr key={x.candidacyId}>
+                        <td><span className="row"><PartyBadge party={x.party} />{surname(x.name)}</span></td>
+                        {c.rcv!.map((r) => { const e = r.candidates.find((k) => k.candidacyId === x.candidacyId); const tot = r.candidates.reduce((a, k) => a + k.votes, 0);
+                          return <td key={r.round} className="num small">{e ? <>{fmtInt(e.votes)} <span className="muted tiny">{tot ? `${(100 * e.votes / tot).toFixed(1)}%` : ''}</span>{e.status === 'elected' ? ' ✔' : e.status === 'eliminated' ? ' ✕' : ''}</> : <span className="muted">—</span>}</td>; })}
+                      </tr>
+                    ))}
+                    <tr><td className="muted">Exhausted ballots</td>{c.rcv.map((r) => <td key={r.round} className="num small muted">{fmtInt(r.exhausted)}</td>)}</tr>
+                  </tbody>
+                </table>
+                <p className="tiny muted">Shares are of the continuing ballots in each round. ✕: eliminated at the end of the round; their ballots moved to each voter’s next ranked candidate still in the count, or were exhausted (no further choice). ✔: the winner, with a majority of the continuing ballots.</p>
+              </>
+            )}
+          </section>
+        )}
         <section className="card">
           <h2>By method of voting</h2>
           {c.modes.length === 0 ? <p className="muted small">Not recorded for this contest.</p> : (

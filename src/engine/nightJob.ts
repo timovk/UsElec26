@@ -4,7 +4,8 @@
  * partition → measurement (baseline, survey, wire priors) → wire and decision desk.
  */
 import { Rng } from '../core/rng';
-import { runShard, type ShardInput, type ShardOutput } from '../electorate/kernel';
+import { N_CLASS, N_TYPES, ZG, runShard, typeUtilities, type ShardInput, type ShardOutput } from '../electorate/kernel';
+import { RCV_STOP_SHIFT, tabulateRcv, type RcvRound } from '../counting/rcv';
 import { centreBaseline, measureTypes, publishedBaseline, voterSurveyCrosstabs, wirePriors, type PieceTypes } from '../electorate/measure';
 import { planSchedule, partitionVotes } from '../counting/countPlan';
 import { buildParts, buildPrecincts } from '../counting/precincts';
@@ -15,7 +16,9 @@ import { aggregate, shardGeo } from './electionModel';
 
 export type JobInput = ShardInput & { night?: NightInput; stateIdx?: number; seal?: { contests: { id: number; candidacyIds: number[] }[] }; measure?: boolean };
 export interface SealedContest { id: number; totals: number[]; blobs: { grain: string; payload: Uint8Array }[]; sha256: string }
-export type JobOutput = ShardOutput & { night?: StateNight; sealed?: { contests: SealedContest[]; turnout: Uint8Array; rejected: { contestId: number; payload: Uint8Array }[] }; types?: PieceTypes[] };
+/** A ranked-choice tabulation (Phase 7.1): rounds over the certified ballots, candidates by option index. */
+export interface RcvOutcome { id: number; rounds: RcvRound[]; winner: number; runnerUp: number | null }
+export type JobOutput = ShardOutput & { night?: StateNight; sealed?: { contests: SealedContest[]; turnout: Uint8Array; rejected: { contestId: number; payload: Uint8Array }[] }; types?: PieceTypes[]; rcv?: RcvOutcome[] };
 
 /**
  * A job with its results sealed: the cast ballots of each counted contest are encoded and hashed here,
@@ -57,7 +60,45 @@ export function runJob(inp: JobInput): JobOutput {
     for (const c of out.contests) { delete c.votesByMode; delete c.expPartMode; }
     delete out.expBallotsPartMode;
   }
+  if (out.contests.some((c) => c.rcvComp)) out.rcv = tabulateContests(inp, out);
   return out;
+}
+
+/**
+ * Ranked-choice contests: the instant runoff over the ballots that will be certified (cast, less the provisional
+ * and mail ballots the night rejects), by reporting jurisdiction. The rankings come from the kernel's own
+ * utilities for each type in the RJ's county (docs/architecture/04 §4.5).
+ */
+function tabulateContests(inp: JobInput, out: JobOutput): RcvOutcome[] {
+  const res: RcvOutcome[] = [];
+  out.contests.forEach((co, ci) => {
+    if (!co.rcvComp) return;
+    const c = inp.contests[ci]!, J = c.options.length, K = J + 1, A = inp.rjCount;
+    const first = new Int32Array(A * J);
+    for (let a = 0; a < A; a++) for (let m = 0; m < N_MODES; m++) for (let j = 0; j < J; j++) first[a * J + j]! += co.rjMode[(a * N_MODES + m) * K + j]!;
+    const ri = inp.night && out.night ? inp.night.races.findIndex((r) => r.contest === ci && r.cd < 0) : -1;
+    if (ri >= 0) {
+      const ru = out.night!.rejectedUnits[ri]!;
+      for (let u = 0; u < ru.units.length; u++) {
+        const a = inp.bus.rj[ru.units[u]! - inp.bus.start]! - inp.rjFirst;
+        for (let j = 0; j < J; j++) first[a * J + j]! -= ru.votes[u * K + j]!;
+      }
+    }
+    const util = new Float64Array(A * N_TYPES * K), u = new Float64Array(K);
+    for (let a = 0; a < A; a++) {
+      const county = co.rcvCounty![a]!; if (county < 0) continue;
+      for (let h = 0; h < N_CLASS; h++) for (let g = 0; g < ZG; g++) {
+        typeUtilities(inp, c, h, g, county, 0, u);
+        const o = (a * N_TYPES + h * ZG + g) * K;
+        for (let j = 0; j < J; j++) util[o + j] = u[j]!;
+        util[o + J] = u[J]! + RCV_STOP_SHIFT;
+      }
+    }
+    const r = tabulateRcv({ J, areas: A, T: N_TYPES, first, comp: co.rcvComp, util }, Rng.stream(inp.seedKey, 'rcv', c.id));
+    res.push({ id: c.id, rounds: r.rounds, winner: r.winner, runnerUp: r.runnerUp });
+    delete co.rcvComp; delete co.rcvCounty;
+  });
+  return res;
 }
 
 /** Transferable buffers of a job output (zero-copy return from a worker). */

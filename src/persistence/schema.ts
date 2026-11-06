@@ -170,6 +170,21 @@ CREATE INDEX IF NOT EXISTS contest_year_kind ON contest(year, kind, state_idx);
 CREATE INDEX IF NOT EXISTS contest_next ON contest(next_contest);
 `;
 
+/**
+ * Phase 7.1: election law over time and ranked-choice voting. `election_law` holds the changes enacted in the
+ * universe (the 2016 baseline is code), each with the day it takes effect. `rcv_round` holds a ranked-choice
+ * tabulation round by round (candidacy_id NULL: exhausted ballots). Contests record whether the ballot was
+ * nonpartisan.
+ */
+const V7 = `
+CREATE TABLE election_law (law_id INTEGER PRIMARY KEY, state_idx INTEGER NOT NULL, enacted INTEGER NOT NULL, effective_day INTEGER NOT NULL,
+  source TEXT NOT NULL, change_json TEXT NOT NULL, summary TEXT NOT NULL);
+CREATE INDEX election_law_state ON election_law(state_idx, effective_day);
+CREATE TABLE rcv_round (contest_id INTEGER NOT NULL, rev INTEGER NOT NULL, round INTEGER NOT NULL, candidacy_id INTEGER, votes INTEGER NOT NULL, status TEXT NOT NULL);
+CREATE INDEX rcv_round_contest ON rcv_round(contest_id, rev, round);
+ALTER TABLE contest ADD COLUMN nonpartisan INTEGER NOT NULL DEFAULT 0;
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, description: 'Phase 1 foundational universe schema', up: (db) => db.exec(V1) },
   { version: 2, description: 'Phase 2 elections, contests, candidacies and the results archive', up: (db) => db.exec(V2) },
@@ -177,6 +192,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 4, description: 'Phase 5 polls, averages, forecasts, campaigns, endorsements, debates and delegates', up: (db) => db.exec(V4) },
   { version: 5, description: 'Phase 6 political evolution: demography, the evolving electorate, economy, careers, Congress, census and districts', up: (db) => db.exec(V5) },
   { version: 6, description: 'Phase 6 indexes for long histories: contests by year, kind and state, and by the contest they feed', up: (db) => db.exec(V6) },
+  { version: 7, description: 'Phase 7.1 election law over time, ranked-choice rounds and nonpartisan ballots', up: (db) => db.exec(V7) },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -8,7 +8,7 @@
  */
 import { civilToDays, nthWeekday, weekday, type DayNumber } from '../core/time';
 
-export type PrimaryType = 'open' | 'semi' | 'closed' | 'top_two' | 'jungle';
+export type PrimaryType = 'open' | 'semi' | 'closed' | 'top_two' | 'top_four' | 'jungle';
 
 export interface DateRule { month: number; weekday: number; nth: number | 'last' }
 

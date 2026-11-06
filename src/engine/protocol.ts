@@ -143,6 +143,8 @@ export interface NightRaceMeta {
   candidates: NightCandidate[]; precincts: number; close: SimTime;
   /** Congressional district index of a House race (null otherwise). */
   district: number | null;
+  /** Ranked-choice contest: no first-choice majority means a ranked-choice count, not a runoff. */
+  rcv?: boolean;
 }
 export interface NightChamberBase { holdovers: Record<number, number>; seats: number; majority: number }
 export interface NightMetaDto {
@@ -293,6 +295,10 @@ export interface ContestDetail {
   /** The election night that counted this contest (null for primaries and elections held before Phase 3). */
   nightId: number | null;
   revisions: { rev: number; kind: string; time: SimTime }[];
+  /** The ballot carried no party labels (Phase 7.1). */
+  nonpartisan: boolean;
+  /** Ranked-choice tabulation, round by round, once the contest is decided (Phase 7.1). */
+  rcv: { round: number; candidates: { candidacyId: number; name: string; party: number; votes: number; status: string }[]; exhausted: number }[] | null;
 }
 export interface CountyHistoryDto {
   county: number; name: string; state: string; stateIdx: number;
@@ -323,7 +329,14 @@ export type GovernmentQuery =
   | { kind: 'bill'; id: number }
   | { kind: 'legislatures' }
   | { kind: 'census' }
-  | { kind: 'districtMap'; state: number; plan: 'cd' | 'sldu' | 'sldl'; year: number };
+  | { kind: 'districtMap'; state: number; plan: 'cd' | 'sldu' | 'sldl'; year: number }
+  | { kind: 'electionLaw' };
+
+/** Each state's election law today and every change enacted in the universe (Phase 7.1). */
+export interface ElectionLawDto {
+  states: { stateIdx: number; usps: string; name: string; rules: string[]; changed: boolean }[];
+  changes: { stateIdx: number; usps: string; name: string; enacted: SimTime; effective: string; source: string; summary: string; inForce: boolean }[];
+}
 
 export interface EconomyDto {
   /** Published figures only (releases), by period. */

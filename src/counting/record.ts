@@ -9,6 +9,8 @@ import type { StateNight, SurveyTopline } from './types';
 export interface RecordRace {
   contestId: number; cd: number; stateIdx: number; k: number;
   candidacyIds: number[]; parties: number[]; office: string; ev: number; label: string;
+  /** Ranked-choice contest (Phase 7.1; absent in earlier records). */
+  rcv?: boolean;
   parts: Int32Array;            // global part ids
   precincts: number;            // precincts in the race
   close: number;                // last poll closing in the race
@@ -44,7 +46,7 @@ export interface StoryAlert { time: number; kind: string; race: number; importan
 export interface StoryLine { time: number; speaker: number; type: string; race: number; text: string; template: string }
 export interface Story { version: 1; alerts: StoryAlert[]; lines: StoryLine[]; speakers: { name: string; role: string }[] }
 
-export interface RaceMeta { candidacyIds: number[]; parties: number[]; office: string; ev: number; label: string }
+export interface RaceMeta { candidacyIds: number[]; parties: number[]; office: string; ev: number; label: string; /** Ranked-choice contest (Phase 7.1): without a first-choice majority it goes to the ranked-choice count, not a runoff. */ rcv?: boolean }
 
 /** Merge per-state nights (in state order) into one record. `meta[s][r]` describes race r of state night s. */
 export function mergeNights(nights: StateNight[], meta: RaceMeta[][], electionIds: number[], times: { day: number; lockTime: number; coverageStart: number; nightEnd: number }, canvassCertify: { canvass: number; certify: number }[]): Omit<NightRecord, 'control' | 'chambers' | 'story'> {

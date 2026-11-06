@@ -11,6 +11,7 @@ import { draftBill, presidentSigns, rollCall, type Bill, type Member, type Vec }
 import { PARTY_D, PARTY_R, fullName, type Person } from '../institutions/model';
 import type { Db } from '../persistence/db';
 import { leanMargin, type World } from './world';
+import { electionLawSession } from './electionReform';
 
 export interface GovernmentState {
   /** National policy in the issue space (moves when laws are enacted). */
@@ -150,6 +151,8 @@ export class GovernmentEngine {
       const overridden = Math.round(vetoes * (stateUnified ? 0 : r.range(0, 0.25)));
       const late = !stateUnified && r.bernoulli(0.22);
       db.run('INSERT OR REPLACE INTO state_session VALUES (?,?,?,?,?,?,?)', [year, st.idx, laws, vetoes, overridden, late ? 1 : 0, stateUnified ? 1 : 0]);
+      // Election law (Phase 7.1): the session may change how the state elects, from the next January 1.
+      electionLawSession(this.h, year, st.idx, stateUnified ? govParty : null);
       if (late) this.h.news('state_government', `${st.name} misses its budget deadline`, 'The Governor and the legislature, controlled by different parties, could not agree in time.', { state: st.idx }, zonedToUtc(year, 7, 1, 12, 0, ET));
     }
   }

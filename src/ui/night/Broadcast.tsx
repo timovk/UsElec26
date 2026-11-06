@@ -42,7 +42,7 @@ function useTween(target: number, reduced: boolean): number {
   return reduced ? target : Math.round(v);
 }
 
-const cueOf = (a: StoryAlert): Cue => (a.kind === 'projection' || a.kind === 'runoff' ? 'projection' : a.kind === 'key_race' || a.kind === 'major_county' || a.kind === 'too_close' || a.kind === 'recount' ? 'key_race' : a.kind === 'president' || a.kind === 'control' || a.kind === 'electoral' ? 'major' : a.kind === 'withdrawn' ? 'withdrawn' : 'polls_closed');
+const cueOf = (a: StoryAlert): Cue => (a.kind === 'projection' || a.kind === 'runoff' ? 'projection' : a.kind === 'key_race' || a.kind === 'major_county' || a.kind === 'too_close' || a.kind === 'recount' || a.kind === 'rcv' ? 'key_race' : a.kind === 'president' || a.kind === 'control' || a.kind === 'electoral' ? 'major' : a.kind === 'withdrawn' ? 'withdrawn' : 'polls_closed');
 
 /** The banner queue: alerts crossed by the playhead, filtered by importance for the playback speed. */
 function useBanners(alerts: StoryAlert[], t: number, speed: number, reduced: boolean): StoryAlert | null {
@@ -264,9 +264,9 @@ function Governors({ n }: { n: NightState }) {
 }
 
 function Banner({ a }: { a: StoryAlert }) {
-  const cls = a.kind === 'key_race' || a.kind === 'major_county' || a.kind === 'too_close' || a.kind === 'recount' ? 'kra' : a.kind === 'president' || a.kind === 'control' ? 'major' : a.kind === 'polls_closed' ? 'closed' : a.kind === 'withdrawn' ? 'withdrawn' : 'proj';
-  const kicker = cls === 'kra' ? (a.kind === 'recount' ? 'RECOUNT WATCH' : 'KEY RACE ALERT') : cls === 'major' ? 'MAJOR PROJECTION' : cls === 'closed' ? 'POLLS CLOSED' : cls === 'withdrawn' ? 'PROJECTION WITHDRAWN' : a.kind === 'electoral' ? 'ELECTORAL VOTES' : a.kind === 'runoff' ? 'RUNOFF' : 'MNN PROJECTION';
-  const head = a.headline.replace(/^(MNN projection|Key Race Alert|Polls closed|Projection withdrawn|Runoff projected|Recount watch|Too close to call|Major report|Electoral votes) · /, '');
+  const cls = a.kind === 'key_race' || a.kind === 'major_county' || a.kind === 'too_close' || a.kind === 'recount' || a.kind === 'rcv' ? 'kra' : a.kind === 'president' || a.kind === 'control' ? 'major' : a.kind === 'polls_closed' ? 'closed' : a.kind === 'withdrawn' ? 'withdrawn' : 'proj';
+  const kicker = cls === 'kra' ? (a.kind === 'recount' ? 'RECOUNT WATCH' : a.kind === 'rcv' ? 'RANKED-CHOICE COUNT' : 'KEY RACE ALERT') : cls === 'major' ? 'MAJOR PROJECTION' : cls === 'closed' ? 'POLLS CLOSED' : cls === 'withdrawn' ? 'PROJECTION WITHDRAWN' : a.kind === 'electoral' ? 'ELECTORAL VOTES' : a.kind === 'runoff' ? 'RUNOFF' : 'MNN PROJECTION';
+  const head = a.headline.replace(/^(MNN projection|Key Race Alert|Polls closed|Projection withdrawn|Runoff projected|Ranked-choice count|Recount watch|Too close to call|Major report|Electoral votes) · /, '');
   return (
     <div className={`bc-banner ${cls}`} role="status" aria-live="polite" style={{ ['--pc' as string]: PARTY_COLORS[a.party] ?? '#3a4166' }}>
       <div className="k">{kicker}{a.flip ? ' · FLIP' : ''}</div>
@@ -323,7 +323,7 @@ function RaceCard({ m, n, onClose }: { m: RaceMeta; n: NightState; onClose: () =
     const tot = v.reduce((a, b) => a + b, 0), e = n.focusData!.expected.get(rj) ?? 0;
     return { rj, v, tot, out: Math.max(0, e - tot) };
   }).sort((a, b) => b.out - a.out || b.tot - a.tot) : [];
-  const status = !f || f.s === ST.NONE ? 'Polls open' : f.s === ST.CALLED ? (f.pc ? 'Projected at poll closing' : `Projected ${clock(f.ca)}`) : f.s === ST.CLOSE ? 'Too close to call' : f.s === ST.EARLY ? 'Too early to call' : f.s === ST.RUNOFF ? 'Runoff projected' : 'Projection withdrawn';
+  const status = !f || f.s === ST.NONE ? 'Polls open' : f.s === ST.CALLED ? (f.pc ? 'Projected at poll closing' : `Projected ${clock(f.ca)}`) : f.s === ST.CLOSE ? 'Too close to call' : f.s === ST.EARLY ? 'Too early to call' : f.s === ST.RUNOFF ? (m.rcv ? 'No majority: ranked-choice count' : 'Runoff projected') : 'Projection withdrawn';
   return (
     <div className="bc-card">
       <div className="row between"><div><div className="kicker">{m.state}{m.ev ? ` · ${m.ev} electoral vote${m.ev === 1 ? '' : 's'}` : ''}</div><h2>{m.label}</h2></div><button className="btn ghost small" onClick={onClose} aria-label="Close race">✕</button></div>

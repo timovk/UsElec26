@@ -155,6 +155,8 @@ async function contest(u: Universe, id: number): Promise<ContestDetail | null> {
     nightId: u.db.value<number>('SELECT night_id FROM night_election WHERE election_id = ?', [c.election_id]) ?? null,
     counting: live ? { expected: live.expected, precincts: live.precincts, totalPrecincts: live.totalPrecincts, status: live.status, called: live.called, calledAt: live.calledAt, prob: live.prob, nightId: live.nightId } : null,
     revisions: live ? [] : u.db.all<{ rev: number; kind: string; created_time: number }>('SELECT rev, kind, created_time FROM result_revision WHERE contest_id = ? ORDER BY rev', [id]).map((x) => ({ rev: x.rev, kind: x.kind, time: x.created_time })),
+    nonpartisan: (c as { nonpartisan?: number }).nonpartisan === 1,
+    rcv: c.method === 'rcv' && (c.status === 'decided' || c.status === 'certified') ? rcvRounds(u, id, cands) : null,
     note: live ? 'Unofficial: the count so far, as reported to the wire. Ballots are revealed by the count; the certified result follows the canvass.'
       : blob?.grain === 'cpart' ? 'Primary results are archived by county and congressional district.'
       : rv > 0 ? 'Certified result. Every revision is sealed; county figures are exact sums of Census block-group units.' : 'General-election results are archived for every Census block-group unit; county figures are exact sums.',
@@ -323,4 +325,18 @@ async function audit(u: Universe, year: number): Promise<{ election: string; ok:
     out.push({ election: e.label, ok: f.every((x) => x.ok), findings: f });
   }
   return out;
+}
+
+/** A ranked-choice tabulation as archived (the latest revision), round by round. */
+function rcvRounds(u: Universe, id: number, cands: { candidacyId: number; name: string; party: number }[]): ContestDetail['rcv'] {
+  const rows = u.db.all<{ round: number; candidacy_id: number | null; votes: number; status: string }>('SELECT round, candidacy_id, votes, status FROM rcv_round WHERE contest_id = ? AND rev = (SELECT MAX(rev) FROM rcv_round WHERE contest_id = ?) ORDER BY round, rowid', [id, id]);
+  if (!rows.length) return null;
+  const by = new Map<number, NonNullable<ContestDetail['rcv']>[number]>();
+  for (const r of rows) {
+    let x = by.get(r.round); if (!x) { x = { round: r.round, candidates: [], exhausted: 0 }; by.set(r.round, x); }
+    if (r.candidacy_id === null) { x.exhausted = r.votes; continue; }
+    const c = cands.find((k) => k.candidacyId === r.candidacy_id);
+    x.candidates.push({ candidacyId: r.candidacy_id, name: c?.name ?? '?', party: c?.party ?? 5, votes: r.votes, status: r.status });
+  }
+  return [...by.values()];
 }

@@ -19,6 +19,8 @@ import { ST_CALLED, ST_RUNOFF, ST_TOO_CLOSE, ST_TOO_EARLY, ST_WITHDRAWN } from '
 
 export interface StoryRace {
   label: string; short: string; office: string; state: string; stateName: string; cd: number; ev: number;
+  /** Ranked-choice contest: no runoff, a ranked-choice count (Phase 7.1). */
+  rcv?: boolean;
   /** Spoken district ("Ohio's 9th District") for House and presidential district races. */
   district?: string;
   candidates: { name: string; party: number }[];
@@ -156,6 +158,10 @@ const T: Record<string, Tpl[]> = {
   withdrawn: [
     { id: 'wd1', text: 'MNN is withdrawing its projection in {race}. With more votes counted, {leader} now leads by {margin}, and the race is too close to call.' },
     { id: 'wd2', text: 'An important correction: our decision desk has withdrawn the projection in {race}. The race is now too close to call.' },
+  ],
+  rcv_count: [
+    { id: 'rc1', text: 'Nobody will win a majority of first choices in {race}, so it goes to the ranked-choice count. {a} and {b} are the leading candidates; ballots for the others move to their next choice.' },
+    { id: 'rc2', text: '{race} is a ranked-choice race, and no candidate will clear 50 percent of first choices. MNN will not project it tonight: the ranked-choice tabulation decides between {a} and {b}.' },
   ],
   runoff: [
     { id: 'ro1', text: 'MNN projects {race} is headed to a runoff between {a} and {b}: no candidate will reach a majority.' },
@@ -469,6 +475,9 @@ export function buildStory(rec: Omit<NightRecord, 'story'>, ctx: StoryContext): 
         alert({ time: t, kind: 'withdrawn', race: r, importance: 9, headline: `Projection withdrawn · ${x.short}`, detail: 'Too close to call', party: party(r, opt), flip: false });
         const o = order(r);
         add({ time: t, type: 'withdrawn', race: r, importance: 9.5, speakers: [ANCHOR], facts: { race: raceName(r), leader: o.length ? name(r, o[0]!) : undefined, margin: pts(marginPts(r)) } });
+      } else if (status === ST_RUNOFF && x.rcv) {
+        alert({ time: t, kind: 'rcv', race: r, importance: 7, headline: `Ranked-choice count · ${x.short}`, detail: `No first-choice majority: ${name(r, opt)} and ${name(r, rec.events.option2[ei]!)} lead`, party: 0, flip: false });
+        add({ time: t, type: 'rcv_count', race: r, importance: 7, speakers: ANALYSTS, facts: { race: raceName(r), a: withParty(r, opt), b: withParty(r, rec.events.option2[ei]!) } });
       } else if (status === ST_RUNOFF) {
         alert({ time: t, kind: 'runoff', race: r, importance: 7, headline: `Runoff projected · ${x.short}`, detail: `${name(r, opt)} and ${name(r, rec.events.option2[ei]!)}`, party: 0, flip: false });
         add({ time: t, type: 'runoff', race: r, importance: 7, speakers: ANALYSTS, facts: { race: raceName(r), a: withParty(r, opt), b: withParty(r, rec.events.option2[ei]!) } });

@@ -4,13 +4,14 @@
  * legislatures, the census and apportionment, and district plans. Read-only.
  */
 import { decodeBundle } from '../core/codec';
-import { daysToCivil, easternDay } from '../core/time';
+import { daysToCivil, easternDay, formatDay } from '../core/time';
 import { NONE16 } from '../geo/pack';
 import { fullName, PARTY_D, PARTY_R, type Office } from '../institutions/model';
 import type { DistrictKind } from './districts';
 import { sldLean } from './legislatures';
 import { unitsPerMeter } from './census';
-import type { BillDto, BillRowDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, GovernmentQuery, LegislaturesDto } from './protocol';
+import type { BillDto, BillRowDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GovernmentQuery, LegislaturesDto } from './protocol';
+import { describeLaw } from '../rules/electionLaw';
 import type { Universe } from './universe';
 import { leanMargin } from './world';
 import { congressNumber } from './governmentEngine';
@@ -23,6 +24,7 @@ export async function runGovernmentQuery(u: Universe, q: GovernmentQuery): Promi
     case 'legislatures': return legislatures(u);
     case 'census': return census(u);
     case 'districtMap': return districtMap(u, q.state, q.plan, q.year);
+    case 'electionLaw': return electionLaw(u);
   }
 }
 
@@ -204,5 +206,16 @@ function districtMap(u: Universe, state: number, plan: DistrictKind, year: numbe
         lean: Math.round(10 * (plan === 'cd' ? leanMargin(w.lean.cd, d.idx) : lean![d.idx] ?? 0)) / 10,
       };
     }),
+  };
+}
+
+/** Election law: what each state's elections follow today, and the dated changes made in this universe. */
+function electionLaw(u: Universe): ElectionLawDto {
+  const w = u.world, day = today(u);
+  const changes = w.law.history();
+  return {
+    states: w.pack.states.map((s) => ({ stateIdx: s.idx, usps: s.usps, name: s.name, rules: describeLaw(w.law.on(s.idx, day)), changed: changes.some((c) => c.stateIdx === s.idx && c.effective <= day) })),
+    changes: [...changes].reverse().map((c) => ({ stateIdx: c.stateIdx, usps: w.pack.states[c.stateIdx]!.usps, name: w.pack.states[c.stateIdx]!.name, enacted: c.enacted,
+      effective: formatDay(c.effective, true), source: c.source, summary: c.summary, inForce: c.effective <= day })),
   };
 }

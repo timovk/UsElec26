@@ -78,7 +78,7 @@ export function nightRaces(pack: GeoPack, stateIdx: number, contests: NightRaceS
     if (d >= 0 && r >= 0) { axis[d] = 1; axis[r] = -1; } else if (n >= 2) { axis[0] = 1; axis[1] = -1; }
     const race: NightRace = {
       contest: c.contestIndex, cd: -1, office: c.office, axis, recount: rules.recountAuto,
-      surveyed: ['president', 'us_senator', 'governor'].includes(c.office), majority: c.method === 'majority' || c.method === 'jungle',
+      surveyed: ['president', 'us_senator', 'governor'].includes(c.office), majority: c.method === 'majority' || c.method === 'jungle' || c.method === 'rcv',
     };
     out.push(race);
     if (c.districtEv) for (const cd of stateCds ?? pack.cds.filter((x) => x.stateIdx === stateIdx).map((x) => x.idx)) out.push({ ...race, cd, surveyed: false });

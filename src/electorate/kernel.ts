@@ -84,6 +84,8 @@ export interface KernelContest {
   weight: number;        // partisan salience w_e
   abstain: number;       // undervote utility
   options: KernelOption[];
+  /** Ranked-choice contest (Phase 7.1): the kernel also returns the voter types behind each first choice, per reporting jurisdiction. */
+  rcv?: boolean;
 }
 
 export interface ShardInput {
@@ -120,6 +122,8 @@ export interface ContestOutput {
   votesByMode?: Int32Array;
   /** With `parts`: parts × N_MODES × (options + 1) analytic expected votes. */
   expPartMode?: Float64Array;
+  /** Ranked-choice contests: expected first-choice mass by voter type, rjCount × options × N_TYPES, and each RJ's county (−1: no voters). */
+  rcvComp?: Float64Array; rcvCounty?: Int32Array;
 }
 
 export interface ShardOutput {
@@ -221,7 +225,8 @@ export function runShard(inp: ShardInput): ShardOutput {
   for (const c of inp.contests) {
     const k = c.options.length + 1;
     outs.push({ id: c.id, units: new Int32Array(0), votes: new Int32Array(0), rjMode: new Int32Array(inp.rjCount * N_MODES * k), expected: new Float64Array(k),
-      ...(night ? { expPartMode: new Float64Array(night.count * N_MODES * k) } : {}) });
+      ...(night ? { expPartMode: new Float64Array(night.count * N_MODES * k) } : {}),
+      ...(c.rcv ? { rcvComp: new Float64Array(inp.rjCount * (k - 1) * N_TYPES), rcvCounty: new Int32Array(inp.rjCount).fill(-1) } : {}) });
     unitLists.push([]); voteLists.push([]); modeLists.push([]);
   }
   const expBallotsPartMode = night ? new Float64Array(night.count * N_MODES) : undefined;
@@ -320,6 +325,10 @@ export function runShard(inp: ShardInput): ShardOutput {
         pbar.fill(0, 0, K);
         for (let j = 0; j < K; j++) { let s = 0; const row = j * N_TYPES; for (let ty = 0; ty < N_TYPES; ty++) s += V[m * N_TYPES + ty]! * P[row + ty]!; pbar[j] = s; out.expected[j]! += s; }
         if (out.expPartMode) { const eo = (unitPart * N_MODES + m) * K; for (let j = 0; j < K; j++) out.expPartMode[eo + j]! += pbar[j]!; }
+        if (out.rcvComp) { // ranked-choice: who is behind each first choice (the undervote has no ranking)
+          for (let j = 0; j < J; j++) { const co = (rjLocal * J + j) * N_TYPES, row = j * N_TYPES, vo = m * N_TYPES; for (let ty = 0; ty < N_TYPES; ty++) out.rcvComp[co + ty]! += V[vo + ty]! * P[row + ty]!; }
+          if (out.rcvCounty![rjLocal]! < 0) out.rcvCounty![rjLocal] = county;
+        }
         if (bm[m]! === 0) continue;
         r.multinomial(bm[m]!, pbar.subarray(0, K), draw);
         const ro = (rjLocal * N_MODES + m) * K;

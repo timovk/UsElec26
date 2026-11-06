@@ -23,6 +23,7 @@ import { ElectionEngine, emptyElectionState, type ElectionHost, type ElectionSta
 import { InlineRunner, type ShardRunner } from './computePool';
 import { Evolution, type StateBlob } from './evolution';
 import { Districts } from './districts';
+import { loadElectionLaw } from './lawStore';
 import { CensusEngine } from './census';
 import { CareersEngine, emptyCareersState, type CareersState } from './careersEngine';
 import { GovernmentEngine, emptyGovernmentState, type GovernmentState } from './governmentEngine';
@@ -168,7 +169,7 @@ export class Universe {
       const districts = await Districts.load(db, pack);
       const world: World = {
         seed: rows.universe.seed, name: rows.universe.name, startTime: rows.universe.start_time, time: rows.universe.clock_time,
-        pack, pop, electorate, lean: { bu, ...aggregateLean(bu, pack, districts) }, districts,
+        pack, pop, electorate, lean: { bu, ...aggregateLean(bu, pack, districts) }, districts, law: loadElectionLaw(db, pack),
         parties: BASE_PARTIES.map((p) => ({ ...p })), persons: new Map(rows.persons.map((p) => [p.id, p])), offices: rows.offices,
         officeById: new Map(rows.offices.map((o) => [o.id, o])), current: new Map(rows.current.map((t) => [t.officeId, t])),
         vacancies: new Map(rows.vacancies.map((v) => [v.officeId, v])), chambers: rows.chambers, history: rows.meta.history, ids: rows.meta.ids, pending: emptyPending(),

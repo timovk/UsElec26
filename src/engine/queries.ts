@@ -19,7 +19,7 @@ export function runQuery(u: Universe, q: Query): unknown {
     case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
     case 'nights': case 'nightMeta': case 'nightPayload': case 'nightContext': case 'nightBaseline': case 'nightSurvey': case 'nightCalls': return runNightQuery(u, q);
     case 'seasonYears': case 'seasonOverview': case 'seasonRace': case 'pollList': case 'pollster': case 'forecastRun': case 'forecastCalibration': case 'primaries': return runSeasonQuery(u, q);
-    case 'economy': case 'congress': case 'bill': case 'legislatures': case 'census': case 'districtMap': return runGovernmentQuery(u, q);
+    case 'economy': case 'congress': case 'bill': case 'legislatures': case 'census': case 'districtMap': case 'electionLaw': return runGovernmentQuery(u, q);
     case 'desk': return desk(u);
     case 'geoMeta': return geoMeta(u);
     case 'mapLayer': return mapLayer(u, q.layer, q.metric);

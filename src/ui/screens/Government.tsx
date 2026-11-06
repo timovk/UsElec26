@@ -1,10 +1,10 @@
 /**
  * Government (Phase 6): presidential approval and the economy as published (with the simulation's truth set
  * apart), Congress (bills, roll calls and the yearly record), the state legislatures, the census and
- * apportionment, and every district plan drawn in this universe.
+ * apportionment, every district plan drawn in this universe, and (Phase 7.1) each state's election law over time.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { BillDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, GeoMeta, LegislaturesDto } from '../../engine/protocol';
+import type { BillDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GeoMeta, LegislaturesDto } from '../../engine/protocol';
 import { useQuery } from './Desk';
 import { go } from '../app/router';
 import { PARTY_ABBR, PARTY_COLORS, PARTY_NAME, PartyBadge, SeatBar, Truth, fmtInt, fmtLean } from '../components/common';
@@ -15,7 +15,7 @@ import { useApp } from '../state/store';
 
 const TABS = [
   { id: 'economy', label: 'Approval & economy' }, { id: 'congress', label: 'Congress' }, { id: 'legislatures', label: 'State legislatures' },
-  { id: 'census', label: 'Census & apportionment' }, { id: 'districts', label: 'District maps' },
+  { id: 'census', label: 'Census & apportionment' }, { id: 'districts', label: 'District maps' }, { id: 'law', label: 'Election law' },
 ] as const;
 
 export function GovernmentScreen({ tab: tabParam, args }: { tab?: string; args: string[] }) {
@@ -32,6 +32,7 @@ export function GovernmentScreen({ tab: tabParam, args }: { tab?: string; args: 
         : tab === 'bill' ? <BillView id={Number(args[0])} />
         : tab === 'legislatures' ? <LegislaturesPanel />
         : tab === 'census' ? <CensusPanel />
+        : tab === 'law' ? <ElectionLawPanel />
         : <DistrictsPanel state={args[0] !== undefined ? Number(args[0]) : undefined} plan={(args[1] as 'cd' | 'sldu' | 'sldl' | undefined) ?? 'cd'} year={args[2] ? Number(args[2]) : undefined} />}
     </>
   );
@@ -339,6 +340,34 @@ function DotMap({ m, mode }: { m: DistrictMapDto; mode: 'district' | 'party' | '
     <div>
       <canvas ref={ref} style={{ width: '100%', display: 'block' }} onMouseMove={onMove} onMouseLeave={() => setHover(null)} role="img" aria-label={`District map, ${m.districts.length} districts`} />
       <div className="tiny muted chart-readout">{h ? <>District {h.label} · {fmtInt(h.population)} people · {h.holderParty !== null ? `held by the ${PARTY_NAME[h.holderParty]}s`.replace('Vacants', 'vacant') : 'vacant'} · {fmtLean(h.lean)}</> : 'Hover over the map to identify a district.'}</div>
+    </div>
+  );
+}
+
+// ---- Election law (Phase 7.1) ------------------------------------------------------------------------------------
+function ElectionLawPanel() {
+  const l = useQuery<ElectionLawDto>({ kind: 'electionLaw' });
+  const [all, setAll] = useState(false);
+  if (!l) return <p className="muted">Loading…</p>;
+  const shown = all ? l.states : l.states.filter((s) => s.changed || s.rules.some((r) => /Ranked-choice|Top-|Nonpartisan|November all-candidate/.test(r)));
+  return (
+    <div className="grid cols-2">
+      <section className="card">
+        <h2>Changes in this universe</h2>
+        {l.changes.length === 0 ? <p className="muted small">No state has changed its election law yet. Every state still elects under its law of January 1, 2016. Laws change through simulated legislation: each state’s session may adopt or repeal ranked-choice voting or change its primary system, taking effect the next January 1.</p> : (
+          <table className="data"><thead><tr><th>State</th><th>Change</th><th>Effective</th></tr></thead>
+            <tbody>{l.changes.map((c, i) => <tr key={i}><td>{c.name}</td><td className="small">{c.summary}<div className="tiny muted">{c.source === 'legislature' ? 'State legislation' : c.source === 'initiative' ? 'Ballot initiative' : 'Scenario'}</div></td><td className="small">{c.effective}{!c.inForce && <div className="tiny muted">not yet in force</div>}</td></tr>)}</tbody>
+          </table>
+        )}
+        <p className="tiny muted">A change applies only to elections held on or after its effective date; elections already held keep the rules they were held under.</p>
+      </section>
+      <section className="card">
+        <h2>How states elect today</h2>
+        <label className="small row" style={{ gap: 6, marginBottom: 6 }}><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Every state (otherwise only those with ranked, all-candidate or nonpartisan ballots, or a changed law)</label>
+        <table className="data"><thead><tr><th>State</th><th>Rules</th></tr></thead>
+          <tbody>{shown.map((s) => <tr key={s.stateIdx}><td>{s.name}{s.changed && <span className="badge" style={{ marginLeft: 6 }}>changed</span>}</td><td className="small">{s.rules.join(' · ')}</td></tr>)}</tbody>
+        </table>
+      </section>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { Population } from '../population/population';
 import type { Electorate, Lean } from '../electorate/model';
 import type { Chamber, NewsItem, Office, Party, Person, Term, Vacancy } from '../institutions/model';
 import type { Districts } from './districts';
+import type { ElectionLaw } from '../rules/electionLaw';
 
 export interface LeanSet { bu: Lean; county: Lean; state: Lean; cd: Lean; national: { d: number; t: number } }
 
@@ -20,6 +21,8 @@ export interface World {
   chambers: Chamber[];
   /** District plans (2016 and every later plan) and apportionments. */
   districts: Districts;
+  /** Election law over time: the 2016 baseline plus changes enacted in the universe (Phase 7.1). */
+  law: ElectionLaw;
   history: { env: Record<string, number>; presidentTermNumber: number };
   ids: { person: number; term: number; career: number; news: number; event: number };
   /** Rows produced since the last flush (written by persistence in one transaction). */

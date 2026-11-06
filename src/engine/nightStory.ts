@@ -53,7 +53,7 @@ export function storyContext(db: Db, w: World, rec: Omit<NightRecord, 'story'>, 
     const statewide = r.office !== 'us_representative' && r.cd < 0;
     const eligible = statewide && c ? (eligibleByElection?.get(c.election_id) ?? db.value<number>('SELECT eligible FROM election_turnout WHERE election_id = ? AND state_idx = ?', [c.election_id, r.stateIdx]) ?? 0) : 0;
     return {
-      label: r.label.replace(/^\d{4} /, ''), short: raceShort(db, w, r),
+      label: r.label.replace(/^\d{4} /, ''), short: raceShort(db, w, r), ...(r.rcv ? { rcv: true } : {}),
       district: r.office === 'us_representative' && c?.district_idx !== null && c?.district_idx !== undefined ? cdSpoken({ states: w.pack.states, cds: w.districts.cds }, c.district_idx) : r.cd >= 0 ? cdSpoken({ states: w.pack.states, cds: w.districts.cds }, r.cd) : undefined, office: r.office, state: st.usps, stateName: st.name, cd: r.cd, ev: r.ev,
       candidates, prevParty, lastWon, eligible, recount: COUNTING_RULES_2016[st.usps]?.recountAuto ?? 0,
     };

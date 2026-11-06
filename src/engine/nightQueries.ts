@@ -45,7 +45,7 @@ async function nightMeta(u: Universe, id: number): Promise<NightMetaDto | null> 
       const st = pack.states[r.stateIdx]!;
       const short = raceShort(u.db, u.world, r);
       return { i, contestId: r.contestId, label: r.label.replace(/^\d{4} /, ''), short, office: r.office, state: st.usps, stateIdx: r.stateIdx, cd: r.cd, ev: r.ev, k: r.k,
-        candidates: r.candidacyIds.map((c, j) => cand(c, r.parties[j]!)), precincts: r.precincts, close: r.close,
+        candidates: r.candidacyIds.map((c, j) => cand(c, r.parties[j]!)), precincts: r.precincts, close: r.close, ...(r.rcv ? { rcv: true } : {}),
         district: r.office === 'us_representative' ? u.db.value<number>('SELECT district_idx FROM contest WHERE contest_id = ?', [r.contestId]) ?? null : null };
     }),
     states: rec.states.map((s) => ({ idx: s.stateIdx, usps: pack.states[s.stateIdx]!.usps, name: pack.states[s.stateIdx]!.name, closeFirst: s.closeFirst, closeLast: s.closeLast, certify: s.certify })),
