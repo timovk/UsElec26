@@ -8,7 +8,9 @@ export type OfficeKind =
   | 'congress_leader' | 'state_leg_leader'
   | 'state_senator' | 'state_representative'
   // Phase 7.2: down-ballot statewide offices, elected boards and state courts (rules/downballot2016).
-  | DownballotKind;
+  | DownballotKind
+  // Phase 7.3: the statewide ballot measures of a state (one holderless office per state; its contests are measures).
+  | 'ballot_measure';
 
 /** State legislative seats (Phase 6). */
 export const LEGISLATOR_KINDS: readonly OfficeKind[] = ['state_senator', 'state_representative'];
@@ -76,6 +78,19 @@ export function fullName(p: Pick<Person, 'given' | 'middle' | 'surname' | 'suffi
   const given = p.nickname ?? p.given;
   return [given, withMiddle && p.middle ? `${p.middle}.` : null, p.surname].filter(Boolean).join(' ') + (p.suffix ? ` ${p.suffix}` : '');
 }
+
+/**
+ * The two options of a ballot measure (Phase 7.3): candidacies with these person and party ids. They are not people:
+ * code that names a candidacy's person uses `optionPerson` for them.
+ */
+export const MEASURE_YES = -1, MEASURE_NO = -2;
+const stubTraits = { asOf: 0, ideology: [0, 0, 0] as [number, number, number], charisma: 0, campaign: 0, fundraising: 0, leadership: 0, integrity: 1, ambition: 0, recognition: 0 };
+const stub = (id: number, given: string): Person => ({ id, given, middle: null, surname: '', suffix: null, nickname: null, sex: 'F', race: '', birthDay: 0, deathDay: null,
+  homeState: -1, homeCounty: null, tier: 'C', createdTime: 0, provenance: 'ballot measure option', bio: '', partyId: id, traits: stubTraits });
+const OPTIONS = new Map<number, Person>([[MEASURE_YES, stub(MEASURE_YES, 'Yes')], [MEASURE_NO, stub(MEASURE_NO, 'No')]]);
+/** The Yes or No option of a ballot measure as a person-like record (its name is "Yes" or "No"); undefined for real people. */
+export const optionPerson = (id: number): Person | undefined => OPTIONS.get(id);
+export const isMeasureOption = (id: number): boolean => id === MEASURE_YES || id === MEASURE_NO;
 
 export const PRE_SIM = 'pre-simulation background';
 export const SIMULATED = 'simulated';

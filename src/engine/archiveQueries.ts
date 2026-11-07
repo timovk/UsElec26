@@ -1,6 +1,6 @@
 /** Read-only queries over the elections archive (all numbers come from sealed archive records). */
 import { daysToCivil, easternDay, formatDay, isoDay } from '../core/time';
-import { fullName, PARTY_D, PARTY_R } from '../institutions/model';
+import { fullName, PARTY_D, PARTY_R, optionPerson } from '../institutions/model';
 import { NONE16, cdCode } from '../geo/pack';
 import { MODE_NAMES } from '../electorate/kernel';
 import { auditElection, decodeContestBlob, readRollup, type StateRollup } from '../archive/results';
@@ -8,7 +8,8 @@ import { liveContest, liveGeo, liveTallies, type LiveContest } from './nightQuer
 import { decodeIntColumns } from '../core/codec';
 import type { Universe } from './universe';
 import { baselineContest, turnoutByBu } from './baselines';
-import type { ArchiveQuery, CandidateDto, ContestDetail, CountyHistoryDto, DistrictHistoryDto, ElectionListItem, HistoryRow, ResultsMapDto, StateHistoryDto, YearSummary } from './protocol';
+import type { ArchiveQuery, CandidateDto, ContestDetail, CountyHistoryDto, DistrictHistoryDto, ElectionListItem, HistoryRow, MeasureListDto, ResultsMapDto, StateHistoryDto, YearSummary } from './protocol';
+import { MEASURE_KIND_LABEL, thresholdText, type MeasureKind, type Threshold } from '../rules/measures2016';
 import { leanMargin } from './world';
 
 interface CRow { contest_id: number; election_id: number; office_id: number | null; kind: string; party_id: number | null; state_idx: number | null; district_idx: number | null; method: string; label: string; status: string; winner_candidacy: number | null; parent_contest: number | null; next_contest: number | null; ev: number | null; year: number }
@@ -21,6 +22,7 @@ export async function runArchiveQuery(u: Universe, q: ArchiveQuery): Promise<unk
     case 'contest': return contest(u, q.id);
     case 'countyHistory': return countyHistory(u, q.county);
     case 'districtHistory': return districtHistory(u, q.code);
+    case 'measures': return measureList(u, q.year, q.state);
     case 'stateHistory': return stateHistory(u, q.state);
     case 'resultsMap': return resultsMap(u, q.year, q.office, q.layer);
     case 'yearSummary': return yearSummary(u, q.year);
@@ -48,7 +50,7 @@ function candidates(u: Universe, contestId: number, live?: LiveContest | null): 
     rows.sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0) || a.candidacy_id - b.candidacy_id);
   }
   return rows.map((r) => {
-    const p = u.world.persons.get(r.person_id); const m = r.running_mate !== null ? u.world.persons.get(r.running_mate) : undefined;
+    const p = u.world.persons.get(r.person_id) ?? optionPerson(r.person_id); const m = r.running_mate !== null ? u.world.persons.get(r.running_mate) : undefined;
     return { candidacyId: r.candidacy_id, personId: r.person_id, name: p ? fullName(p) : `#${r.person_id}`, party: r.party_id, incumbent: !!r.incumbent, status: r.status, runningMate: m ? fullName(m) : null, votes: r.votes, share: r.share };
   });
 }
@@ -84,6 +86,7 @@ async function elections(u: Universe, year?: number): Promise<ElectionListItem[]
       let win = winId !== null ? candidates(u, c.contest_id).find((x) => x.candidacyId === winId) ?? null : null;
       // A retention vote: the outcome, named for the judge (Phase 7.2).
       if (win && c.kind === 'retention') win = win.party === 0 ? { ...win, name: `${win.name}: not retained` } : { ...win, name: `${win.name}: retained` };
+      if (win && c.kind === 'measure') win = { ...win, name: win.name === 'Yes' ? 'Passed' : 'Failed' };
       const status = c.status === 'counting' ? (winId !== null ? 'projected' : 'counting') : c.status;
       // Facets: did the seat change party, and did an incumbent running lose?
       const held = c.office_id !== null && e.held_time !== null ? u.db.value<number>('SELECT party_id FROM office_term WHERE office_id = ? AND start_time <= ? AND (end_time IS NULL OR end_time > ?) ORDER BY start_time DESC LIMIT 1', [c.office_id, e.held_time, e.held_time]) ?? null : null;
@@ -159,6 +162,7 @@ async function contest(u: Universe, id: number): Promise<ContestDetail | null> {
     id, label: c.label, kind: c.kind, method: c.method, status: c.status, office: office?.title ?? null, officeKind: office?.kind ?? null,
     stateUsps: c.state_idx !== null ? w.pack.states[c.state_idx]!.usps : null, stateIdx: c.state_idx,
     districtLabel: cd ? `${w.pack.states[cd.stateIdx]!.usps}-${cd.number === 0 ? 'AL' : String(cd.number).padStart(2, '0')}` : null,
+    measure: c.kind === 'measure' ? measureInfo(u, id) : null,
     retention: c.kind === 'retention' ? { threshold: Number(c.method.slice('retention_'.length)) || 0.5, retained: c.winner_candidacy === null ? null : c.winner_candidacy === cands.find((x) => x.party !== 0)?.candidacyId } : null,
     date: formatDay(e.day, true), electionLabel: e.label, candidates: cands, ballots: turnout?.ballots ?? null, undervotes: turnout?.undervotes ?? null, eligible: turnout?.eligible ?? null,
     ev: c.ev, seal: rev?.sha256 ?? null, revisionKind: live ? 'counting' : rev?.kind ?? null, parent: c.parent_contest, next: c.next_contest, grain: blob?.grain ?? (live ? 'live' : rv > 0 ? 'bu' : null),
@@ -184,7 +188,7 @@ async function countyHistory(u: Universe, county: number): Promise<CountyHistory
   const w = u.world; const c = w.pack.counties[county]!;
   const contests = u.db.all<CRow & { day: number }>(
     `SELECT c.*, e.day FROM contest_geo g JOIN contest c ON c.contest_id = g.contest_id JOIN election e ON e.election_id = c.election_id
-     WHERE g.county_idx = ? AND c.kind IN ('general','special','pres_state') ORDER BY e.day DESC, c.contest_id`, [county]);
+     WHERE g.county_idx = ? AND c.kind IN ('general','special','pres_state','retention','measure') ORDER BY e.day DESC, c.contest_id`, [county]);
   const rolls = await rollupsFor(u, [...new Set(contests.map((x) => `${x.election_id}:${x.state_idx}`))].map((s) => { const [a, b] = s.split(':'); return { election_id: Number(a), state_idx: Number(b) }; }));
   const rows: CountyHistoryDto['rows'] = [];
   for (const x of contests) {
@@ -206,7 +210,7 @@ function historyRow(u: Universe, x: CRow & { day: number }, v: number[]): Histor
   const order = u.db.all<{ candidacy_id: number; person_id: number; party_id: number; ballot_order: number }>('SELECT candidacy_id, person_id, party_id, ballot_order FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [x.contest_id]);
   const valid = v.slice(0, order.length).reduce((a, b) => a + b, 0);
   const name = (o: (typeof order)[number]) => {
-    const n = fullName(w.persons.get(o.person_id)!);
+    const n = fullName(w.persons.get(o.person_id) ?? optionPerson(o.person_id)!);
     return x.kind === 'retention' ? (o.ballot_order === 0 ? `Yes: retain ${n}` : 'No') : n;
   };
   const cands = order.map((o, j) => ({ name: name(o), party: o.party_id, votes: v[j]!, share: valid ? v[j]! / valid : 0, winner: o.candidacy_id === x.winner_candidacy }))
@@ -244,7 +248,7 @@ async function districtHistory(u: Universe, code: string): Promise<DistrictHisto
     const roll = await readRollup(u.db, e.election_id, st.idx); if (!roll) continue;
     const contests = u.db.all<CRow & { day: number; okind: string | null; sdist: number | null }>(
       `SELECT c.*, ? AS day, o.kind AS okind, s.district AS sdist FROM contest c LEFT JOIN office o ON o.office_id = c.office_id LEFT JOIN office_seat s ON s.office_id = c.office_id
-       WHERE c.election_id = ? AND c.kind IN ('general','special','pres_state','retention') ORDER BY c.contest_id`, [e.day, e.election_id]);
+       WHERE c.election_id = ? AND c.kind IN ('general','special','pres_state','retention','measure') ORDER BY c.contest_id`, [e.day, e.election_id]);
     for (const c of contests) {
       // This district's House race, and the races of the whole state (not other districts' or legislative seats).
       const ok = c.okind === null || (c.okind === 'us_representative' ? c.district_idx === d.idx : c.okind !== 'state_senator' && c.okind !== 'state_representative' && !c.sdist);
@@ -281,7 +285,7 @@ function stateHistory(u: Universe, stateIdx: number): StateHistoryDto {
   const w = u.world, st = w.pack.states[stateIdx]!, year = daysToCivil(easternDay(w.time)).y;
   const contests = u.db.all<CRow & { day: number }>(
     `SELECT c.*, e.day FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id LEFT JOIN office_seat s ON s.office_id = c.office_id
-     WHERE c.state_idx = ? AND c.kind IN ('general','special','pres_state','retention') AND c.status IN ('decided','certified')
+     WHERE c.state_idx = ? AND c.kind IN ('general','special','pres_state','retention','measure') AND c.status IN ('decided','certified')
        AND (o.kind IS NULL OR o.kind NOT IN ('us_representative','state_senator','state_representative')) AND (s.district IS NULL OR s.district = 0)
      ORDER BY e.day DESC, c.contest_id`, [stateIdx]);
   const rows = contests.map((c) => {
@@ -445,4 +449,33 @@ function rcvRounds(u: Universe, id: number, cands: { candidacyId: number; name: 
     x.candidates.push({ candidacyId: r.candidacy_id, name: c?.name ?? '?', party: c?.party ?? 5, votes: r.votes, status: r.status });
   }
   return [...by.values()];
+}
+
+/** A ballot measure's facts for its contest page (Phase 7.3). */
+function measureInfo(u: Universe, contestId: number): ContestDetail['measure'] {
+  const m = u.db.get<{ name: string; title: string; summary: string; kind: string; sponsor: string; threshold_json: string; parties_json: string; polled: number; outcome: string | null; law_id: number | null }>(
+    'SELECT name, title, summary, kind, sponsor, threshold_json, parties_json, polled, outcome, law_id FROM ballot_measure WHERE contest_id = ?', [contestId]);
+  if (!m) return null;
+  const law = m.law_id !== null ? u.db.get<{ summary: string; effective_day: number }>('SELECT summary, effective_day FROM election_law WHERE law_id = ?', [m.law_id]) : undefined;
+  const parties = JSON.parse(m.parties_json) as { D: string | null; R: string | null };
+  return { name: m.name, title: m.title, summary: m.summary, kind: MEASURE_KIND_LABEL[m.kind as MeasureKind] ?? m.kind, sponsor: m.sponsor, threshold: thresholdText(JSON.parse(m.threshold_json) as Threshold),
+    parties, polled: m.polled === 1, outcome: m.outcome, law: law ? { summary: law.summary, effective: formatDay(law.effective_day, true) } : null };
+}
+
+/** Every ballot measure of a year (or of a state, every year), with its yes share once counted. */
+function measureList(u: Universe, year?: number, state?: number): MeasureListDto {
+  const years = u.db.all<{ year: number }>('SELECT DISTINCT year FROM ballot_measure ORDER BY year DESC').map((r) => r.year);
+  const y = year ?? (state === undefined ? years[0] ?? null : null);
+  const rows = u.db.all<{ contest_id: number; year: number; state_idx: number; name: string; title: string; kind: string; status: string; outcome: string | null; threshold_json: string; effect: string | null; polled: number }>(
+    `SELECT m.contest_id, m.year, m.state_idx, m.name, m.title, m.kind, c.status, m.outcome, m.threshold_json, m.effect, m.polled FROM ballot_measure m JOIN contest c ON c.contest_id = m.contest_id
+     WHERE (? IS NULL OR m.year = ?) AND (? IS NULL OR m.state_idx = ?) ORDER BY m.year DESC, m.state_idx, m.contest_id`, [y, y, state ?? null, state ?? null]);
+  return {
+    years, year: y, state: state ?? null,
+    rows: rows.map((r) => {
+      const t = u.db.all<{ votes: number }>('SELECT t.votes FROM contest_total t JOIN candidacy k ON k.candidacy_id = t.candidacy_id WHERE t.contest_id = ? AND t.rev = (SELECT MAX(rev) FROM contest_total WHERE contest_id = ?) ORDER BY k.ballot_order', [r.contest_id, r.contest_id]);
+      const yes = t.length === 2 && t[0]!.votes + t[1]!.votes > 0 ? t[0]!.votes / (t[0]!.votes + t[1]!.votes) : null;
+      return { contestId: r.contest_id, year: r.year, state: u.world.pack.states[r.state_idx]!.name, stateIdx: r.state_idx, name: r.name, title: r.title, kind: MEASURE_KIND_LABEL[r.kind as MeasureKind] ?? r.kind,
+        status: r.status, outcome: r.outcome, yes, threshold: thresholdText(JSON.parse(r.threshold_json) as Threshold), effect: r.effect !== null, polled: r.polled === 1 };
+    }),
+  };
 }

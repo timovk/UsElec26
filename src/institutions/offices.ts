@@ -9,7 +9,7 @@ export const OFFICE_LABEL: Record<string, string> = {
   treasurer: 'Treasurer', auditor: 'Auditor / Comptroller', superintendent: 'Superintendent', insurance_commissioner: 'Insurance Commissioner',
   agriculture_commissioner: 'Agriculture Commissioner', labor_commissioner: 'Labor Commissioner', land_commissioner: 'Land Commissioner',
   other_statewide: 'Other statewide office', commissioner: 'Commissions', education_board: 'Boards of education', regent: 'University boards',
-  justice: 'Supreme Court', appellate_judge: 'Court of Appeals',
+  justice: 'Supreme Court', appellate_judge: 'Court of Appeals', ballot_measure: 'Ballot measures',
 };
 
 /** Groups of office kinds for filters and overviews. */
@@ -20,6 +20,7 @@ export const OFFICE_GROUPS: { label: string; kinds: OfficeKind[] }[] = [
   { label: 'Commissions and boards', kinds: ['commissioner', 'education_board', 'regent'] },
   { label: 'Courts', kinds: ['justice', 'appellate_judge'] },
   { label: 'State legislatures', kinds: ['state_senator', 'state_representative'] },
+  { label: 'Ballot measures', kinds: ['ballot_measure'] },
 ];
 
 /** The race, as said in commentary ("the treasurer's race", "the Supreme Court race"). */

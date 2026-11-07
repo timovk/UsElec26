@@ -1,7 +1,7 @@
 /** Queries for the campaign season: polls, averages, forecasts, calibration and the presidential primaries. Only published polls. */
 import { gunzip } from '../core/codec';
 import { easternDay } from '../core/time';
-import { fullName, PARTY_D, PARTY_R } from '../institutions/model';
+import { fullName, PARTY_D, PARTY_R, optionPerson } from '../institutions/model';
 import { needed } from '../primaries/delegates';
 import { NOMINATING_2016 } from '../rules/primaries2016';
 import type { CalibrationDto, ForecastDto, PollDto, PollsterDto, PrimariesDto, PrimaryPartyDto, RaceRowDto, SeasonOverviewDto, SeasonQuery, SeasonRaceDto } from './protocol';
@@ -41,7 +41,7 @@ async function forecastDto(u: Universe, year: number, asOf?: number): Promise<Fo
   const p = await payloadOf(u, row.run_id, row.payload);
   const meta = new Map(p.races.map((r) => [r.key, r]));
   const nominees = (u.db.all<{ person_id: number; party_id: number }>("SELECT k.person_id, k.party_id FROM contest c JOIN candidacy k ON k.candidacy_id = c.winner_candidacy WHERE c.kind = 'pres_nomination' AND c.year = ? AND c.status IN ('decided','certified')", [year]))
-    .map((r) => ({ party: r.party_id, name: fullName(u.world.persons.get(r.person_id)!) }));
+    .map((r) => ({ party: r.party_id, name: fullName(u.world.persons.get(r.person_id) ?? optionPerson(r.person_id)!) }));
   return {
     asOf: row.as_of, national: p.out.national, president: p.out.president, senate: p.out.senate, house: p.out.house, governors: p.out.governors, nominees,
     races: p.out.races.map((r) => ({ ...r, label: meta.get(r.key)?.label ?? r.key, kind: meta.get(r.key)?.kind ?? '', state: meta.get(r.key)?.state ?? 0, ev: meta.get(r.key)?.ev ?? 0 })),

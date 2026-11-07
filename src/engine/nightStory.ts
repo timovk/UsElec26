@@ -4,7 +4,7 @@
  * ballot lock, from the archive.
  */
 import { buildStory, type StoryContext, type StoryRace } from '../broadcast/story';
-import { fullName } from '../institutions/model';
+import { fullName, optionPerson } from '../institutions/model';
 import { daysToCivil, easternDay, type SimTime } from '../core/time';
 import type { NightRecord, Story } from '../counting/record';
 import type { Db } from '../persistence/db';
@@ -20,6 +20,7 @@ const OFF: Record<string, string> = { president: 'President', us_senator: 'Senat
 /** Short race label used on screen ("PA Senate", "NC-9", "ME President · ME-2"). */
 export function raceShort(db: Db, w: World, r: NightRecord['races'][number]): string {
   const st = w.pack.states[r.stateIdx]!;
+  if (r.office === 'ballot_measure') return `${st.usps} ${db.value<string>('SELECT name FROM ballot_measure WHERE contest_id = ?', [r.contestId]) ?? 'measure'}`;
   if (r.office === 'us_representative') {
     const cd = db.value<number>('SELECT district_idx FROM contest WHERE contest_id = ?', [r.contestId]);
     return cd !== undefined && cd !== null ? cdCode({ states: w.pack.states, cds: w.districts.cds }, cd) : st.usps;
@@ -34,7 +35,7 @@ export function storyContext(db: Db, w: World, rec: Omit<NightRecord, 'story'>, 
     const c = db.get<{ office_id: number | null; kind: string; election_id: number; district_idx: number | null }>('SELECT office_id, kind, election_id, district_idx FROM contest WHERE contest_id = ?', [r.contestId]);
     const candidates = r.candidacyIds.map((cid, j) => {
       const pid = db.value<number>('SELECT person_id FROM candidacy WHERE candidacy_id = ?', [cid]);
-      const p = pid !== undefined ? w.persons.get(pid) : undefined;
+      const p = pid !== undefined ? w.persons.get(pid) ?? optionPerson(pid) : undefined;
       return { name: p ? fullName(p) : 'the candidate', party: r.parties[j]! };
     });
     let prevParty: number | null = null;

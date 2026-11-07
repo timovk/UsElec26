@@ -438,11 +438,14 @@ export function buildStory(rec: Omit<NightRecord, 'story'>, ctx: StoryContext): 
         const imp = officeImportance(r) + (s.key ? 2 : 0) + (flip ? 2 : 0);
         const lw = x.lastWon[p];
         const historic = flip && lw !== undefined && lw < ctx.year - 4 ? `It is the first ${PARTY[p]} win here since ${lw}.` : undefined;
-        if (x.office !== 'us_representative' || flip || s.key) {
+        if (x.office === 'ballot_measure') {
+          // A ballot measure (Phase 7.3): passes or fails.
+          alert({ time: t, kind: 'projection', race: r, importance: 5, headline: `MNN projection · ${x.short}`, detail: `${opt === 0 ? 'Passes' : 'Fails'} · ${x.label.replace(/^\d{4} /, '')}`, party: p, flip: false });
+        } else if (x.office !== 'us_representative' || flip || s.key) {
           const rn = raceName(r).replace(/^the /, '');
           alert({ time: t, kind: 'projection', race: r, importance: imp, headline: `MNN projection · ${x.short}`, detail: `${withParty(r, opt)} wins ${rn.charAt(0).toUpperCase() + rn.slice(1)}${flip ? ` · ${ABBR[p]} pickup` : x.prevParty ? ` · ${ABBR[p]} hold` : ''}`, party: p, flip });
         }
-        if (!s.pc && (s.key || flip || (x.office !== 'us_representative' && x.cd < 0 && imp >= 7))) {
+        if (x.office !== 'ballot_measure' && !s.pc && (s.key || flip || (x.office !== 'us_representative' && x.cd < 0 && imp >= 7))) {
           // House calls are spoken when there is room; they never interrupt (the anchor reads the big ones at once).
           add({ time: t, type: 'projection', race: r, importance: x.office === 'us_representative' ? Math.min(7, imp) : Math.min(9.5, imp + 1), speakers: [ANCHOR], facts: {
             winner: withParty(r, opt), race: raceName(r), flip: flip || undefined, hold: !flip && x.prevParty ? true : undefined, winnerParty: PARTY[p], winnerPlural: PLURAL[p],

@@ -5,6 +5,7 @@ import { PARTY_D, PARTY_R } from '../institutions/model';
 import type { KernelContest, ShardInput, ShardOutput } from '../electorate/kernel';
 import { N_CLASS, N_MODES } from '../electorate/kernel';
 import type { ContestResult } from '../archive/results';
+import type { MeasureParams } from './measures';
 import type { GeoPack } from '../geo/pack';
 
 export interface ContestRow {
@@ -50,6 +51,8 @@ export interface Ctx {
   classCentroids: number[][]; platforms: { D: number[]; R: number[] };
   /** Campaign effects (Phase 5): valence added to the option and the candidate's campaign recognition in this race. */
   campaign?: (cand: CandidacyRow, person: Person, stateIdx: number) => { valence: number; recognition: number } | null;
+  /** A ballot measure's position and cues (Phase 7.3). */
+  measureOf?: (contestId: number) => MeasureParams | null;
 }
 
 const dist2 = (a: readonly number[], b: readonly number[]) => a.reduce((s, x, i) => s + (x - b[i]!) ** 2, 0);
@@ -64,6 +67,15 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
   // A nonpartisan ballot (Phase 7.1) carries no party label: no partisan weight (docs/architecture/04 §4.5), and
   // voters judge each candidate's visible ideology directly rather than relative to a party's platform.
   const nonpartisan = !primary && c.nonpartisan === 1;
+  // A ballot measure (Phase 7.3): yes against no, by where each voter class stands along the measure's direction in
+  // issue space relative to its cut point; a pull toward the status quo; a party cue when the parties take sides.
+  if (c.kind === 'measure') {
+    const m = ctx.measureOf?.(c.contest_id);
+    const z = (h: number) => (m ? (ctx.classCentroids[h]!.reduce((a, x, i) => a + x * m.dir[i]!, 0) - m.cut) / m.scale : 0);
+    const yes = { partySign: m && m.cue > 0 ? 0.5 : -0.5, base: m?.lean ?? 0, minorAppeal: 0, homeCounty: -1, homeState: false, classFit: Array.from({ length: N_CLASS }, (_, h) => (m?.kappa ?? 0) * z(h)) };
+    const no = { partySign: -yes.partySign, base: m?.statusQuo ?? 0.25, minorAppeal: 0, homeCounty: -1, homeState: false, classFit: new Array<number>(N_CLASS).fill(0) };
+    return { id: c.contest_id, cd: -1, geo: 0, weight: m ? 0.6 * Math.abs(m.cue) : 0, abstain: -2.2 + 0.9 * (1 - (m?.salience ?? 0.3)), options: [yes, no] };
+  }
   // A retention vote: "yes" (keep the judge) against "no". Voters far from the judge's visible views vote no more often.
   if (c.kind === 'retention') {
     const judge = cands[0]!.person, cand = cands[0]!.cand;

@@ -33,7 +33,7 @@ import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from 
 import { SIM_START } from '../core/time';
 
 const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
-export const ENGINE_VERSION = '0.7.2';
+export const ENGINE_VERSION = '0.7.3';
 /** How often (wall time) a long advance commits its batched writes to storage. */
 const COMMIT_INTERVAL_MS = 10000;
 
@@ -151,6 +151,7 @@ export class Universe {
     u.queue = scheduledFromDb(db);
     await u.ensureLegislatures();
     u.ensureDownballot();
+    u.ensureMeasureOffices();
     for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
     return u;
   }
@@ -198,6 +199,7 @@ export class Universe {
       for (const r of db.all<{ office_id: number; party_id: number }>('SELECT office_id, party_id FROM office_term t WHERE party_id IS NOT NULL AND term_id = (SELECT term_id FROM office_term x WHERE x.office_id = t.office_id ORDER BY start_time DESC, term_id DESC LIMIT 1)')) u.lastParty.set(r.office_id, r.party_id);
       for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
       if (names) { await u.ensureLegislatures(); u.ensureDownballot(); }
+      u.ensureMeasureOffices();
       return u;
     } catch (e) { db.close(); throw e; }
   }
@@ -405,6 +407,14 @@ export class Universe {
     });
     if (!n) return;
     for (const t of w.current.values()) if (t.partyId !== null) this.lastParty.set(t.officeId, t.partyId);
+    this.commit(null);
+  }
+
+  /** Ballot measures (Phase 7.3): one holderless office per state, under which the state's measures are filed. */
+  ensureMeasureOffices(): void {
+    const w = this.world;
+    if (w.offices.some((o) => o.kind === 'ballot_measure')) return;
+    for (const st of w.pack.states) this.addOffice({ kind: 'ballot_measure', title: `${st.name} ballot measures`, stateIdx: st.idx, districtIdx: null, senateClass: null, chamberId: null, dept: null, rank: 9000 + st.idx });
     this.commit(null);
   }
 

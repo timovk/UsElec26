@@ -33,7 +33,7 @@ interface Host { world: World; db: Db; news(kind: string, headline: string, body
 /** Statewide and federal general elections of the last two years in a state: winners below 50% with a spoiler, and ranked-choice reversals. */
 export interface RecentOutcomes { spoilerLosers: number[]; rcvReversedLeaders: number[] }
 
-function recentOutcomes(db: Db, stateIdx: number, year: number): RecentOutcomes {
+export function recentOutcomes(db: Db, stateIdx: number, year: number): RecentOutcomes {
   const rows = db.all<{ contest_id: number; method: string; winner: number; winner_party: number }>(
     `SELECT c.contest_id, c.method, c.winner_candidacy AS winner, k.party_id AS winner_party FROM contest c JOIN candidacy k ON k.candidacy_id = c.winner_candidacy LEFT JOIN office o ON o.office_id = c.office_id
      WHERE c.state_idx = ? AND c.year BETWEEN ? AND ? AND c.kind IN ('general','special','pres_state') AND c.nonpartisan = 0 AND c.status IN ('decided','certified')

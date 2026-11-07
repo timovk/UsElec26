@@ -23,7 +23,7 @@ export function Results({ year: yearParam }: { year?: number }) {
         <div><div className="kicker">Election results</div><h1 className="screen-title">{year} elections</h1></div>
         <div className="row"><label className="small muted">Year</label>
           <select value={year} onChange={(e) => go(`results/${e.target.value}`)}>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select>
-          <a className="btn small" href={`#/map/results/${year}`}>View on the map</a></div>
+          <a className="btn small" href={`#/map/results/${year}`}>View on the map</a><a className="btn small" href={`#/government/measures/${year}`}>Ballot measures</a></div>
       </div>
       {s && (s.hasPresident || s.chambers.length > 0) && (
         <div className="grid cols-3" style={{ marginTop: 10 }}>

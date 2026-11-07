@@ -8,7 +8,7 @@ import { Rng } from '../core/rng';
 import { daysToCivil, easternDay, formatDay, zonedToUtc, type DayNumber, type SimTime } from '../core/time';
 import { gzip, gunzip } from '../core/codec';
 import { DOWNBALLOT_KINDS } from '../rules/downballot2016';
-import { fullName, PARTY_D, PARTY_R, type Person } from '../institutions/model';
+import { MEASURE_NO, MEASURE_YES, fullName, optionPerson, PARTY_D, PARTY_R, type Person } from '../institutions/model';
 import { debatePerformance, initCampaign, scandalDraw, stepCampaign, valenceOf, voterPower, type CampaignOffice, type CampaignState, type CampaignTraits } from '../campaigns/model';
 import { fieldPoll, publishedLean, type PieceTypes, type PollArea, type PollDesign } from '../electorate/measure';
 import { N_CLASS, N_TYPES, ZG, type KernelContest } from '../electorate/kernel';
@@ -41,7 +41,7 @@ export interface SeasonState {
 export const emptySeason = (): SeasonState => ({ campaigns: {}, presumptive: {}, pollsters: false, lastForecast: null, nextPollId: 1, nextEventId: 1 });
 
 export interface Opt { key: string; label: string; party: number; personId: number | null }
-export type RaceKind = 'pres_national' | 'pres_state' | 'generic' | 'general' | 'primary' | 'nom_national' | 'nom_state';
+export type RaceKind = 'pres_national' | 'pres_state' | 'generic' | 'general' | 'primary' | 'nom_national' | 'nom_state' | 'measure';
 export interface Race {
   key: string; year: number; kind: RaceKind; label: string; geo: string; stateIdx: number | null; cd: number | null;
   contestId: number | null; office: string; party: number; day: DayNumber; options: Opt[];
@@ -151,7 +151,9 @@ export class Season {
     // State legislative contests are neither polled nor forecast: leave them out in SQL (about 6,000 a year).
     // Only the columns read below (row objects for about 1,000 contests and 3,000 candidacies, every day).
     const rows = this.db.all<Pick<ContestRow, 'contest_id' | 'election_id' | 'office_id' | 'kind' | 'party_id' | 'state_idx' | 'district_idx' | 'label' | 'ev'> & { eday: number }>(`SELECT c.contest_id, c.election_id, c.office_id, c.kind, c.party_id, c.state_idx, c.district_idx, c.label, c.ev, e.day AS eday FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
-      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND c.kind IN ('general','special','pres_state','primary','top_two','pres_primary') AND (o.kind IS NULL OR o.kind NOT IN (${UNPOLLED})) ORDER BY c.contest_id`, [year, day]);
+      WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND c.kind IN ('general','special','pres_state','primary','top_two','pres_primary','measure') AND (o.kind IS NULL OR o.kind NOT IN (${UNPOLLED})) ORDER BY c.contest_id`, [year, day]);
+    // Ballot measures: only the two most prominent of each state's ballot are polled (Phase 7.3).
+    const polledMeasures = new Set(this.db.all<{ contest_id: number }>('SELECT contest_id FROM ballot_measure WHERE year = ? AND polled = 1', [year]).map((r) => r.contest_id));
     type Cand = Pick<CandidacyRow, 'contest_id' | 'person_id' | 'party_id'>;
     const opt = (cand: Cand, p: Person): Opt => ({ key: `p${p.id}`, label: fullName(p), party: cand.party_id, personId: p.id });
     // A general election is not a race to poll until every primary (and runoff) feeding it has chosen its nominee.
@@ -163,10 +165,17 @@ export class Season {
     const byContest = new Map<number, { cand: Cand; person: Person }[]>();
     for (const k of this.db.all<Cand>(`SELECT k.contest_id, k.person_id, k.party_id FROM candidacy k JOIN contest c ON c.contest_id = k.contest_id JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id
       WHERE c.year = ? AND e.day >= ? AND c.status IN ('set','filing') AND k.status NOT IN ('withdrew') AND (o.kind IS NULL OR o.kind NOT IN (${UNPOLLED})) ORDER BY k.contest_id, k.ballot_order, k.candidacy_id`, [year, day])) {
-      const p = w.persons.get(k.person_id); if (!p) continue;
+      const p = w.persons.get(k.person_id) ?? optionPerson(k.person_id); if (!p) continue;
       const a = byContest.get(k.contest_id) ?? []; a.push({ cand: k, person: p }); byContest.set(k.contest_id, a);
     }
     for (const c of rows) {
+      if (c.kind === 'measure') {
+        if (!polledMeasures.has(c.contest_id)) continue;
+        const st = w.pack.states[c.state_idx!]!;
+        out.push({ key: `C:${c.contest_id}`, year, kind: 'measure', label: c.label.replace(/^\d{4} /, ''), geo: st.usps, stateIdx: c.state_idx, cd: null, contestId: c.contest_id, office: 'ballot_measure', party: 0, day: c.eday,
+          options: [{ key: 'yes', label: 'Yes', party: MEASURE_YES, personId: null }, { key: 'no', label: 'No', party: MEASURE_NO, personId: null }], electionId: c.election_id, ev: 0, campaign: '' });
+        continue;
+      }
       const cands = byContest.get(c.contest_id) ?? [];
       const pending = awaiting.get(c.contest_id);
       if (cands.length < 1 && !pending) continue;
@@ -446,7 +455,7 @@ export class Season {
   }
   private contestForUncached(r: Race, s: number): KernelContest | null {
     const E = this.E, w = this.w;
-    const kctx = { classCentroids: E.cls.centroids, platforms: w.electorate.params.platforms };
+    const kctx = { classCentroids: E.cls.centroids, platforms: w.electorate.params.platforms, measureOf: (id: number) => E.measures.params(id) };
     if (r.kind === 'generic') {
       return { id: -1, cd: -1, weight: officeWeight('us_representative'), abstain: officeAbstain('us_representative'), options: [0.5, -0.5].map((sign) => ({ partySign: sign, base: 0, classFit: new Array<number>(N_CLASS).fill(0), minorAppeal: 0, homeCounty: -1, homeState: false })) };
     }
@@ -491,10 +500,10 @@ export class Season {
     if (left < 1) return 0;
     const season = r.kind === 'nom_state' ? (left < 30 ? 1.5 : left < 75 ? 0.4 : 0.05) : r.kind === 'primary' ? (left < 45 ? 0.4 : 0.05) : r.kind === 'nom_national' ? 1 : left < 45 ? 1.2 : left < 110 ? 0.7 : left < 220 ? 0.25 : 0.08;
     const avg = this.averages.get(r.key);
-    const m = avg?.margin ? Math.abs(avg.margin.mean) : r.stateIdx !== null && r.kind !== 'primary' && r.kind !== 'nom_state' ? Math.abs(r.cd !== null ? lean.cd[r.cd]! : lean.state[r.stateIdx]!) : 8;
+    const m = avg?.margin ? Math.abs(avg.margin.mean) : r.kind === 'measure' ? 10 : r.stateIdx !== null && r.kind !== 'primary' && r.kind !== 'nom_state' ? Math.abs(r.cd !== null ? lean.cd[r.cd]! : lean.state[r.stateIdx]!) : 8;
     const close = Math.exp(-((m / 11) ** 2));
     const base = r.kind === 'pres_national' ? 6 : r.kind === 'generic' ? 2 : r.kind === 'nom_national' ? 4 : r.kind === 'pres_state' ? 0.3 + r.ev / 6 : r.kind === 'nom_state' ? 0.5 + Math.sqrt(r.ev || 30) / 6
-      : r.office === 'us_senator' ? 1.6 : r.office === 'governor' ? 1.2 : r.office === 'us_representative' ? 0.12 : 0.15;
+      : r.kind === 'measure' ? 0.9 : r.office === 'us_senator' ? 1.6 : r.office === 'governor' ? 1.2 : r.office === 'us_representative' ? 0.12 : 0.15;
     return base * season * (r.geo === 'US' || r.kind.startsWith('nom') ? 1 : 0.15 + close);
   }
 

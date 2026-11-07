@@ -55,6 +55,7 @@ export const HISTORY_OFFICES: [string, string, (k: string) => boolean][] = [
   ['boards', 'Commissions and boards', (k) => ['commissioner', 'education_board', 'regent'].includes(k)],
   ['courts', 'Courts', (k) => k === 'justice' || k === 'appellate_judge'],
   ['legislature', 'State legislature', (k) => k === 'state_senator' || k === 'state_representative'],
+  ['measures', 'Ballot measures', (k) => k === 'ballot_measure'],
 ];
 
 const ordinal = (n: number) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`; };

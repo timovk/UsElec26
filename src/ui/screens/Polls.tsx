@@ -15,7 +15,7 @@ import { formatDay } from '../../core/time';
 const TABS = [{ id: 'forecast', label: 'Forecast' }, { id: 'races', label: 'Races' }, { id: 'polls', label: 'Polls' }, { id: 'pollsters', label: 'Pollsters' }, { id: 'result', label: 'Forecast vs result' }] as const;
 export const pctTxt = (p: number) => (p > 0.99 ? '>99%' : p < 0.01 ? '<1%' : `${Math.round(100 * p)}%`);
 const mtxt = (m: number) => `${m >= 0 ? 'D' : 'R'}+${Math.abs(m).toFixed(1)}`;
-const KIND_LABEL: Record<string, string> = { pres_national: 'President (national)', pres_state: 'President', generic: 'Generic ballot', general: 'General', primary: 'Primary', nom_national: 'Nomination (national)', nom_state: 'Nomination (state)' };
+const KIND_LABEL: Record<string, string> = { pres_national: 'President (national)', pres_state: 'President', generic: 'Generic ballot', general: 'General', primary: 'Primary', nom_national: 'Nomination (national)', nom_state: 'Nomination (state)', measure: 'Ballot measure' };
 
 export function PollsScreen({ year: yearParam, tab: tabParam, arg }: { year?: number; tab?: string; arg?: string }) {
   const years = useQuery<number[]>({ kind: 'seasonYears' });

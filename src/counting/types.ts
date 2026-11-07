@@ -17,6 +17,11 @@ export interface NightRace {
   majority: boolean;      // a majority is required (otherwise a runoff)
   /** Per option (excluding the undervote): +1 for the option the prior error favours, −1 for its opponent, 0 otherwise. */
   axis: number[];
+  /**
+   * Ballot measures with a threshold other than a simple majority (Phase 7.3): weights over the options and the
+   * blank ballots (yes, no, blank) — the measure passes when Σ weight × votes ≥ 0 — so the desk calls the rule, not the leader.
+   */
+  pass?: number[];
   /** Automatic-recount threshold (fraction of votes), 0 = none. */
   recount: number;
   /**

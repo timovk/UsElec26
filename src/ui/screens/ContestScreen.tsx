@@ -18,14 +18,23 @@ export function ContestScreen({ id }: { id: number }) {
   if (!c) return <p>No such contest.</p>;
   const valid = c.candidates.reduce((a, x) => a + (x.votes ?? 0), 0);
   // Short column labels: surnames, or Yes / No on a retention vote.
-  const label = (x: { name: string; party: number }) => (c.retention ? (x.party === 0 ? 'No' : 'Yes') : surname(x.name));
+  const label = (x: { name: string; party: number }) => (c.retention ? (x.party === 0 ? 'No' : 'Yes') : c.measure ? x.name : surname(x.name));
   return (
     <>
       <a className="small" href={`#/results/${c.label.slice(0, 4)}`}>‹ {c.label.slice(0, 4)} results</a>
       <div className="kicker" style={{ marginTop: 8 }}>{c.electionLabel} · {c.date}</div>
       <h1 className="screen-title"><CodeLinks text={c.label.replace(/^\d{4} /, '')} style={{ color: 'inherit' }} /></h1>
+      {c.measure && (
+        <section className="card" style={{ margin: '8px 0 12px' }}>
+          <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}><strong style={{ fontSize: 17 }}>{c.measure.title}</strong>
+            {c.measure.outcome && <span className="badge" style={{ background: c.measure.outcome === 'passed' ? PARTY_COLORS[-1] : PARTY_COLORS[-2], color: '#fff' }}>{c.measure.outcome === 'passed' ? 'Passed' : 'Failed'}</span>}</div>
+          <p className="small" style={{ margin: '6px 0' }}>{c.measure.summary}</p>
+          <div className="tiny muted">{c.measure.kind} · {c.measure.sponsor} · passing requires {c.measure.threshold}{c.measure.polled && <> · polled; called on election night</>}</div>
+          {c.measure.law && <p className="small" style={{ marginTop: 6 }}>Changes the state's election law from {c.measure.law.effective}: {c.measure.law.summary}. <a href="#/government/law">Election law ›</a></p>}
+        </section>
+      )}
       <p className="screen-sub">{c.office ?? 'President of the United States'}{c.districtLabel && <> · <a href={districtHref(c.districtLabel)}>{c.districtLabel} history</a></>}{c.stateIdx !== null && <> · <a href={`#/archive/${c.stateIdx}`}>{c.stateUsps} history</a></>}{c.ev ? ` · ${c.ev} electoral votes` : ''}
-        {METHOD_LABEL[c.method] && <> · {METHOD_LABEL[c.method]}</>}{c.retention && <> · Retention vote: {Math.round(100 * c.retention.threshold)}% yes needed to keep the seat</>}{c.nonpartisan && !c.retention && <> · nonpartisan ballot</>}
+        {METHOD_LABEL[c.method] && <> · {METHOD_LABEL[c.method]}</>}{c.retention && <> · Retention vote: {Math.round(100 * c.retention.threshold)}% yes needed to keep the seat</>}{c.nonpartisan && !c.retention && !c.measure && <> · nonpartisan ballot</>}
         {c.nightId !== null && !c.counting && <> · <a href={`#/night/${c.nightId}`}>★ Watch this election night</a></>}
         {c.parent && <> · <a href={`#/contest/${c.parent}`}>first round</a></>}{c.next && <> · <a href={`#/contest/${c.next}`}>{c.status === 'runoff' ? 'runoff' : 'next round'}</a></>}</p>
       <div className="grid cols-2">
@@ -42,11 +51,11 @@ export function ContestScreen({ id }: { id: number }) {
             <thead><tr><th>Candidate</th><th>Party</th><th>Votes</th><th>Share</th><th /></tr></thead>
             <tbody>{c.candidates.map((x) => (
               <tr key={x.candidacyId}>
-                <td>{c.retention && x.party === 0 ? <strong>{x.name}</strong> : <a href={`#/people/${x.personId}`} style={{ color: 'inherit', fontWeight: 600 }}>{x.name}</a>}{x.incumbent && <span className="badge" style={{ marginLeft: 6 }}>Incumbent</span>}{x.runningMate && <div className="tiny muted">with {x.runningMate}</div>}</td>
-                <td>{c.retention && x.party === 0 ? '' : <PartyBadge party={x.party} />}</td>
+                <td>{(c.retention && x.party === 0) || c.measure ? <strong>{x.name}</strong> : <a href={`#/people/${x.personId}`} style={{ color: 'inherit', fontWeight: 600 }}>{x.name}</a>}{x.incumbent && <span className="badge" style={{ marginLeft: 6 }}>Incumbent</span>}{x.runningMate && <div className="tiny muted">with {x.runningMate}</div>}</td>
+                <td>{(c.retention && x.party === 0) || c.measure ? '' : <PartyBadge party={x.party} />}</td>
                 <td className="num">{x.votes !== null ? fmtInt(x.votes) : '—'}</td>
                 <td className="num" style={{ width: 160 }}>{x.share !== null && <div className="row"><div style={{ flex: 1, height: 8, background: 'var(--bg-3)', borderRadius: 4 }}><div style={{ width: `${100 * x.share}%`, height: '100%', background: PARTY_COLORS[x.party], borderRadius: 4 }} /></div>{(100 * x.share).toFixed(1)}%</div>}</td>
-                <td className="small">{c.retention ? (x.status === 'won' ? (x.party === 0 ? '✔ Not retained' : '✔ Retained') : '') : x.status === 'won' ? '✔ Won' : x.status === 'advanced' ? 'Advanced' : ''}</td>
+                <td className="small">{c.measure ? (x.status === 'won' ? (x.party === -1 ? '✔ Passed' : '✔ Failed') : '') : c.retention ? (x.status === 'won' ? (x.party === 0 ? '✔ Not retained' : '✔ Retained') : '') : x.status === 'won' ? '✔ Won' : x.status === 'advanced' ? 'Advanced' : ''}</td>
               </tr>
             ))}</tbody>
           </table>
@@ -71,7 +80,7 @@ export function ContestScreen({ id }: { id: number }) {
                   <tbody>
                     {c.candidates.map((x) => (
                       <tr key={x.candidacyId}>
-                        <td><span className="row">{!(c.retention && x.party === 0) && <PartyBadge party={x.party} />}{label(x)}</span></td>
+                        <td><span className="row">{!(c.retention && x.party === 0) && !c.measure && <PartyBadge party={x.party} />}{label(x)}</span></td>
                         {c.rcv!.map((r) => { const e = r.candidates.find((k) => k.candidacyId === x.candidacyId); const tot = r.candidates.reduce((a, k) => a + k.votes, 0);
                           return <td key={r.round} className="num small">{e ? <>{fmtInt(e.votes)} <span className="muted tiny">{tot ? `${(100 * e.votes / tot).toFixed(1)}%` : ''}</span>{e.status === 'elected' ? ' ✔' : e.status === 'eliminated' ? ' ✕' : ''}</> : <span className="muted">—</span>}</td>; })}
                       </tr>

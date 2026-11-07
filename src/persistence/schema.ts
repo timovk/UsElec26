@@ -197,6 +197,19 @@ CREATE TABLE office_seat (office_id INTEGER PRIMARY KEY, body TEXT NOT NULL, sea
 CREATE INDEX office_seat_body ON office_seat(body);
 `;
 
+/**
+ * Phase 7.3: ballot measures. Each is a contest (kind 'measure') whose candidacies are the options Yes (person and
+ * party −1) and No (−2); `ballot_measure` holds what the measure is: its name, title and summary, kind, topic,
+ * sponsor, the vote it needs, its position in issue space (params), the parties' positions, its election-law
+ * effect, whether it was polled and on the broadcast night, and its outcome (and the law it enacted).
+ */
+const V9 = `
+CREATE TABLE ballot_measure (contest_id INTEGER PRIMARY KEY, state_idx INTEGER NOT NULL, year INTEGER NOT NULL, name TEXT NOT NULL, title TEXT NOT NULL,
+  summary TEXT NOT NULL, kind TEXT NOT NULL, topic TEXT NOT NULL, sponsor TEXT NOT NULL, threshold_json TEXT NOT NULL, params_json TEXT NOT NULL,
+  parties_json TEXT NOT NULL, effect TEXT, salience REAL NOT NULL, polled INTEGER NOT NULL, outcome TEXT, law_id INTEGER);
+CREATE INDEX ballot_measure_state ON ballot_measure(state_idx, year);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, description: 'Phase 1 foundational universe schema', up: (db) => db.exec(V1) },
   { version: 2, description: 'Phase 2 elections, contests, candidacies and the results archive', up: (db) => db.exec(V2) },
@@ -206,6 +219,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 6, description: 'Phase 6 indexes for long histories: contests by year, kind and state, and by the contest they feed', up: (db) => db.exec(V6) },
   { version: 7, description: 'Phase 7.1 election law over time, ranked-choice rounds and nonpartisan ballots', up: (db) => db.exec(V7) },
   { version: 8, description: 'Phase 7.2 seats of down-ballot offices, boards and state courts', up: (db) => db.exec(V8) },
+  { version: 9, description: 'Phase 7.3 ballot measures', up: (db) => db.exec(V9) },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

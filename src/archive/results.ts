@@ -323,9 +323,11 @@ export async function auditElection(db: Db, electionId: number, buState: (bu: nu
       if (t2.present && JSON.stringify(t2.votes) !== JSON.stringify(t3.votes)) fail('Canvass = certified', `contest ${c.contest_id}`);
       if (t1.present && t1.votes.some((v, j) => v > t2.votes[j]!)) fail('Unofficial ≤ canvass', `contest ${c.contest_id}`);
       // State legislative contests are certified from the cast ballots without a broadcast night feed, as are (Phase
-      // 7.2) retention votes, appellate courts, boards and commissions, and seats elected by district.
+      // 7.2) retention votes, appellate courts, boards and commissions, seats elected by district, and (7.3) the ballot
+      // measures that were not polled.
       const offNight = !!db.value<number>(`SELECT 1 FROM contest c JOIN office o ON o.office_id = c.office_id LEFT JOIN office_seat s ON s.office_id = o.office_id WHERE c.contest_id = ?
-        AND (o.kind IN ('state_senator','state_representative','appellate_judge','commissioner','education_board','regent') OR c.kind = 'retention' OR s.district > 0)`, [c.contest_id]);
+        AND (o.kind IN ('state_senator','state_representative','appellate_judge','commissioner','education_board','regent') OR c.kind = 'retention' OR s.district > 0
+          OR (c.kind = 'measure' AND NOT EXISTS (SELECT 1 FROM ballot_measure m WHERE m.contest_id = c.contest_id AND m.polled = 1)))`, [c.contest_id]);
       if (night && !offNight) {
         const ri = night.races.findIndex((r) => r.contestId === c.contest_id && r.cd < 0);
         if (ri < 0) fail('Night feed covers the contest', `contest ${c.contest_id}`);

@@ -1,5 +1,5 @@
 /** Election-night queries: the list of nights, their metadata, and the sealed record for playback. */
-import { fullName } from '../institutions/model';
+import { fullName, optionPerson } from '../institutions/model';
 import { isoDay } from '../core/time';
 import { Playback } from '../broadcast/playback';
 import { raceShort } from './nightStory';
@@ -36,7 +36,7 @@ async function nightMeta(u: Universe, id: number): Promise<NightMetaDto | null> 
   const pack = u.world.pack;
   const cand = (cid: number, party: number) => {
     const k = u.db.get<{ person_id: number; incumbent: number }>('SELECT person_id, incumbent FROM candidacy WHERE candidacy_id = ?', [cid]);
-    const p = k ? u.world.persons.get(k.person_id) : undefined;
+    const p = k ? u.world.persons.get(k.person_id) ?? optionPerson(k.person_id) : undefined;
     return { candidacyId: cid, personId: k?.person_id ?? -1, name: p ? fullName(p) : `#${cid}`, party, incumbent: !!k?.incumbent };
   };
   return {
@@ -199,7 +199,7 @@ async function nightCalls(u: Universe, id: number): Promise<NightCallDto[]> {
   const ballots = new Float64Array(rec.races.length), expected = new Float64Array(rec.races.length);
   let b = 0, w = 0;
   const out: NightCallDto[] = [];
-  const name = (race: number, opt: number) => { const cid = rec.races[race]!.candidacyIds[opt]; const pid = cid !== undefined ? u.db.value<number>('SELECT person_id FROM candidacy WHERE candidacy_id = ?', [cid]) : undefined; const p = pid !== undefined ? u.world.persons.get(pid) : undefined; return p ? fullName(p) : ''; };
+  const name = (race: number, opt: number) => { const cid = rec.races[race]!.candidacyIds[opt]; const pid = cid !== undefined ? u.db.value<number>('SELECT person_id FROM candidacy WHERE candidacy_id = ?', [cid]) : undefined; const p = pid !== undefined ? u.world.persons.get(pid) ?? optionPerson(pid) : undefined; return p ? fullName(p) : ''; };
   for (let i = 0; i < ev.time.length; i++) {
     const t = ev.time[i]!, st = ev.status[i]!;
     while (b < B.time.length && B.time[b]! <= t) { for (let j = B.rowStart[b]!; j < B.rowStart[b + 1]!; j++) { const r = rr.race[j]!; for (let q = 0; q < rec.races[r]!.k; q++) ballots[r]! += rr.votes[rr.off[j]! + q]!; } b++; }

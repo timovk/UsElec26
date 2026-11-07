@@ -266,6 +266,7 @@ export type ArchiveQuery =
   | { kind: 'contest'; id: number }
   | { kind: 'countyHistory'; county: number }
   | { kind: 'districtHistory'; code: string }
+  | { kind: 'measures'; year?: number; state?: number }
   | { kind: 'stateHistory'; state: number }
   | { kind: 'resultsMap'; year: number; office: ResultsOffice; layer: MapLayer }
   | { kind: 'yearSummary'; year: number }
@@ -302,6 +303,9 @@ export interface ContestDetail {
   revisions: { rev: number; kind: string; time: SimTime }[];
   /** The ballot carried no party labels (Phase 7.1). */
   nonpartisan: boolean;
+  /** A ballot measure (Phase 7.3): what it is, the vote it needs, the parties' positions and its outcome. */
+  measure: { name: string; title: string; summary: string; kind: string; sponsor: string; threshold: string; parties: { D: string | null; R: string | null };
+    polled: boolean; outcome: string | null; law: { summary: string; effective: string } | null } | null;
   /** A judge's retention vote (Phase 7.2): the share of yes votes needed, and the outcome once decided. */
   retention: { threshold: number; retained: boolean | null } | null;
   /** Ranked-choice tabulation, round by round, once the contest is decided (Phase 7.1). */
@@ -328,6 +332,12 @@ export interface DistrictHistoryDto {
   /** The plans the district has been drawn under, oldest first. */
   plans: { firstYear: number; label: string }[];
   rows: HistoryRow[];
+}
+/** Ballot measures (Phase 7.3): every measure of a year (or of a state over the years), with its result. */
+export interface MeasureListDto {
+  years: number[]; year: number | null; state: number | null;
+  rows: { contestId: number; year: number; state: string; stateIdx: number; name: string; title: string; kind: string; status: string; outcome: string | null;
+    yes: number | null; threshold: string; effect: boolean; polled: boolean }[];
 }
 /** A state's statewide election history, its congressional districts and its counties. */
 export interface StateHistoryDto {

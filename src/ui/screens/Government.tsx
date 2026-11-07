@@ -2,10 +2,10 @@
  * Government (Phase 6): presidential approval and the economy as published (with the simulation's truth set
  * apart), Congress (bills, roll calls and the yearly record), the state legislatures, the census and
  * apportionment, every district plan drawn in this universe, (Phase 7.1) each state's election law over time, and
- * (Phase 7.2) each state's down-ballot offices, elected boards and courts.
+ * (Phase 7.2) each state's down-ballot offices, elected boards and courts, and (Phase 7.3) every ballot measure.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { BillDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GeoMeta, LegislaturesDto, StateOfficesDto } from '../../engine/protocol';
+import type { BillDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GeoMeta, LegislaturesDto, MeasureListDto, StateOfficesDto } from '../../engine/protocol';
 import { useQuery } from './Desk';
 import { go } from '../app/router';
 import { PARTY_ABBR, PARTY_COLORS, PARTY_NAME, PartyBadge, SeatBar, Truth, fmtInt, fmtLean } from '../components/common';
@@ -16,7 +16,7 @@ import { useApp } from '../state/store';
 
 const TABS = [
   { id: 'economy', label: 'Approval & economy' }, { id: 'congress', label: 'Congress' }, { id: 'legislatures', label: 'State legislatures' },
-  { id: 'offices', label: 'State offices & courts' }, { id: 'census', label: 'Census & apportionment' }, { id: 'districts', label: 'District maps' }, { id: 'law', label: 'Election law' },
+  { id: 'offices', label: 'State offices & courts' }, { id: 'census', label: 'Census & apportionment' }, { id: 'districts', label: 'District maps' }, { id: 'measures', label: 'Ballot measures' }, { id: 'law', label: 'Election law' },
 ] as const;
 
 export function GovernmentScreen({ tab: tabParam, args }: { tab?: string; args: string[] }) {
@@ -35,6 +35,7 @@ export function GovernmentScreen({ tab: tabParam, args }: { tab?: string; args: 
         : tab === 'census' ? <CensusPanel />
         : tab === 'law' ? <ElectionLawPanel />
         : tab === 'offices' ? <StateOfficesPanel state={args[0] !== undefined ? Number(args[0]) : undefined} />
+        : tab === 'measures' ? <MeasuresPanel year={args[0] ? Number(args[0]) : undefined} />
         : <DistrictsPanel state={args[0] !== undefined ? Number(args[0]) : undefined} plan={(args[1] as 'cd' | 'sldu' | 'sldl' | undefined) ?? 'cd'} year={args[2] ? Number(args[2]) : undefined} />}
     </>
   );
@@ -431,5 +432,44 @@ function StateOfficesPanel({ state }: { state?: number }) {
         </>
       )}
     </>
+  );
+}
+
+// ---- Ballot measures (Phase 7.3) -------------------------------------------------------------------------------
+function MeasuresPanel({ year }: { year?: number }) {
+  const [state, setState] = useState<number | null>(null);
+  const d = useQuery<MeasureListDto>({ kind: 'measures', ...(state !== null ? { state } : year !== undefined ? { year } : {}) });
+  const meta = useQuery<GeoMeta>({ kind: 'geoMeta' });
+  if (!d) return <p className="muted">Loading…</p>;
+  const passed = d.rows.filter((r) => r.outcome === 'passed').length, decided = d.rows.filter((r) => r.outcome).length;
+  return (
+    <section className="card">
+      <div className="row between" style={{ flexWrap: 'wrap', gap: 10 }}>
+        <h2>Ballot measures{d.year ? ` · ${d.year}` : state !== null && meta ? ` · ${meta.states[state]?.name}` : ''}</h2>
+        <div className="row" style={{ gap: 8 }}>
+          <select aria-label="Year" value={state === null ? String(d.year ?? '') : ''} onChange={(e) => { setState(null); go(`government/measures/${e.target.value}`); }}>
+            {state !== null && <option value="">All years</option>}{d.years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <select aria-label="State" value={state ?? ''} onChange={(e) => setState(e.target.value === '' ? null : Number(e.target.value))}>
+            <option value="">Every state</option>{meta?.states.map((s) => <option key={s.idx} value={s.idx}>{s.name}</option>)}
+          </select>
+        </div>
+      </div>
+      {d.rows.length === 0 ? <p className="muted small">No ballot measures yet. Measures are filed with each state’s candidates, months before the election.</p> : (
+        <>
+          <p className="small muted">{d.rows.length} measure{d.rows.length === 1 ? '' : 's'}{decided ? ` · ${passed} of ${decided} decided passed` : ''}. ★ polled and called on election night · ⚖ changes the state’s election law if it passes.</p>
+          <table className="data"><thead><tr><th>Year</th><th>State</th><th>Measure</th><th>Kind</th><th className="num">Yes</th><th>Result</th></tr></thead>
+            <tbody>{d.rows.map((r) => (
+              <tr key={r.contestId} className="click" onClick={() => go(`contest/${r.contestId}`)}>
+                <td className="num muted">{r.year}</td><td>{r.state}</td>
+                <td><a href={`#/contest/${r.contestId}`}><strong>{r.name}</strong></a>{r.polled && ' ★'}{r.effect && ' ⚖'}<div className="tiny muted">{r.title}</div></td>
+                <td className="tiny">{r.kind}<div className="muted">needs {r.threshold}</div></td>
+                <td className="num">{r.yes !== null ? `${(100 * r.yes).toFixed(1)}%` : '—'}</td>
+                <td>{r.outcome ? <span className="badge" style={{ background: r.outcome === 'passed' ? PARTY_COLORS[-1] : PARTY_COLORS[-2], color: '#fff' }}>{r.outcome === 'passed' ? 'Passed' : 'Failed'}</span> : <span className="tiny muted">{r.status === 'counting' ? 'counting' : 'on the ballot'}</span>}</td>
+              </tr>))}</tbody>
+          </table>
+        </>
+      )}
+    </section>
   );
 }

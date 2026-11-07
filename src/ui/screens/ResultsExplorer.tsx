@@ -14,8 +14,8 @@ import { OFFICE_LABEL } from '../../engine/protocol';
 type Row = ElectionListItem['contests'][number] & { election: ElectionListItem };
 type SortKey = 'date' | 'contest' | 'winner' | 'margin';
 
-const KIND_LABEL: Record<string, string> = { general: 'General', special: 'Special', pres_state: 'Presidential', primary: 'Primary', top_two: 'Top-two primary', pres_nomination: 'Nomination', runoff: 'Runoff', retention: 'Retention' };
-const STAGES = { general: ['general', 'special', 'pres_state', 'runoff', 'retention'], primary: ['primary', 'top_two', 'pres_nomination'] } as const;
+const KIND_LABEL: Record<string, string> = { general: 'General', special: 'Special', pres_state: 'Presidential', primary: 'Primary', top_two: 'Top-two primary', pres_nomination: 'Nomination', runoff: 'Runoff', retention: 'Retention', measure: 'Ballot measure' };
+const STAGES = { general: ['general', 'special', 'pres_state', 'runoff', 'retention', 'measure'], primary: ['primary', 'top_two', 'pres_nomination'] } as const;
 
 export function ResultsExplorer({ list }: { list: ElectionListItem[] }) {
   const [q, setQ] = useState('');

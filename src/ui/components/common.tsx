@@ -2,9 +2,10 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { OfficeHolderDto, PartyDto } from '../../engine/protocol';
 import { formatDate } from '../../core/time';
 
-export const PARTY_COLORS: Record<number, string> = { 0: '#3a4166', 1: '#1F5FD6', 2: '#D7263D', 3: '#E0A800', 4: '#2E9E5B', 5: '#8A8F9E' };
-export const PARTY_ABBR: Record<number, string> = { 0: 'Vacant', 1: 'D', 2: 'R', 3: 'L', 4: 'G', 5: 'I' };
-export const PARTY_NAME: Record<number, string> = { 0: 'Vacant', 1: 'Democratic', 2: 'Republican', 3: 'Libertarian', 4: 'Green', 5: 'Independent' };
+// −1 and −2: the Yes and No options of a ballot measure (Phase 7.3).
+export const PARTY_COLORS: Record<number, string> = { [-1]: '#3DA35D', [-2]: '#C0564B', 0: '#3a4166', 1: '#1F5FD6', 2: '#D7263D', 3: '#E0A800', 4: '#2E9E5B', 5: '#8A8F9E' };
+export const PARTY_ABBR: Record<number, string> = { [-1]: 'Yes', [-2]: 'No', 0: 'Vacant', 1: 'D', 2: 'R', 3: 'L', 4: 'G', 5: 'I' };
+export const PARTY_NAME: Record<number, string> = { [-1]: 'Yes', [-2]: 'No', 0: 'Vacant', 1: 'Democratic', 2: 'Republican', 3: 'Libertarian', 4: 'Green', 5: 'Independent' };
 
 export function PartyBadge({ party }: { party: number }) {
   const cls = party === 1 ? 'd' : party === 2 ? 'r' : 'i';

@@ -142,8 +142,18 @@ export function observe(inp: ObsInput): ObsOutput {
       }
     });
     const order = Array.from(proj.keys()).sort((x, y) => proj[y]! - proj[x]! || x - y);
-    const a = forced ?? order[0]!, b = order.find((x) => x !== a) ?? -1;
-    const w = contrast(K, a, r.rc.def.majority && K - 1 >= 3 ? -1 : b);
+    // A ballot measure with a threshold (Phase 7.3): the side that wins is the side of the rule (yes ≥ 60%, or yes
+    // beyond half of all ballots), and the contrast weighs the votes (and blank ballots) by the rule.
+    const pass = r.rc.def.pass;
+    let passA = -1;
+    if (pass && forced === undefined) {
+      let blank = 0;
+      r.rc.parts.forEach((p, i) => { for (let m = 0; m < N_MODES; m++) { const ci = i * N_MODES + m; if (!r.has[ci]) continue; const [e] = wireEst(p, m); let c = 0; for (let k = 0; k < K; k++) c += r.cnt[ci * K + k]!; const R = Math.max(0, e - c); blank += r.cnt[ci * K + K - 1]! + R * ((r.cnt[ci * K + K - 1]! + 200 * r.base[ci * K + K - 1]!) / (c + 200)); } });
+      passA = pass[0]! * proj[0]! + pass[1]! * proj[1]! + pass[2]! * blank >= 0 ? 0 : 1;
+    }
+    const a = forced ?? (passA >= 0 ? passA : order[0]!), b = order.find((x) => x !== a) ?? -1;
+    const w = pass ? Float64Array.from({ length: K }, (_, k) => (k === 0 ? pass[0]! : k === 1 ? pass[1]! : k === K - 1 ? pass[2]! : 0) * (a === 0 ? 1 : -1))
+      : contrast(K, a, r.rc.def.majority && K - 1 >= 3 ? -1 : b);
     const cells = cellsFor(r, w);
     // Baseline contrast per ballot (expected-vote weighted) and the survey's view of it.
     let bt = 0, et = 0; for (const c of cells) { bt += c.expected * c.base; et += c.expected; }
