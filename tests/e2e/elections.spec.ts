@@ -55,6 +55,15 @@ test('simulate the 2016 cycle and inspect results from the nation down to a coun
   await expect(page.getByText('State election history')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Congressional districts' })).toBeVisible();
 
+  // Ballot measures (Phase 7.3): the year's measures, and one measure's page.
+  await page.goto('./#/government/measures/2016');
+  await expect(page.getByRole('heading', { name: /Ballot measures · 2016/ })).toBeVisible();
+  expect(await page.locator('table.data tbody tr').count()).toBeGreaterThan(50);
+  await page.screenshot({ path: 'test-results/e2e-measures.png' });
+  await page.locator('table.data tbody tr a').first().click();
+  await expect(page.getByText(/Passing requires/)).toBeVisible();
+  await page.screenshot({ path: 'test-results/e2e-measure.png' });
+
   // Results map.
   await page.goto('./#/map/results/2016');
   await expect(page.locator('canvas')).toBeVisible();

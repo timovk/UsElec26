@@ -209,6 +209,14 @@ export function typeUtilities(inp: Pick<ShardInput, 'homeStateBonus' | 'homeCoun
   }
 }
 
+/** A growable Int32 buffer (results per contest are collected without boxing every number in a JS array). */
+class IntBuf {
+  a = new Int32Array(256); n = 0;
+  reserve(k: number): void { if (this.n + k > this.a.length) { let len = this.a.length * 2; while (len < this.n + k) len *= 2; const b = new Int32Array(len); b.set(this.a.subarray(0, this.n)); this.a = b; } }
+  push(x: number): void { this.reserve(1); this.a[this.n++] = x; }
+  out(): Int32Array { return this.a.slice(0, this.n); }
+}
+
 /** Run the kernel for one shard (a state). */
 export function runShard(inp: ShardInput): ShardOutput {
   const n = inp.bus.count;
@@ -222,25 +230,27 @@ export function runShard(inp: ShardInput): ShardOutput {
   }
   // Contest bookkeeping.
   const outs: ContestOutput[] = [];
-  const unitLists: number[][] = []; const voteLists: number[][] = []; const modeLists: number[][] = [];
+  const unitLists: IntBuf[] = [], voteLists: IntBuf[] = [], modeLists: IntBuf[] = [];
   const night = inp.parts;
   for (const c of inp.contests) {
     const k = c.options.length + 1;
     outs.push({ id: c.id, units: new Int32Array(0), votes: new Int32Array(0), rjMode: new Int32Array(inp.rjCount * N_MODES * k), expected: new Float64Array(k),
       ...(night ? { expPartMode: new Float64Array(night.count * N_MODES * k) } : {}),
       ...(c.rcv ? { rcvComp: new Float64Array(inp.rjCount * (k - 1) * N_TYPES), rcvCounty: new Int32Array(inp.rjCount).fill(-1) } : {}) });
-    unitLists.push([]); voteLists.push([]); modeLists.push([]);
+    unitLists.push(new IntBuf()); voteLists.push(new IntBuf()); modeLists.push(new IntBuf());
   }
   const expBallotsPartMode = night ? new Float64Array(night.count * N_MODES) : undefined;
   const V = new Float64Array(N_MODES * N_TYPES);       // voters by mode and type
   const sc = typeScratch(inp, false), WA = sc.WA;     // voters by (age band × class) group and z bin
-  const probCache = new Map<number, Float64Array>();    // (contest, county) → P[j][type]
+  // (contest, county) → P[j][type]. A county enters the table only through a candidate's home-county bonus, so
+  // every other county shares one table per contest (computed once per shard instead of once per county).
+  const probCache = new Map<number, Float64Array>();
+  const homes = inp.contests.map((c) => new Set(c.options.map((o) => o.homeCounty).filter((h) => h >= 0)));
   const pbar = new Float64Array(16), draw = new Int32Array(16);
   let expectedBallots = 0;
-  let curCounty = -1;
 
   const probTable = (ci: number, county: number): Float64Array => {
-    const key = ci * 65536 + county;
+    const key = ci * 65536 + (homes[ci]!.has(county) ? county : 65535);
     let t = probCache.get(key);
     if (t) return t;
     const c = inp.contests[ci]!; const J = c.options.length;
@@ -288,7 +298,6 @@ export function runShard(inp: ShardInput): ShardOutput {
   for (let i = 0; i < n; i++) {
     const b = inp.bus.start + i;
     const county = inp.bus.county[i]!;
-    if (county !== curCounty) { probCache.clear(); curCounty = county; }
     const E = Math.round(inp.bus.vep[i]!);
     eligible[i] = E;
     if (E <= 0) continue;
@@ -339,10 +348,10 @@ export function runShard(inp: ShardInput): ShardOutput {
         if (byMode) for (let j = 0; j < K; j++) byMode[m * K + j] = draw[j]!;
       }
       unitLists[ci]!.push(b);
-      for (let j = 0; j < K; j++) voteLists[ci]!.push(tot[j]!);
-      if (byMode) for (let j = 0; j < N_MODES * K; j++) modeLists[ci]!.push(byMode[j]!);
+      const vl = voteLists[ci]!; vl.reserve(K); for (let j = 0; j < K; j++) vl.a[vl.n++] = tot[j]!;
+      if (byMode) { const ml = modeLists[ci]!; ml.reserve(N_MODES * K); ml.a.set(byMode.subarray(0, N_MODES * K), ml.n); ml.n += N_MODES * K; }
     }
   }
-  outs.forEach((o, ci) => { o.units = Int32Array.from(unitLists[ci]!); o.votes = Int32Array.from(voteLists[ci]!); if (night) o.votesByMode = Int32Array.from(modeLists[ci]!); });
+  outs.forEach((o, ci) => { o.units = unitLists[ci]!.out(); o.votes = voteLists[ci]!.out(); if (night) o.votesByMode = modeLists[ci]!.out(); });
   return { ballots, ballotsByMode, eligible, contests: outs, expectedBallots, ...(expBallotsPartMode ? { expBallotsPartMode } : {}) };
 }

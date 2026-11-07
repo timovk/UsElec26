@@ -64,7 +64,16 @@ export function observe(inp: ObsInput): ObsOutput {
   const provSeen = new Uint8Array(P);
   let mailKnown = false; // after the first full day the wire learns each office's count of ballots still on hand
   let final = false;     // canvass complete: every count is final
+  // The wire's estimates change only when a batch is applied: they are computed once per part and mode per state
+  // of the count (every race of the state reads the same parts), and reused until the next batch.
+  let wireGen = 1;
+  const wireG = new Int32Array(P * N_MODES), wireTup: [number, number][] = Array.from({ length: P * N_MODES }, () => [0, 0]);
   const wireEst = (p: number, m: number): [number, number] => {
+    const i = p * N_MODES + m, tp = wireTup[i]!;
+    if (wireG[i] !== wireGen) { const [e, sd] = wireEstRaw(p, m); tp[0] = e; tp[1] = sd; wireG[i] = wireGen; }
+    return tp;
+  };
+  const wireEstRaw = (p: number, m: number): [number, number] => {
     const c = counted[p * N_MODES + m]!;
     if (final) return [c, 0];
     if (m === MODE_EARLY) return [Math.max(c, inp.known.early[p]!), 0];
@@ -92,6 +101,7 @@ export function observe(inp: ObsInput): ObsOutput {
     let a = 0, b = 0, tot = 0;
     for (let p = 0; p < P; p++) { const t = inp.parts.precincts[p]!; tot += priorEd[p]!; if (!t || !precDone[p]) continue; a += counted[p * N_MODES + MODE_ED]!; b += (precDone[p]! / t) * priorEd[p]!; }
     stRatio = (a + 0.1 * tot) / (b + 0.1 * tot);
+    wireGen++; // the count moved: wire estimates are recomputed when next read
   };
 
   // ---- Races: baselines and counted cells ----------------------------------------------------------

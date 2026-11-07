@@ -143,7 +143,9 @@ export function createMeasures(E: ElectionEngine, year: number, stateIdx: number
   }
   for (let i = 0; i < counts.referral; i++) {
     const t = pick('referral'); if (!t) break;
-    drafts.push({ kind: t.bond ? 'bond' : t.amendment || r.bernoulli(0.7) ? 'legislative_amendment' : 'legislative_statute', topic: t, salience: Math.min(1, t.salience * 0.85 + r.normal(0, 0.1)) });
+    // Legislatures refer statutes only where statutes can reach the ballot (initiative or referendum states).
+    const statutes = !!rules.initiative?.statute || rules.vetoReferendum;
+    drafts.push({ kind: t.bond ? 'bond' : t.amendment || !statutes || r.bernoulli(0.7) ? 'legislative_amendment' : 'legislative_statute', topic: t, salience: Math.min(1, t.salience * 0.85 + r.normal(0, 0.1)) });
   }
   for (let i = 0; i < counts.veto; i++) {
     const t = pick('veto'); if (!t) break;
@@ -160,9 +162,16 @@ export function createMeasures(E: ElectionEngine, year: number, stateIdx: number
     const series = isInitiative(d.kind) || d.kind === 'veto_referendum' ? 'initiative' : 'referral';
     const prefix = rules.name[series];
     const start = rules.name.start?.[series];
-    let n = nextIn.get(prefix);
-    if (n === undefined) n = start !== undefined ? start + Number(db.value<number>('SELECT COUNT(*) FROM ballot_measure WHERE state_idx = ? AND name LIKE ?', [stateIdx, `${prefix}%`]) ?? 0) : 1;
-    nextIn.set(prefix, n + 1);
+    // One numbering per prefix, unless the state numbers initiatives and referrals separately (Arizona's 200s and 100s).
+    const shared = rules.name.initiative === rules.name.referral && rules.name.start?.initiative === rules.name.start?.referral;
+    const key = shared ? prefix : `${series}|${prefix}`;
+    let n = nextIn.get(key);
+    if (n === undefined) {
+      const earlier = shared ? Number(db.value<number>('SELECT COUNT(*) FROM ballot_measure WHERE state_idx = ? AND name LIKE ?', [stateIdx, `${prefix}%`]) ?? 0)
+        : Number(db.value<number>("SELECT COUNT(*) FROM ballot_measure WHERE state_idx = ? AND name LIKE ? AND (kind LIKE 'initiative%' OR kind = 'veto_referendum') = ?", [stateIdx, `${prefix}%`, series === 'initiative' ? 1 : 0]) ?? 0);
+      n = start !== undefined ? start + earlier : 1;
+    }
+    nextIn.set(key, n + 1);
     const name = measureName(prefix, n);
     // Position: relative to the state's voters (legislatures near the centre; advocates further out).
     const m = stateMoments(w, cls.classOf, cls.centroids, stateIdx, d.topic.dir);

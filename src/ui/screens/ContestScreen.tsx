@@ -29,7 +29,7 @@ export function ContestScreen({ id }: { id: number }) {
           <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}><strong style={{ fontSize: 17 }}>{c.measure.title}</strong>
             {c.measure.outcome && <span className="badge" style={{ background: c.measure.outcome === 'passed' ? PARTY_COLORS[-1] : PARTY_COLORS[-2], color: '#fff' }}>{c.measure.outcome === 'passed' ? 'Passed' : 'Failed'}</span>}</div>
           <p className="small" style={{ margin: '6px 0' }}>{c.measure.summary}</p>
-          <div className="tiny muted">{c.measure.kind} · {c.measure.sponsor} · passing requires {c.measure.threshold}{c.measure.polled && <> · polled; called on election night</>}</div>
+          <div className="tiny muted">{c.measure.sponsor}{c.measure.polled && <> · polled; called on election night</>}</div>
           {c.measure.law && <p className="small" style={{ marginTop: 6 }}>Changes the state's election law from {c.measure.law.effective}: {c.measure.law.summary}. <a href="#/government/law">Election law ›</a></p>}
         </section>
       )}
@@ -48,7 +48,7 @@ export function ContestScreen({ id }: { id: number }) {
             </p>
           )}
           <table className="data">
-            <thead><tr><th>Candidate</th><th>Party</th><th>Votes</th><th>Share</th><th /></tr></thead>
+            <thead><tr><th>{c.measure ? 'Option' : 'Candidate'}</th><th>{c.measure ? '' : 'Party'}</th><th>Votes</th><th>Share</th><th /></tr></thead>
             <tbody>{c.candidates.map((x) => (
               <tr key={x.candidacyId}>
                 <td>{(c.retention && x.party === 0) || c.measure ? <strong>{x.name}</strong> : <a href={`#/people/${x.personId}`} style={{ color: 'inherit', fontWeight: 600 }}>{x.name}</a>}{x.incumbent && <span className="badge" style={{ marginLeft: 6 }}>Incumbent</span>}{x.runningMate && <div className="tiny muted">with {x.runningMate}</div>}</td>
@@ -68,7 +68,7 @@ export function ContestScreen({ id }: { id: number }) {
                 : <tr><td className="muted">Archive</td><td className="tiny">{c.revisionKind} · grain {c.grain} · seal <code>{c.seal?.slice(0, 16)}…</code>{c.revisions.length > 1 && <div>Revisions: {c.revisions.map((r) => `${r.rev} ${r.kind}`).join(' · ')}</div>}</td></tr>}
             </tbody></table>
           )}
-          <p className="tiny muted">{c.note}{c.nonpartisan ? ' The ballot carried no party labels; parties shown are the candidates’ affiliations.' : ''}</p>
+          <p className="tiny muted">{c.note}{c.nonpartisan && !c.measure ? ' The ballot carried no party labels; parties shown are the candidates’ affiliations.' : ''}</p>
         </section>
         {c.method === 'rcv' && (
           <section className="card">

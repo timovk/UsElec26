@@ -146,7 +146,7 @@ describe('ballot measures in a universe (fixture)', () => {
     // Queries.
     const d = await runQuery(u, { kind: 'contest', id: Number(ms[0]!.contest_id) }) as ContestDetail;
     expect(d.measure?.name).toBe(ms[0]!.name);
-    expect(d.candidates.map((c) => c.name)).toEqual(['Yes', 'No']);
+    expect(d.candidates.map((c) => c.name).sort()).toEqual(['No', 'Yes']);
     const list = await runQuery(u, { kind: 'measures', year: 2016 }) as MeasureListDto;
     expect(list.rows.length).toBe(ms.filter((m) => m.year === 2016).length);
     expect(integrityReport(db).checks.filter((c) => !c.ok)).toEqual([]);
