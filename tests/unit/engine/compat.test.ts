@@ -25,6 +25,9 @@ describe('Phase 1 save compatibility', () => {
     expect(Number(u.db.value('SELECT COUNT(*) FROM office_seat'))).toBeGreaterThan(800);
     expect(Number(u.db.value("SELECT COUNT(*) FROM contest c JOIN office o ON o.office_id = c.office_id WHERE o.kind IN ('treasurer','justice') AND c.year = 2016 AND c.status = 'certified'"))).toBeGreaterThan(20);
     expect(Number(u.db.value("SELECT COUNT(*) FROM office_term t JOIN office_seat s ON s.office_id = t.office_id WHERE t.provenance LIKE '%Phase 7.2%'"))).toBeGreaterThan(800);
+    // Phase 7.3: it gains a ballot-measure office per state and votes on measures in 2016.
+    expect(Number(u.db.value("SELECT COUNT(*) FROM office WHERE kind = 'ballot_measure'"))).toBe(51);
+    expect(Number(u.db.value("SELECT COUNT(*) FROM ballot_measure m JOIN contest c ON c.contest_id = m.contest_id WHERE m.year = 2016 AND c.status = 'certified' AND m.outcome IS NOT NULL"))).toBeGreaterThan(30);
     expect(integrityReport(u.db).checks.filter((c) => !c.ok)).toEqual([]);
   }, 300_000);
 });

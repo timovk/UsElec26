@@ -36,12 +36,16 @@ export interface StateMeasureRules {
   activity: { initiative: number; referral: number; odd?: number };
   /** The vote needed: for constitutional amendments, for initiatives, otherwise a majority. */
   amendmentThreshold?: Threshold; initiativeThreshold?: Threshold;
-  /** Numbering: a label prefix per kind and, for continuing series, the 2016 starting number (else 1 each election). */
-  name: { initiative: string; referral: string; start?: { initiative?: number; referral?: number } };
+  /**
+   * Numbering: a label prefix for citizens' measures, for initiated statutes when the state numbers them apart
+   * (Colorado's Propositions beside its Amendments), and for referrals; for continuing series, the 2016 starting
+   * number (else 1 each election). Series with the same prefix and start share one numbering.
+   */
+  name: { initiative: string; referral: string; statute?: string; start?: { initiative?: number; referral?: number; statute?: number } };
 }
 
 const I = (statute: boolean, amendment: boolean, signatures = 0.08) => ({ statute, amendment, signatures });
-const N = (initiative: string, referral = initiative, start?: { initiative?: number; referral?: number }) => ({ initiative, referral, ...(start ? { start } : {}) });
+const N = (initiative: string, referral = initiative, start?: { initiative?: number; referral?: number; statute?: number }, statute?: string) => ({ initiative, referral, ...(statute ? { statute } : {}), ...(start ? { start } : {}) });
 
 export const MEASURE_RULES_2016: Record<string, StateMeasureRules> = {
   AL: { initiative: null, vetoReferendum: false, referrals: true, activity: { initiative: 0, referral: 6 }, name: N('Amendment') },
@@ -49,7 +53,7 @@ export const MEASURE_RULES_2016: Record<string, StateMeasureRules> = {
   AZ: { initiative: I(true, true, 0.1), vetoReferendum: true, referrals: true, activity: { initiative: 2, referral: 1.5 }, name: N('Proposition', 'Proposition', { initiative: 205, referral: 123 }) },
   AR: { initiative: I(true, true, 0.08), vetoReferendum: true, referrals: true, activity: { initiative: 1.5, referral: 1.5 }, name: N('Issue') },
   CA: { initiative: I(true, true, 0.05), vetoReferendum: true, referrals: true, activity: { initiative: 8, referral: 3 }, name: N('Proposition', 'Proposition', { initiative: 51, referral: 51 }) },
-  CO: { initiative: I(true, true, 0.05), vetoReferendum: true, referrals: true, activity: { initiative: 4, referral: 2, odd: 1.3 }, name: N('Amendment', 'Referred Measure') },
+  CO: { initiative: I(true, true, 0.05), vetoReferendum: true, referrals: true, activity: { initiative: 4, referral: 2, odd: 1.3 }, name: N('Amendment', 'Referred Measure', { initiative: 69, statute: 106 }, 'Proposition') },
   CT: { initiative: null, vetoReferendum: false, referrals: true, activity: { initiative: 0, referral: 0.5 }, name: N('Question') },
   DE: { initiative: null, vetoReferendum: false, referrals: false, activity: { initiative: 0, referral: 0 }, name: N('Question') },
   DC: { initiative: I(true, false, 0.05), vetoReferendum: true, referrals: false, activity: { initiative: 0.3, referral: 0 }, name: N('Initiative', 'Initiative', { initiative: 72 }) },
@@ -69,8 +73,8 @@ export const MEASURE_RULES_2016: Record<string, StateMeasureRules> = {
   MI: { initiative: I(true, true, 0.08), vetoReferendum: true, referrals: true, activity: { initiative: 1.5, referral: 0.5 }, name: N('Proposal') },
   MN: { initiative: null, vetoReferendum: false, referrals: true, activity: { initiative: 0, referral: 0.4 }, amendmentThreshold: { kind: 'ballots', share: 0.5 }, name: N('Amendment') },
   MS: { initiative: I(false, true, 0.12), vetoReferendum: false, referrals: true, activity: { initiative: 0.4, referral: 0.3 }, initiativeThreshold: { kind: 'majorityAndBallots', share: 0.4 }, name: N('Initiative Measure', 'Amendment') },
-  MO: { initiative: I(true, true, 0.08), vetoReferendum: true, referrals: true, activity: { initiative: 2, referral: 1.5 }, name: N('Amendment', 'Amendment') },
-  MT: { initiative: I(true, true, 0.05), vetoReferendum: true, referrals: true, activity: { initiative: 1.5, referral: 1 }, name: N('I-', 'LR-', { initiative: 182, referral: 126 }) },
+  MO: { initiative: I(true, true, 0.08), vetoReferendum: true, referrals: true, activity: { initiative: 2, referral: 1.5 }, name: N('Amendment', 'Amendment', undefined, 'Proposition') },
+  MT: { initiative: I(true, true, 0.05), vetoReferendum: true, referrals: true, activity: { initiative: 1.5, referral: 1 }, name: N('CI-', 'LR-', { initiative: 116, statute: 182, referral: 126 }, 'I-') },
   NE: { initiative: I(true, true, 0.07), vetoReferendum: true, referrals: true, activity: { initiative: 0.7, referral: 1 }, initiativeThreshold: { kind: 'majorityAndBallots', share: 0.35 }, name: N('Initiative', 'Amendment', { initiative: 427 }) },
   NV: { initiative: I(true, true, 0.1), vetoReferendum: true, referrals: true, activity: { initiative: 2, referral: 1.5 }, name: N('Question') },
   NH: { initiative: null, vetoReferendum: false, referrals: true, activity: { initiative: 0, referral: 0.5 }, amendmentThreshold: { kind: 'votes', share: 2 / 3 }, name: N('Question') },
@@ -85,7 +89,7 @@ export const MEASURE_RULES_2016: Record<string, StateMeasureRules> = {
   PA: { initiative: null, vetoReferendum: false, referrals: true, activity: { initiative: 0, referral: 0.5, odd: 0.5 }, name: N('Question') },
   RI: { initiative: null, vetoReferendum: false, referrals: true, activity: { initiative: 0, referral: 1 }, name: N('Question') },
   SC: { initiative: null, vetoReferendum: false, referrals: true, activity: { initiative: 0, referral: 0.6 }, name: N('Amendment') },
-  SD: { initiative: I(true, true, 0.05), vetoReferendum: true, referrals: true, activity: { initiative: 3, referral: 2 }, name: N('Initiated Measure', 'Amendment') },
+  SD: { initiative: I(true, true, 0.05), vetoReferendum: true, referrals: true, activity: { initiative: 3, referral: 2 }, name: N('Amendment', 'Amendment', { statute: 22 }, 'Initiated Measure') },
   TN: { initiative: null, vetoReferendum: false, referrals: true, activity: { initiative: 0, referral: 0.3 }, amendmentThreshold: { kind: 'ballots', share: 0.5 }, name: N('Amendment') },
   TX: { initiative: null, vetoReferendum: false, referrals: true, activity: { initiative: 0, referral: 0.3, odd: 8 }, name: N('Proposition') },
   UT: { initiative: I(true, false, 0.1), vetoReferendum: true, referrals: true, activity: { initiative: 0.8, referral: 2 }, name: N('Proposition', 'Amendment') },
@@ -152,7 +156,13 @@ export interface Topic {
   key: string;
   /** What a yes vote does. */
   title: string;
-  /** Direction in issue space (economic, social, orientation) that a yes vote moves policy toward. */
+  /**
+   * Direction in issue space (economic, social, orientation) that a yes vote moves policy toward, in the senses of
+   * Congress's bill topics (government/congress.ts): + economic is public investment, coverage and wages, − is
+   * tax relief and spending restraint; + social is rights and liberties, − is safety and traditional values;
+   * + orientation is institutions, accountability and reform, − is sovereignty. Which party stands where is the
+   * universe's own (its platforms), so either party may be on either side.
+   */
   dir: [number, number, number];
   /** Prominence (0–1): campaigns, attention, how many voters skip it. */
   salience: number;
@@ -167,6 +177,13 @@ export interface Topic {
   /** Amendment or statute when it comes by initiative (constitutional amendment if the state allows only that). */
   amendment?: boolean;
   bond?: boolean;
+  /**
+   * A one-time reform: once it passes in a state it is not proposed there again (other topics can return eight
+   * years after passing: a new minimum wage, a new bond). `had2016` lists the states where it was already law
+   * on January 1, 2016, so it is never proposed there.
+   */
+  once?: boolean;
+  had2016?: readonly string[];
 }
 
 const T = (key: string, title: string, dir: [number, number, number], salience: number, partisan: number, by: Topic['by'], weight: number, extra: Partial<Topic> = {}): Topic =>
@@ -174,46 +191,46 @@ const T = (key: string, title: string, dir: [number, number, number], salience: 
 
 export const TOPICS: readonly Topic[] = [
   // Economic.
-  T('min_wage', 'Raise the state minimum wage in steps over four years', [-1, 0, 0], 0.75, 0.6, ['initiative'], 1.0),
-  T('paid_leave', 'Require employers to provide paid sick leave', [-0.9, -0.2, 0], 0.55, 0.55, ['initiative'], 0.5),
-  T('top_tax', 'Add an income-tax surcharge on the highest incomes for schools', [-1, 0, 0.1], 0.7, 0.75, ['initiative'], 0.6),
-  T('tax_cut', 'Cut the state income tax rate and cap its growth', [1, 0, 0], 0.65, 0.75, ['initiative', 'referral'], 0.6, { amendment: true }),
-  T('spending_cap', 'Limit state spending growth to population and inflation', [0.9, 0, -0.3], 0.5, 0.6, ['initiative', 'referral'], 0.4, { amendment: true }),
-  T('property_tax', 'Expand the homestead property-tax exemption', [0.5, 0, 0], 0.4, 0.2, ['referral', 'initiative'], 0.8, { lean: 0.6, amendment: true }),
-  T('right_to_work', 'Bar contracts that require union membership or fees', [1, 0.2, 0], 0.6, 0.85, ['referral', 'initiative'], 0.3, { amendment: true }),
-  T('medicaid', 'Expand public health coverage to low-income adults', [-0.9, -0.1, 0], 0.65, 0.7, ['initiative'], 0.5),
-  T('renewables', 'Require utilities to draw half their power from renewable sources', [-0.6, -0.3, -0.3], 0.55, 0.55, ['initiative'], 0.5),
-  T('fuel_tax', 'Raise the fuel tax for road and bridge repairs', [-0.6, 0, 0.2], 0.45, 0.35, ['referral', 'veto'], 0.5),
-  T('bond_infra', 'Authorize a bond for roads, water systems and public buildings', [-0.4, 0, 0.2], 0.3, 0.15, ['referral'], 1.0, { lean: 0.5, bond: true }),
-  T('bond_schools', 'Authorize a bond for school and college construction', [-0.5, -0.1, 0.2], 0.35, 0.2, ['referral'], 0.8, { lean: 0.55, bond: true }),
-  T('rainy_day', 'Raise the cap on the budget reserve fund', [0.3, 0, 0.2], 0.15, 0.05, ['referral'], 0.6, { lean: 0.7 }),
-  T('labor_law', 'Uphold the new law limiting public-employee bargaining', [0.9, 0.1, 0], 0.6, 0.85, ['veto'], 0.6),
+  T('min_wage', 'Raise the state minimum wage in steps over four years', [1, 0, 0], 0.75, 0.6, ['initiative'], 1.0),
+  T('paid_leave', 'Require employers to provide paid sick leave', [0.9, 0.2, 0], 0.55, 0.55, ['initiative'], 0.5, { once: true, had2016: ['CA', 'CT', 'MA', 'OR', 'DC'] }),
+  T('top_tax', 'Add an income-tax surcharge on the highest incomes for schools', [1, 0, -0.1], 0.7, 0.75, ['initiative'], 0.6),
+  T('tax_cut', 'Cut the state income tax rate and cap its growth', [-1, 0, 0], 0.65, 0.75, ['initiative', 'referral'], 0.6, { amendment: true }),
+  T('spending_cap', 'Limit state spending growth to population and inflation', [-0.9, 0, 0.3], 0.5, 0.6, ['initiative', 'referral'], 0.4, { amendment: true }),
+  T('property_tax', 'Expand the homestead property-tax exemption', [-0.5, 0, 0], 0.4, 0.2, ['referral', 'initiative'], 0.8, { lean: 0.6, amendment: true }),
+  T('right_to_work', 'Bar contracts that require union membership or fees', [-1, -0.2, 0], 0.6, 0.85, ['referral', 'initiative'], 0.3, { amendment: true, once: true }),
+  T('medicaid', 'Expand public health coverage to low-income adults', [0.9, 0.1, 0], 0.65, 0.7, ['initiative'], 0.5, { once: true, had2016: ['AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'HI', 'IL', 'IN', 'IA', 'KY', 'MD', 'MA', 'MI', 'MN', 'MT', 'NV', 'NH', 'NJ', 'NM', 'NY', 'ND', 'OH', 'OR', 'PA', 'RI', 'VT', 'WA', 'WV'] }),
+  T('renewables', 'Require utilities to draw half their power from renewable sources', [0.6, 0.3, 0.3], 0.55, 0.55, ['initiative'], 0.5, { once: true }),
+  T('fuel_tax', 'Raise the fuel tax for road and bridge repairs', [0.6, 0, -0.2], 0.45, 0.35, ['referral', 'veto'], 0.5),
+  T('bond_infra', 'Authorize a bond for roads, water systems and public buildings', [0.4, 0, -0.2], 0.3, 0.15, ['referral'], 1.0, { lean: 0.5, bond: true }),
+  T('bond_schools', 'Authorize a bond for school and college construction', [0.5, 0.1, -0.2], 0.35, 0.2, ['referral'], 0.8, { lean: 0.55, bond: true }),
+  T('rainy_day', 'Raise the cap on the budget reserve fund', [-0.3, 0, -0.2], 0.15, 0.05, ['referral'], 0.6, { lean: 0.7 }),
+  T('labor_law', 'Uphold the new law limiting public-employee bargaining', [-0.9, -0.1, 0], 0.6, 0.85, ['veto'], 0.6),
   // Social.
-  T('marijuana', 'Legalize and tax marijuana for adults', [0, -1, -0.3], 0.85, 0.35, ['initiative'], 1.2),
-  T('med_marijuana', 'Allow marijuana for medical use', [0, -0.8, -0.2], 0.6, 0.2, ['initiative'], 0.6, { lean: 0.6 }),
-  T('background_checks', 'Require background checks on private gun sales', [-0.2, -0.8, 0.1], 0.75, 0.7, ['initiative'], 0.5),
-  T('gun_rights', 'Add a strict-scrutiny right to bear arms to the constitution', [0.2, 0.9, 0], 0.5, 0.7, ['referral'], 0.3, { amendment: true, lean: 0.3 }),
-  T('death_penalty', 'Repeal the death penalty, replacing it with life without parole', [0, -0.9, -0.2], 0.6, 0.55, ['initiative'], 0.3),
-  T('abortion_rights', 'Protect the right to abortion in the state constitution', [0, -1, 0], 0.8, 0.8, ['initiative'], 0.35, { amendment: true }),
-  T('abortion_limits', 'Ban most abortions after 20 weeks', [0, 1, 0], 0.75, 0.8, ['referral', 'initiative'], 0.3, { amendment: true }),
-  T('end_of_life', 'Allow medical aid in dying for terminally ill adults', [0, -0.8, -0.3], 0.55, 0.4, ['initiative'], 0.3),
-  T('sentencing', 'Reduce sentences for drug possession and fund treatment', [-0.2, -0.7, -0.2], 0.5, 0.45, ['initiative'], 0.45),
-  T('gambling', 'Allow sports betting and new casinos, taxed for education', [0, -0.5, -0.2], 0.45, 0.15, ['initiative', 'referral'], 0.5),
-  T('hunting', 'Guarantee the right to hunt and fish', [0.2, 0.6, 0.2], 0.25, 0.3, ['referral'], 0.4, { amendment: true, lean: 0.7 }),
-  T('animal_welfare', 'Ban the sale of eggs from caged hens', [-0.2, -0.5, -0.3], 0.4, 0.25, ['initiative'], 0.3),
+  T('marijuana', 'Legalize and tax marijuana for adults', [0, 1, 0.3], 0.85, 0.35, ['initiative'], 1.2, { once: true, had2016: ['AK', 'CO', 'OR', 'WA', 'DC'] }),
+  T('med_marijuana', 'Allow marijuana for medical use', [0, 0.8, 0.2], 0.6, 0.2, ['initiative'], 0.6, { lean: 0.6, once: true, had2016: ['AK', 'AZ', 'CA', 'CO', 'CT', 'DE', 'HI', 'IL', 'ME', 'MD', 'MA', 'MI', 'MN', 'MT', 'NV', 'NH', 'NJ', 'NM', 'NY', 'OR', 'RI', 'VT', 'WA', 'DC'] }),
+  T('background_checks', 'Require background checks on private gun sales', [0.2, 0.8, -0.1], 0.75, 0.7, ['initiative'], 0.5, { once: true, had2016: ['CA', 'CO', 'CT', 'DE', 'HI', 'IL', 'MD', 'MA', 'NJ', 'NY', 'OR', 'RI', 'WA', 'DC'] }),
+  T('gun_rights', 'Add a strict-scrutiny right to bear arms to the constitution', [-0.2, -0.9, 0], 0.5, 0.7, ['referral'], 0.3, { amendment: true, lean: 0.3, once: true, had2016: ['AL', 'LA', 'MO'] }),
+  T('death_penalty', 'Repeal the death penalty, replacing it with life without parole', [0, 0.9, 0.2], 0.6, 0.55, ['initiative'], 0.3, { once: true, had2016: ['AK', 'CT', 'HI', 'IL', 'IA', 'ME', 'MD', 'MA', 'MI', 'MN', 'NJ', 'NM', 'NY', 'ND', 'RI', 'VT', 'WV', 'WI', 'DC'] }),
+  T('abortion_rights', 'Protect the right to abortion in the state constitution', [0, 1, 0], 0.8, 0.8, ['initiative'], 0.35, { amendment: true, once: true }),
+  T('abortion_limits', 'Ban most abortions after 20 weeks', [0, -1, 0], 0.75, 0.8, ['referral', 'initiative'], 0.3, { amendment: true, once: true }),
+  T('end_of_life', 'Allow medical aid in dying for terminally ill adults', [0, 0.8, 0.3], 0.55, 0.4, ['initiative'], 0.3, { once: true, had2016: ['CA', 'MT', 'OR', 'VT', 'WA'] }),
+  T('sentencing', 'Reduce sentences for drug possession and fund treatment', [0.2, 0.7, 0.2], 0.5, 0.45, ['initiative'], 0.45),
+  T('gambling', 'Allow new casinos, with their taxes going to education', [0, 0.5, 0.2], 0.45, 0.15, ['initiative', 'referral'], 0.5),
+  T('hunting', 'Guarantee the right to hunt and fish', [-0.2, -0.6, -0.2], 0.25, 0.3, ['referral'], 0.4, { amendment: true, lean: 0.7, once: true, had2016: ['AL', 'AR', 'GA', 'ID', 'KY', 'LA', 'MN', 'MS', 'MT', 'NE', 'ND', 'OK', 'SC', 'TN', 'TX', 'VT', 'VA', 'WI', 'WY'] }),
+  T('animal_welfare', 'Ban the sale of eggs from caged hens', [0.2, 0.5, 0.3], 0.4, 0.25, ['initiative'], 0.3, { once: true, had2016: ['CA'] }),
   // Orientation (trust in institutions, how the state governs itself).
-  T('redistricting', 'Give redistricting to an independent citizens commission', [0, 0, -0.9], 0.5, 0.4, ['initiative'], 0.5, { amendment: true }),
-  T('term_limits', 'Limit legislators to twelve years in office', [0.2, 0, -0.9], 0.45, 0.2, ['initiative', 'referral'], 0.3, { amendment: true, lean: 0.4 }),
-  T('voter_id', 'Require photo identification to vote', [0.3, 0.4, 0.6], 0.65, 0.8, ['referral', 'initiative'], 0.35, { amendment: true }),
-  T('campaign_finance', 'Limit campaign contributions and require disclosure of political spending', [-0.3, 0, -0.8], 0.45, 0.35, ['initiative'], 0.45),
-  T('ethics', 'Create an independent ethics commission for state officials', [0, 0, -0.8], 0.3, 0.2, ['initiative', 'referral'], 0.4, { lean: 0.5 }),
+  T('redistricting', 'Give redistricting to an independent citizens commission', [0, 0, 0.9], 0.5, 0.4, ['initiative'], 0.5, { amendment: true, once: true, had2016: ['AK', 'AZ', 'CA', 'HI', 'ID', 'IA', 'MT', 'NJ', 'WA'] }),
+  T('term_limits', 'Limit legislators to twelve years in office', [-0.3, 0, -0.6], 0.45, 0.2, ['initiative', 'referral'], 0.3, { amendment: true, lean: 0.4, once: true, had2016: ['AZ', 'AR', 'CA', 'CO', 'FL', 'LA', 'ME', 'MI', 'MO', 'MT', 'NE', 'NV', 'OH', 'OK', 'SD'] }),
+  T('voter_id', 'Require photo identification to vote', [-0.3, -0.4, -0.6], 0.65, 0.8, ['referral', 'initiative'], 0.35, { amendment: true }),
+  T('campaign_finance', 'Limit campaign contributions and require disclosure of political spending', [0.3, 0, 0.8], 0.45, 0.35, ['initiative'], 0.45),
+  T('ethics', 'Create an independent ethics commission for state officials', [0, 0, 0.8], 0.3, 0.2, ['initiative', 'referral'], 0.4, { lean: 0.5 }),
   T('housekeeping', 'Update outdated provisions of the state constitution', [0, 0, 0.3], 0.1, 0.05, ['referral'], 1.0, { amendment: true, lean: 0.8 }),
-  T('judges', 'Raise the mandatory retirement age for judges', [0, 0.1, 0.4], 0.15, 0.1, ['referral'], 0.4, { amendment: true, lean: -0.1 }),
-  T('english', 'Make English the official language of the state', [0.1, 0.5, 0.8], 0.4, 0.5, ['referral', 'initiative'], 0.15, { amendment: true }),
+  T('judges', 'Raise the mandatory retirement age for judges', [0, -0.1, 0.4], 0.15, 0.1, ['referral'], 0.4, { amendment: true, lean: -0.1 }),
+  T('english', 'Make English the official language of the state', [-0.1, -0.5, -0.8], 0.4, 0.5, ['referral', 'initiative'], 0.15, { amendment: true, once: true, had2016: ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'MA', 'MS', 'MO', 'MT', 'NE', 'NH', 'NC', 'ND', 'OK', 'SC', 'SD', 'TN', 'UT', 'VA', 'WY'] }),
   // Election law (the only measures that change the simulation).
-  T('rcv', 'Adopt ranked-choice voting for primaries and general elections', [0, -0.1, -0.9], 0.55, 0.35, ['initiative'], 0.12, { effect: 'rcv' }),
-  T('top_four', 'Replace party primaries with a top-four primary and ranked-choice general elections', [0, 0, -0.9], 0.55, 0.4, ['initiative'], 0.07, { effect: 'top_four' }),
-  T('top_two', 'Replace party primaries with a top-two primary open to every candidate', [0, 0, -0.8], 0.5, 0.4, ['initiative'], 0.06, { effect: 'top_two' }),
-  T('open_primaries', 'Open party primaries to every voter', [0, 0, -0.7], 0.45, 0.3, ['initiative'], 0.07, { effect: 'open_primaries' }),
-  T('repeal_rcv', 'Repeal ranked-choice voting and restore plurality elections', [0, 0.1, 0.8], 0.55, 0.45, ['initiative', 'referral'], 0.3, { effect: 'repeal_rcv' }),
+  T('rcv', 'Adopt ranked-choice voting for primaries and general elections', [0, 0.1, 0.9], 0.55, 0.35, ['initiative'], 0.12, { effect: 'rcv' }),
+  T('top_four', 'Replace party primaries with a top-four primary and ranked-choice general elections', [0, 0, 0.9], 0.55, 0.4, ['initiative'], 0.07, { effect: 'top_four' }),
+  T('top_two', 'Replace party primaries with a top-two primary open to every candidate', [0, 0, 0.8], 0.5, 0.4, ['initiative'], 0.06, { effect: 'top_two' }),
+  T('open_primaries', 'Open party primaries to every voter', [0, 0, 0.7], 0.45, 0.3, ['initiative'], 0.07, { effect: 'open_primaries' }),
+  T('repeal_rcv', 'Repeal ranked-choice voting and restore plurality elections', [0, -0.1, -0.8], 0.55, 0.45, ['initiative', 'referral'], 0.3, { effect: 'repeal_rcv' }),
 ];

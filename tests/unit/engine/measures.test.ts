@@ -111,6 +111,17 @@ describe('ballot measures in a universe (fixture)', () => {
       expect(m.outcome).toBe(ok ? 'passed' : 'failed');
       expect(k[0]!.status).toBe(ok ? 'won' : 'lost');
     }
+    // Names follow each state's series: Colorado's and Missouri's initiated statutes are Propositions, Montana's
+    // I- beside CI- and LR-; continuing series pick up from their 2016 numbers.
+    for (const m of ms) {
+      const rules = MEASURE_RULES_2016[w.pack.states[Number(m.state_idx)]!.usps]!.name, kind = String(m.kind);
+      const prefix = kind === 'initiative_statute' && rules.statute ? rules.statute : kind.startsWith('initiative') || kind === 'veto_referendum' ? rules.initiative : rules.referral;
+      expect(String(m.name).startsWith(prefix)).toBe(true);
+    }
+    const names = new Set(ms.map((m) => `${m.state_idx}:${m.year}:${m.name}`));
+    expect(names.size).toBe(ms.length);
+    // One-time reforms are not proposed where the state already had them in 2016, nor again after passing.
+    for (const m of ms) expect(TOPICS.find((t) => t.key === m.topic)!.had2016?.includes(w.pack.states[Number(m.state_idx)]!.usps) ?? false).toBe(false);
     // Legislatures' referrals pass more often than citizens' initiatives.
     const rate = (pred: (k: string) => boolean) => { const x = ms.filter((m) => pred(String(m.kind))); return x.filter((m) => m.outcome === 'passed').length / Math.max(1, x.length); };
     const init = rate((k) => k.startsWith('initiative')), ref = rate((k) => k.startsWith('legislative') || k === 'bond');

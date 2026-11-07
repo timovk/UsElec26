@@ -74,7 +74,7 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
     const z = (h: number) => (m ? (ctx.classCentroids[h]!.reduce((a, x, i) => a + x * m.dir[i]!, 0) - m.cut) / m.scale : 0);
     const yes = { partySign: m && m.cue > 0 ? 0.5 : -0.5, base: m?.lean ?? 0, minorAppeal: 0, homeCounty: -1, homeState: false, classFit: Array.from({ length: N_CLASS }, (_, h) => (m?.kappa ?? 0) * z(h)) };
     const no = { partySign: -yes.partySign, base: m?.statusQuo ?? 0.25, minorAppeal: 0, homeCounty: -1, homeState: false, classFit: new Array<number>(N_CLASS).fill(0) };
-    return { id: c.contest_id, cd: -1, geo: 0, weight: m ? 0.6 * Math.abs(m.cue) : 0, abstain: -2.2 + 0.9 * (1 - (m?.salience ?? 0.3)), options: [yes, no] };
+    return { id: c.contest_id, cd: -1, geo: 0, weight: m ? 0.9 * Math.abs(m.cue) : 0, abstain: -2.2 + 0.9 * (1 - (m?.salience ?? 0.3)), options: [yes, no] };
   }
   // A retention vote: "yes" (keep the judge) against "no". Voters far from the judge's visible views vote no more often.
   if (c.kind === 'retention') {

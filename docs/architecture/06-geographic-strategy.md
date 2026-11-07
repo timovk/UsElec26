@@ -125,7 +125,7 @@ boroughs, census areas and unorganized areas are present with the correct legal 
 | Connecticut | 8 counties at the 2016 vintage (no county government. Displays still work). |
 | County set over time | Frozen at the 2016 vintage. Post-2016 real-world changes (Valdez-Cordova split in 2019, Connecticut planning regions in 2022) were administrative decisions in the *real* timeline and are not imported. The versioning system can represent them if a simulated law ever requires it. |
 | Nebraska | Unicameral, nonpartisan legislature (SLDU only); EVs by CD |
-| Maine | EVs by CD; RCV only if adopted in-universe (the real 2016 ballot measure is a simulated contest) |
+| Maine | EVs by CD; RCV only if adopted in-universe (the real 2016 ballot measure is not imported: every universe writes its own measures, Phase 7.3) |
 | DC | Single county-equivalent; 3 EVs (23rd Amendment); wards in Phase 7 |
 | Territories | Out of scope (spec covers 50 states + DC). Non-voting delegates possible later. |
 

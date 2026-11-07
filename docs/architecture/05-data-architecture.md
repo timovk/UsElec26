@@ -115,6 +115,12 @@ CREATE TABLE rcv_round     (contest_id INTEGER, rev INTEGER, round INTEGER, cand
 -- statewide; cycle_year = an election year, or the year an appointed court's term ends, moved by appointments).
 -- Retention votes are contests of kind 'retention' (method retention_<share>) with two candidacies: the judge
 -- (yes) and "no" (party 0). Wisconsin's spring elections are elections of kind 'spring' and 'spring_primary'.
+-- Schema 9 (Phase 7.3): ballot_measure(contest_id, state_idx, year, name, title, summary, kind, topic, sponsor,
+-- threshold_json, params_json, parties_json, effect, salience, polled, outcome, law_id), one row per measure.
+-- A measure is a contest of kind and method 'measure' under the state's holderless 'ballot_measure' office, with
+-- two candidacies: Yes (person and party -1) and No (-2). params_json holds what the ballot kernel needs (issue
+-- direction, cut point, scale, lean, status-quo pull, party cue); law_id links a passed election-law measure to
+-- the election_law row it enacted (source 'initiative').
 CREATE TABLE electoral_vote(election_id INTEGER, contest_id INTEGER, candidacy_id INTEGER, ev INTEGER, kind TEXT);
 CREATE TABLE recount       (recount_id INTEGER PRIMARY KEY, contest_id INTEGER, trigger TEXT, requested INTEGER,
                             completed INTEGER, from_rev INTEGER, to_rev INTEGER, net_change_json TEXT);

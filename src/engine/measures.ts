@@ -46,11 +46,11 @@ export interface MeasureRow {
 
 const dot = (a: readonly number[], b: readonly number[]) => a.reduce((s, x, i) => s + x * b[i]!, 0);
 
-/** Where a state's voters stand along a direction: the class-weighted mean and spread of the voter classes' positions. */
-export function stateMoments(w: World, classOf: Uint8Array, centroids: number[][], stateIdx: number, dir: readonly number[]): { mean: number; sd: number; byClass: number[] } {
+/** Where a state's voters (or, with `stateIdx` null, the nation's) stand along a direction: the class-weighted mean and spread of the voter classes' positions. */
+export function stateMoments(w: World, classOf: Uint8Array, centroids: number[][], stateIdx: number | null, dir: readonly number[]): { mean: number; sd: number; byClass: number[] } {
   const wts = new Float64Array(N_CLASS);
   for (const c of w.pack.counties) {
-    if (c.stateIdx !== stateIdx) continue;
+    if (stateIdx !== null && c.stateIdx !== stateIdx) continue;
     const v = w.pop.countyVep[c.idx]!; if (!(v > 0)) continue;
     for (let k = 0; k < N_COHORTS; k++) wts[classOf[k]!]! += v * w.pop.countyJoint[c.idx * N_COHORTS + k]!;
   }
@@ -122,7 +122,12 @@ export function createMeasures(E: ElectionEngine, year: number, stateIdx: number
   const day = db.value<number>('SELECT day FROM election WHERE election_id = ?', [electionId])!;
   const law = w.law.on(stateIdx, day);
   const { spoilerLosers, rcvReversedLeaders } = recentOutcomes(db, stateIdx, year);
-  const recent = new Set(db.all<{ topic: string }>("SELECT topic FROM ballot_measure WHERE state_idx = ? AND year >= ? AND outcome = 'passed'", [stateIdx, year - 8]).map((x) => x.topic));
+  // Topics passed here: one-time reforms for good, others for eight years; and reforms the state already had in 2016.
+  const passed = db.all<{ topic: string; year: number }>("SELECT topic, MAX(year) AS year FROM ballot_measure WHERE state_idx = ? AND outcome = 'passed' GROUP BY topic", [stateIdx]);
+  const byKey = new Map(TOPICS.map((t) => [t.key, t]));
+  const recent = new Set(passed.filter((x) => byKey.get(x.topic)?.once || x.year >= year - 8).map((x) => x.topic));
+  for (const t of TOPICS) if (t.had2016?.includes(st.usps)) recent.add(t.key);
+  if (recent.has('marijuana')) recent.add('med_marijuana');
   const plat = w.electorate.params.platforms;
   const cls = E.cls;
   const leg = legislatureName(st.usps);
@@ -136,20 +141,21 @@ export function createMeasures(E: ElectionEngine, year: number, stateIdx: number
     const wt = pool.map((t) => t.weight * (t.effect === 'rcv' || t.effect === 'top_four' ? 1 + 2 * Math.min(2, spoilerLosers.length) : t.effect === 'repeal_rcv' ? 1 + 3 * Math.min(1, rcvReversedLeaders.length) : 1));
     const t = pool[r.weighted(wt)]!; used.add(t.key); return t;
   };
+  const sal = (x: number) => Math.max(0.03, Math.min(1, x));
   for (let i = 0; i < counts.initiative; i++) {
     const t = pick('initiative'); if (!t) break;
     const amendment = rules.initiative!.amendment && (t.amendment || !rules.initiative!.statute) || (!rules.initiative!.statute && rules.initiative!.amendment);
-    drafts.push({ kind: amendment ? 'initiative_amendment' : 'initiative_statute', topic: t, salience: Math.min(1, t.salience + r.normal(0, 0.12)) });
+    drafts.push({ kind: amendment ? 'initiative_amendment' : 'initiative_statute', topic: t, salience: sal(t.salience + r.normal(0, 0.12)) });
   }
   for (let i = 0; i < counts.referral; i++) {
     const t = pick('referral'); if (!t) break;
     // Legislatures refer statutes only where statutes can reach the ballot (initiative or referendum states).
     const statutes = !!rules.initiative?.statute || rules.vetoReferendum;
-    drafts.push({ kind: t.bond ? 'bond' : t.amendment || !statutes || r.bernoulli(0.7) ? 'legislative_amendment' : 'legislative_statute', topic: t, salience: Math.min(1, t.salience * 0.85 + r.normal(0, 0.1)) });
+    drafts.push({ kind: t.bond ? 'bond' : t.amendment || !statutes || r.bernoulli(0.7) ? 'legislative_amendment' : 'legislative_statute', topic: t, salience: sal(t.salience * 0.85 + r.normal(0, 0.1)) });
   }
   for (let i = 0; i < counts.veto; i++) {
     const t = pick('veto'); if (!t) break;
-    drafts.push({ kind: 'veto_referendum', topic: t, salience: Math.min(1, t.salience + 0.1 + r.normal(0, 0.1)) });
+    drafts.push({ kind: 'veto_referendum', topic: t, salience: sal(t.salience + 0.1 + r.normal(0, 0.1)) });
   }
   if (!drafts.length) return [];
   // The two most prominent are polled and called on the broadcast night.
@@ -158,30 +164,31 @@ export function createMeasures(E: ElectionEngine, year: number, stateIdx: number
   const nextIn = new Map<string, number>();
   const out: string[] = [];
   const govVotes = 0.5 * w.pop.stateVep[stateIdx]!;
+  type Series = 'initiative' | 'statute' | 'referral';
+  const seriesOf = (k: MeasureKind): Series => (k === 'initiative_statute' && rules.name.statute ? 'statute' : isInitiative(k) || k === 'veto_referendum' ? 'initiative' : 'referral');
+  // Series with the same prefix and start share one numbering (California's propositions); others are apart (Arizona's 200s and 100s).
+  const keyOf = (sr: Series) => `${rules.name[sr] ?? ''}|${rules.name.start?.[sr] ?? ''}`;
+  const earlierByKey = new Map<string, number>();
+  for (const x of db.all<{ kind: MeasureKind }>('SELECT kind FROM ballot_measure WHERE state_idx = ?', [stateIdx])) { const k = keyOf(seriesOf(x.kind)); earlierByKey.set(k, (earlierByKey.get(k) ?? 0) + 1); }
   drafts.forEach((d, i) => {
-    const series = isInitiative(d.kind) || d.kind === 'veto_referendum' ? 'initiative' : 'referral';
-    const prefix = rules.name[series];
+    const series = seriesOf(d.kind);
+    const prefix = rules.name[series]!;
     const start = rules.name.start?.[series];
-    // One numbering per prefix, unless the state numbers initiatives and referrals separately (Arizona's 200s and 100s).
-    const shared = rules.name.initiative === rules.name.referral && rules.name.start?.initiative === rules.name.start?.referral;
-    const key = shared ? prefix : `${series}|${prefix}`;
+    const key = keyOf(series);
     let n = nextIn.get(key);
-    if (n === undefined) {
-      const earlier = shared ? Number(db.value<number>('SELECT COUNT(*) FROM ballot_measure WHERE state_idx = ? AND name LIKE ?', [stateIdx, `${prefix}%`]) ?? 0)
-        : Number(db.value<number>("SELECT COUNT(*) FROM ballot_measure WHERE state_idx = ? AND name LIKE ? AND (kind LIKE 'initiative%' OR kind = 'veto_referendum') = ?", [stateIdx, `${prefix}%`, series === 'initiative' ? 1 : 0]) ?? 0);
-      n = start !== undefined ? start + earlier : 1;
-    }
+    if (n === undefined) n = start !== undefined ? start + (earlierByKey.get(key) ?? 0) : 1;
     nextIn.set(key, n + 1);
     const name = measureName(prefix, n);
-    // Position: relative to the state's voters (legislatures near the centre; advocates further out).
-    const m = stateMoments(w, cls.classOf, cls.centroids, stateIdx, d.topic.dir);
+    // Position: between the state's voters and the nation's (a measure is drafted for the state, from texts that run
+    // in many states); legislatures refer measures near the centre, advocates draft them further out.
+    const m = stateMoments(w, cls.classOf, cls.centroids, stateIdx, d.topic.dir), nat = stateMoments(w, cls.classOf, cls.centroids, null, d.topic.dir);
     const scale = Math.max(0.08, m.sd);
-    const delta = isInitiative(d.kind) ? r.normal(-0.15, 0.6) : d.kind === 'veto_referendum' ? r.normal(0, 0.5) : r.normal(-0.75, 0.45);
+    const delta = isInitiative(d.kind) ? r.normal(-0.1, 0.3) : d.kind === 'veto_referendum' ? r.normal(0.1, 0.3) : r.normal(-0.4, 0.6);
     const pD = dot(plat.D, d.topic.dir), pR = dot(plat.R, d.topic.dir);
     const gap = (pD - pR) / Math.max(0.1, 2 * scale);
     const cue = d.topic.partisan * Math.max(-1, Math.min(1, gap));
     const params: MeasureParams = {
-      dir: [...d.topic.dir], cut: m.mean + delta * scale, scale, kappa: 0.5 + 1.1 * d.salience, lean: d.topic.lean + r.normal(0, 0.25),
+      dir: [...d.topic.dir], cut: 0.5 * (m.mean + nat.mean) + delta * scale, scale, kappa: 0.5 + 1.1 * d.salience, lean: d.topic.lean + r.normal(0, 0.15),
       statusQuo: 0.25 + 0.2 * (1 - d.salience), cue: Math.round(1000 * cue) / 1000, salience: Math.round(1000 * d.salience) / 1000,
     };
     const parties: Record<string, 'yes' | 'no' | null> = { D: Math.abs(cue) >= 0.25 ? (cue > 0 ? 'yes' : 'no') : null, R: Math.abs(cue) >= 0.25 ? (cue > 0 ? 'no' : 'yes') : null };

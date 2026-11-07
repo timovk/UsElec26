@@ -166,7 +166,11 @@ Ballots are cast over weeks (mail and early voting), not in an instant:
   may adopt ranked-choice voting (for party primaries and for Congress or every office but President), repeal it,
   or switch among open, semi-closed and closed primaries. A top-two state adopts it as a top-four primary with a
   ranked general (a ranked count of two candidates would change nothing); repealing a top-four primary restores
-  the primary system it replaced. Louisiana's November all-candidate ballot is not changed.
+  the primary system it replaced. Louisiana's November all-candidate ballot is not changed. Adoption has a small
+  base rate (0.3% per state-year), rises after "spoiler" outcomes (a winner below 50% while a minor candidate took
+  more than the margin), and rises again when the harmed party controls the state. Repeal is likeliest after
+  ranked ballots overturned a first-round leader whose party now governs. Nothing from the real world after 2016
+  is imported. Citizens' initiatives can make the same changes since Phase 7.3 (below).
 - **Down-ballot offices, boards and courts** (Phase 7.2, `rules/downballot2016.ts`, `engine/downballot.ts`): every
   state's other elected statewide officers, its elected commissions, boards of education and university boards,
   its supreme court(s) and the appellate courts elected statewide, as in its law of 2016 — one office per seat,
@@ -179,11 +183,22 @@ Ballots are cast over weeks (mail and early voting), not in an instant:
   filled by the governor (often from a nominating commission's list) or the legislature, an appointee's seat
   moving to its first election; judges leave at their court's mandatory retirement age. Board districts are drawn
   by the simulation from the year's state house districts (`geo/bodyDistricts.ts`). Down-ballot races are neither
-  polled nor forecast; statewide officers and supreme court seats elected statewide are on the broadcast night. Adoption has a small base rate (0.3% per state-year),
-  rises after "spoiler" outcomes (a winner below 50% while a minor candidate took more than the margin), and
-  rises again when the harmed party controls the state. Repeal is likeliest after ranked ballots overturned a
-  first-round leader whose party now governs. Nothing from the real world after 2016 is imported. Ballot
-  initiatives join in Phase 7.3.
+  polled nor forecast; statewide officers and supreme court seats elected statewide are on the broadcast night.
+- **Ballot measures** (Phase 7.3, `rules/measures2016.ts`, `engine/measures.ts`): each state's 2016 law on
+  statewide measures (citizen initiatives, statutes and/or constitutional amendments; veto referendums; measures
+  referred by the legislature; the vote needed, from a simple majority to Florida's 60%, Minnesota's majority of
+  every ballot and the combined rules of Massachusetts, Mississippi, Nebraska and Illinois; how measures are
+  numbered) and how active its ballot is. Each election draws its measures (a Poisson count per kind, state and
+  year) from 39 generic topics. A topic is a direction in issue space, read the same way as Congress's bill
+  topics; one-time reforms are not proposed where the state already had them in 2016, nor again after passing.
+  A measure sits on its direction at a cut point between the state's and the nation's voters: referrals near the
+  centre, initiatives further out. Parties take sides where their platforms differ along the direction. A voter class's yes utility is its position past the cut point
+  (scaled by salience), a baseline lean, a party cue and a pull toward the status quo (No); low-profile questions
+  are skipped more. A measure passes by its state's rule. Only election-law measures change the simulation
+  (ranked-choice voting, top-four or top-two primaries, open primaries, repeal of ranked-choice voting): they
+  enact a dated law change with source "initiative" from the next January 1. The two most prominent measures
+  of each state's ballot are polled and called on the broadcast night; the desk calls the rule (threshold
+  weights over yes, no and blank ballots), not the leader. No real measure after 2016 is imported.
 - **Careers between elections** (monthly): scandals (hazard by office scrutiny and integrity), scandal
   resignations, other mid-term exits (health, private sector), cabinet turnover (mean tenure about 2.7 years), rare
   party switches. A new President brings a new cabinet. Party conferences choose leaders when each Congress
