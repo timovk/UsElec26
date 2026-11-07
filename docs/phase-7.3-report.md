@@ -290,8 +290,12 @@ against 0.043. It is still deterministic: the same seed and version give the sam
 
 ## 9. Next: Phase 7.4 — Multi-member and floterial districts (awaiting your approval)
 
-- **Real seat counts** for each legislative district: Arizona's, New Jersey's and Washington's two-member house
-  districts, West Virginia's, Vermont's and New Hampshire's multi-member districts, and so on.
+- **Real seat counts** for each legislative district:
+  - two-member districts in Arizona, New Jersey and the Dakotas;
+  - Maryland's three-member districts;
+  - the multi-member districts of New Hampshire, Vermont and West Virginia.
+
+  Washington's two house seats per district are separate positions and become two ordinary seats.
 - **"Vote for N" ballots** in the kernel, with the top N elected. Michigan's boards, which elect two seats every
   even year, and Arizona's Corporation Commission move onto them as well.
 - **New Hampshire's floterial districts**, which overlap the ordinary ones.
@@ -301,6 +305,7 @@ The estimate is 3–5 hours.
 ## 10. Open question from earlier
 
 As noted earlier, the 2016 data gives North Carolina's primary runoff threshold as 30%. On January 1, 2016 it
-was 40%; the 30% rule dates from 2017. The data therefore imports a post-2016 change. The fix is one line. I
+was 40%: in the 2014 Senate primary, Thom Tillis needed 40% to avoid a runoff. It was lowered to 30% in 2017, so
+the data imports a post-2016 change. The fix is one line. I
 have not made it, because it changes primary outcomes and is outside 7.3. Say if you want it, alone or with
 7.4.
