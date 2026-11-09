@@ -33,7 +33,7 @@ import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from 
 import { SIM_START } from '../core/time';
 
 const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
-export const ENGINE_VERSION = '0.7.3';
+export const ENGINE_VERSION = '0.7.3.1';
 /** How often (wall time) a long advance commits its batched writes to storage. */
 const COMMIT_INTERVAL_MS = 10000;
 

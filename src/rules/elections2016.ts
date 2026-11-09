@@ -67,7 +67,7 @@ const T: Record<string, Row> = {
   NJ: [d(6, TUE, 1), 'semi', null, [false, true, true], true],
   NM: [d(6, TUE, 1), 'closed', null, [false, true, true], true],
   NY: [d(6, TUE, 'last'), 'closed', null, [false, false, false], true],
-  NC: [d(3, TUE, 3), 'semi', { threshold: 0.3, daysAfter: 49 }, [false, true, true], false],
+  NC: [d(3, TUE, 3), 'semi', { threshold: 0.4, daysAfter: 49 }, [false, true, true], false],
   ND: [d(6, TUE, 2), 'open', null, [false, true, true], true],
   OH: [d(3, TUE, 3), 'open', null, [false, true, true], true],
   OK: [d(6, TUE, 'last'), 'semi', R50(56), [false, true, true], false],

@@ -1,6 +1,6 @@
 # Phase 7.3 Report — Ballot Measures
 
-**Status:** implemented, awaiting approval.
+**Status:** approved. Followed by a correction to North Carolina's primary runoff threshold (§10, engine 0.7.3.1).
 **Engine version:** 0.7.3 · **Schema version:** 9 · **Night record:** version 2 (unchanged) · **Geography pack:** 2016.1 (unchanged)
 
 Phase 7.3 is the third of eight Phase 7 sub-phases ([roadmap](architecture/10-roadmap.md#phase-7-complete-electoral-coverage)).
@@ -302,10 +302,16 @@ against 0.043. It is still deterministic: the same seed and version give the sam
 
 The estimate is 3–5 hours.
 
-## 10. Open question from earlier
+## 10. After approval: North Carolina's primary runoff threshold
 
-As noted earlier, the 2016 data gives North Carolina's primary runoff threshold as 30%. On January 1, 2016 it
-was 40%: in the 2014 Senate primary, Thom Tillis needed 40% to avoid a runoff. It was lowered to 30% in 2017, so
-the data imports a post-2016 change. The fix is one line. I
-have not made it, because it changes primary outcomes and is outside 7.3. Say if you want it, alone or with
-7.4.
+The 2016 data gave North Carolina's primary runoff threshold as 30%. On January 1, 2016 it was 40%: in the 2014
+Senate primary, Thom Tillis needed 40% to avoid a runoff. It was lowered to 30% in 2017, so the data had imported a
+post-2016 change. On your instruction it is now 40%.
+
+- **Effect:** a North Carolina primary goes to a runoff when its leader has less than 40%, where 30% was enough
+  before. More runoffs follow crowded primaries, which changes later draws, so the same seed gives a different
+  universe from 2016 on.
+- **Engine version 0.7.3.1.** An existing universe keeps the primaries already held. Its engine ledger records the
+  switch, and later North Carolina primaries follow the 40% rule.
+- **Test:** the election-law data test now checks the 2016 runoff thresholds (North Carolina 40%, South Dakota 35%
+  and the 50% states).

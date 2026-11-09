@@ -20,6 +20,7 @@ import type { Sqlite3Static } from '@sqlite.org/sqlite-wasm';
 import { runQuery } from '../../../src/engine/queries';
 import type { ContestDetail, ElectionLawDto } from '../../../src/engine/protocol';
 import type { LawChange } from '../../../src/rules/electionLaw';
+import { ELECTION_RULES_2016 } from '../../../src/rules/elections2016';
 
 const USPS = ['AK', 'CA', 'CO', 'GA', 'LA', 'ME', 'NE', 'TX'];
 
@@ -34,6 +35,10 @@ describe('election law: dated rules', () => {
     expect(partyPrimaryMethod(on('TX'))).toBe('runoff_0.5');
     expect(on('NE').nonpartisan).toEqual(['state_senator']);
     expect(on('ME').rcv).toEqual({ primaries: false, general: 'none' });
+    // Primary runoffs as of January 1, 2016: a majority in the South, 35% in South Dakota, 40% in North Carolina
+    // (lowered to 30% only in 2017).
+    const runoff = Object.fromEntries(Object.entries(ELECTION_RULES_2016).filter(([, r]) => r.primaryRunoff).map(([u, r]) => [u, r.primaryRunoff!.threshold]));
+    expect(runoff).toEqual({ AL: 0.5, AR: 0.5, GA: 0.5, MS: 0.5, NC: 0.4, OK: 0.5, SC: 0.5, SD: 0.35, TX: 0.5 });
   });
 
   it('applies a change from its effective date, never before', () => {
