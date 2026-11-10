@@ -1,6 +1,6 @@
 # Phase 7.4 Report — Multi-member and Floterial Districts
 
-**Status:** implemented, awaiting approval.
+**Status:** approved.
 **Engine version:** 0.7.4 · **Schema version:** 10 · **Night record:** version 2 (unchanged) · **Geography pack:** 2016.1 (unchanged)
 
 Phase 7.4 is the fourth of eight Phase 7 sub-phases ([roadmap](architecture/10-roadmap.md#phase-7-complete-electoral-coverage)).
