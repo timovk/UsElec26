@@ -15,7 +15,9 @@ import { buGraph, drawPlan, type PlanRegion } from '../geo/redistrict';
 import { fullName, type Office, type Person } from '../institutions/model';
 import type { Db } from '../persistence/db';
 import { demographySummary } from '../population/evolution';
-import { huntingtonHill, type DistrictKind } from './districts';
+import { huntingtonHill, type DistrictInfo, type DistrictKind } from './districts';
+import { reseatChamber } from './legislatures';
+import { seatRule } from '../rules/legislativeSeats2016';
 import { NONE16 } from '../geo/pack';
 import type { Evolution } from './evolution';
 import { aggregateLean, type World } from './world';
@@ -183,13 +185,13 @@ export class CensusEngine {
     const graph = buGraph(r);
     for (const [chKind, kind, sld] of [['state_upper', 'state_senator', 'sldu'], ['state_lower', 'state_representative', 'sldl']] as const) {
       const ch = w.chambers.find((c) => c.kind === chKind && c.stateIdx === stateIdx); if (!ch) continue;
-      // The current districts (in effect this year) and their seats, by number.
+      // The current districts (in effect this year) and their seats, by number (Phase 7.4: the 2016 law's members
+      // per district; New Hampshire's floterials are not drawn but recomputed on the new map).
       const offices = w.offices.filter((o) => o.kind === kind && o.stateIdx === stateIdx);
       if (!offices.length) continue;
       const table = w.districts.table(sld);
-      const byNumber = new Map<number, number>();
-      for (const o of offices) { const num = table[o.districtIdx!]!.number; byNumber.set(num, (byNumber.get(num) ?? 0) + 1); }
-      const numbers = [...byNumber.keys()].sort((a, b) => a - b), sizes = numbers.map((x) => byNumber.get(x)!);
+      const current = w.districts.districtsOf(sld, stateIdx, census + 1).filter((d) => !d.members && d.seats > 0).sort((a, b) => a.number - b.number);
+      const numbers = current.map((d) => d.number), sizes = current.map((d) => d.seats);
       if (numbers.length < 2) continue;
       const nest = NESTED[st.usps];
       const nestOk = kind === 'state_representative' && nest && upperLocal && numbers.length === nest * upperCount;
@@ -209,7 +211,17 @@ export class CensusEngine {
       const planId = (this.h.db.value<number>('SELECT MAX(plan_id) FROM district_plan') ?? 0) + 1;
       const adopted = await w.districts.adopt(sld, stateIdx, census, firstYear, w.time, local, numbers, sizes, pops,
         { maxDeviation: res.stats.maxDeviation, contiguous: res.stats.contiguous, countiesSplit: res.stats.countiesSplit, nested: !!nestOk }, planId);
-      this.h.commit(() => adopted.write(this.h.db));
+      // New Hampshire: whole seats per new district from its population, the leftovers in new floterials.
+      let flots: DistrictInfo[] = [];
+      if (kind === 'state_representative' && seatRule(st.usps, 'lower')?.floterials) {
+        const fp = w.districts.computeFloterials(adopted.districts, w.districts.assignment('sldl', firstYear), ch.seats);
+        adopted.districts.forEach((d, i) => { d.seats = fp.baseSeats[i]!; });
+        flots = w.districts.appendFloterials(stateIdx, planId, fp.floterials.map((f) => ({ ...f, members: f.members.map((m) => adopted.districts[m]!.idx) })));
+      }
+      this.h.commit(() => { adopted.write(this.h.db); if (flots.length) w.districts.writeDistricts(this.h.db, 'sldl', flots); });
+      // Members follow the new plan's seats (offices move only where a district's seat count changed).
+      const moved = reseatChamber(w, stateIdx, kind, firstYear);
+      if (moved.length) this.h.commit(() => { for (const o of moved) this.h.db.run('UPDATE office SET title = ?, district_idx = ? WHERE office_id = ?', [o.title, o.districtIdx, o.id]); });
       if (kind === 'state_senator') { upperLocal = local; upperCount = numbers.length; }
       text += ` ${ch.name}: ${numbers.length} districts, largest deviation ${(100 * res.stats.maxDeviation).toFixed(1)}%${nestOk ? ', nested' : ''}.`;
     }

@@ -1,4 +1,4 @@
-/** A universe saved by the Phase 1 release (engine 0.1.0, schema 1) opens, migrates, gains what later phases add (legislators, down-ballot offices and courts) and runs the 2016 elections. */
+/** A universe saved by the Phase 1 release (engine 0.1.0, schema 1) opens, migrates, gains what later phases add (legislators with multi-member and floterial districts, down-ballot offices and courts, ballot measures) and runs the 2016 elections. */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
@@ -28,6 +28,12 @@ describe('Phase 1 save compatibility', () => {
     // Phase 7.3: it gains a ballot-measure office per state and votes on measures in 2016.
     expect(Number(u.db.value("SELECT COUNT(*) FROM office WHERE kind = 'ballot_measure'"))).toBe(51);
     expect(Number(u.db.value("SELECT COUNT(*) FROM ballot_measure m JOIN contest c ON c.contest_id = m.contest_id WHERE m.year = 2016 AND c.status = 'certified' AND m.outcome IS NOT NULL"))).toBeGreaterThan(30);
+    // Phase 7.4: New Hampshire's floterials are stored, multi-member districts elect their seats in one race,
+    // and North Dakota's house is on the ballot.
+    expect(Number(u.db.value('PRAGMA user_version'))).toBe(10);
+    expect(Number(u.db.value('SELECT COUNT(DISTINCT idx) FROM district_member'))).toBeGreaterThan(0);
+    expect(Number(u.db.value("SELECT COUNT(*) FROM contest WHERE year = 2016 AND kind = 'general' AND seats > 1 AND status = 'certified'"))).toBeGreaterThan(20);
+    expect(Number(u.db.value("SELECT COUNT(*) FROM contest c JOIN office o ON o.office_id = c.office_id WHERE c.year = 2016 AND o.kind = 'state_representative' AND c.label LIKE '%North Dakota%'"))).toBeGreaterThan(0);
     expect(integrityReport(u.db).checks.filter((c) => !c.ok)).toEqual([]);
   }, 300_000);
 });

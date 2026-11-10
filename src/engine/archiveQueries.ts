@@ -12,7 +12,7 @@ import type { ArchiveQuery, CandidateDto, ContestDetail, CountyHistoryDto, Distr
 import { MEASURE_KIND_LABEL, thresholdText, type MeasureKind, type Threshold } from '../rules/measures2016';
 import { leanMargin } from './world';
 
-interface CRow { contest_id: number; election_id: number; office_id: number | null; kind: string; party_id: number | null; state_idx: number | null; district_idx: number | null; method: string; label: string; status: string; winner_candidacy: number | null; parent_contest: number | null; next_contest: number | null; ev: number | null; year: number }
+interface CRow { contest_id: number; election_id: number; office_id: number | null; kind: string; party_id: number | null; state_idx: number | null; district_idx: number | null; method: string; label: string; status: string; winner_candidacy: number | null; parent_contest: number | null; next_contest: number | null; ev: number | null; year: number; seats?: number }
 
 export async function runArchiveQuery(u: Universe, q: ArchiveQuery): Promise<unknown> {
   switch (q.kind) {
@@ -87,14 +87,23 @@ async function elections(u: Universe, year?: number): Promise<ElectionListItem[]
       // A retention vote: the outcome, named for the judge (Phase 7.2).
       if (win && c.kind === 'retention') win = win.party === 0 ? { ...win, name: `${win.name}: not retained` } : { ...win, name: `${win.name}: retained` };
       if (win && c.kind === 'measure') win = { ...win, name: win.name === 'Yes' ? 'Passed' : 'Failed' };
+      // A "vote for N" race (Phase 7.4): every winner, under the party most of them belong to.
+      const multi = (c.seats ?? 1) > 1 && c.status !== 'counting';
+      if (win && multi) {
+        const ws = candidates(u, c.contest_id).filter((x) => x.status === 'won');
+        const parties = new Map<number, number>(); for (const x of ws) parties.set(x.party, (parties.get(x.party) ?? 0) + 1);
+        const top = [...parties].sort((a, b) => b[1] - a[1])[0]?.[0] ?? win.party;
+        win = { ...win, name: ws.map((x) => x.name).join(', '), party: top };
+      }
       const status = c.status === 'counting' ? (winId !== null ? 'projected' : 'counting') : c.status;
       // Facets: did the seat change party, and did an incumbent running lose?
       const held = c.office_id !== null && e.held_time !== null ? u.db.value<number>('SELECT party_id FROM office_term WHERE office_id = ? AND start_time <= ? AND (end_time IS NULL OR end_time > ?) ORDER BY start_time DESC LIMIT 1', [c.office_id, e.held_time, e.held_time]) ?? null : null;
       const inc = incumbents.get(c.contest_id);
-      return { id: c.contest_id, label: c.label, kind: c.kind, office: officeKindOf(u, c), status, winner: win, margin: t && t.length > 1 ? 100 * (t[0]!.share - t[1]!.share) : t ? 100 : null,
+      return { id: c.contest_id, label: c.label, kind: c.kind, office: officeKindOf(u, c), status, winner: win, margin: multi ? null : t && t.length > 1 ? 100 * (t[0]!.share - t[1]!.share) : t ? 100 : null,
         state: c.state_idx !== null ? u.world.pack.states[c.state_idx]!.usps : null,
-        flip: win && held !== null && held !== 0 && ['general', 'special'].includes(c.kind) ? win.party !== held : null,
-        incumbentLost: inc !== undefined && win !== null && !inc.has(win.candidacyId) };
+        flip: !multi && win && held !== null && held !== 0 && ['general', 'special'].includes(c.kind) ? win.party !== held : null,
+        incumbentLost: multi ? Number(u.db.value("SELECT COUNT(*) FROM candidacy WHERE contest_id = ? AND incumbent = 1 AND status = 'lost'", [c.contest_id]) ?? 0) > 0
+          : inc !== undefined && win !== null && !inc.has(win.candidacyId) };
     }),
   }));
 }
@@ -163,6 +172,7 @@ async function contest(u: Universe, id: number): Promise<ContestDetail | null> {
     stateUsps: c.state_idx !== null ? w.pack.states[c.state_idx]!.usps : null, stateIdx: c.state_idx,
     districtLabel: cd ? `${w.pack.states[cd.stateIdx]!.usps}-${cd.number === 0 ? 'AL' : String(cd.number).padStart(2, '0')}` : null,
     measure: c.kind === 'measure' ? measureInfo(u, id) : null,
+    seats: c.seats ?? 1,
     retention: c.kind === 'retention' ? { threshold: Number(c.method.slice('retention_'.length)) || 0.5, retained: c.winner_candidacy === null ? null : c.winner_candidacy === cands.find((x) => x.party !== 0)?.candidacyId } : null,
     date: formatDay(e.day, true), electionLabel: e.label, candidates: cands, ballots: turnout?.ballots ?? null, undervotes: turnout?.undervotes ?? null, eligible: turnout?.eligible ?? null,
     ev: c.ev, seal: rev?.sha256 ?? null, revisionKind: live ? 'counting' : rev?.kind ?? null, parent: c.parent_contest, next: c.next_contest, grain: blob?.grain ?? (live ? 'live' : rv > 0 ? 'bu' : null),
@@ -207,13 +217,14 @@ async function countyHistory(u: Universe, county: number): Promise<CountyHistory
 /** A contest's result in one area (votes per candidacy in ballot order, then undervotes). */
 function historyRow(u: Universe, x: CRow & { day: number }, v: number[]): HistoryRow {
   const w = u.world;
-  const order = u.db.all<{ candidacy_id: number; person_id: number; party_id: number; ballot_order: number }>('SELECT candidacy_id, person_id, party_id, ballot_order FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [x.contest_id]);
+  const order = u.db.all<{ candidacy_id: number; person_id: number; party_id: number; ballot_order: number; status: string }>('SELECT candidacy_id, person_id, party_id, ballot_order, status FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [x.contest_id]);
   const valid = v.slice(0, order.length).reduce((a, b) => a + b, 0);
   const name = (o: (typeof order)[number]) => {
     const n = fullName(w.persons.get(o.person_id) ?? optionPerson(o.person_id)!);
     return x.kind === 'retention' ? (o.ballot_order === 0 ? `Yes: retain ${n}` : 'No') : n;
   };
-  const cands = order.map((o, j) => ({ name: name(o), party: o.party_id, votes: v[j]!, share: valid ? v[j]! / valid : 0, winner: o.candidacy_id === x.winner_candidacy }))
+  const multi = (x.seats ?? 1) > 1;
+  const cands = order.map((o, j) => ({ name: name(o), party: o.party_id, votes: v[j]!, share: valid ? v[j]! / valid : 0, winner: multi ? o.status === 'won' : o.candidacy_id === x.winner_candidacy }))
     .sort((a, b) => b.votes - a.votes);
   const d = cands.find((q) => q.party === PARTY_D)?.votes ?? 0, r = cands.find((q) => q.party === PARTY_R)?.votes ?? 0;
   const office = x.office_id !== null ? w.officeById.get(x.office_id)! : null;

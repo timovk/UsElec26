@@ -14,6 +14,8 @@ export interface ContestRow {
   term_start: number | null; parent_contest: number | null; next_contest: number | null; ev: number | null; year: number;
   /** 1 when the ballot carries no party labels (schema 7; absent on synthesized rows). */
   nonpartisan?: number;
+  /** Members the contest elects (schema 10; 1, or absent on older rows): a "vote for N" race when more than one. */
+  seats?: number;
 }
 export interface CandidacyRow { candidacy_id: number; contest_id: number; person_id: number; party_id: number; ballot_order: number; incumbent: number; running_mate: number | null; status: string; quality: number }
 
@@ -107,11 +109,13 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
       homeCounty: person.homeCounty ?? -1, homeState: person.homeState === stateIdx,
     };
   });
-  const uncontested = cands.length <= 1;
+  const seats = c.seats ?? 1;
+  const uncontested = cands.length <= seats;
   return {
     id: c.contest_id, cd: (officeKind === 'us_representative' || officeKind === 'state_senator' || officeKind === 'state_representative') && c.district_idx !== null ? c.district_idx : -1,
     geo: officeKind === 'state_senator' ? 1 : officeKind === 'state_representative' ? 2 : 0,
     ...(c.method === 'rcv' ? { rcv: true } : {}),
+    ...(seats > 1 ? { seats } : {}),
     weight: primary || nonpartisan ? 0 : officeWeight(officeKind), abstain: (primary ? -2.2 : officeAbstain(officeKind)) + (uncontested ? 1.6 : majorCount < 2 ? 0.5 : 0),
     options,
   };

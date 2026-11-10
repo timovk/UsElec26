@@ -308,6 +308,8 @@ export interface ContestDetail {
     polled: boolean; outcome: string | null; law: { summary: string; effective: string } | null } | null;
   /** A judge's retention vote (Phase 7.2): the share of yes votes needed, and the outcome once decided. */
   retention: { threshold: number; retained: boolean | null } | null;
+  /** Members elected: more than one in a "vote for N" race (Phase 7.4), where each ballot marks up to N names. */
+  seats: number;
   /** Ranked-choice tabulation, round by round, once the contest is decided (Phase 7.1). */
   rcv: { round: number; candidates: { candidacyId: number; name: string; party: number; votes: number; status: string }[]; exhausted: number }[] | null;
 }
@@ -416,7 +418,9 @@ export interface BillDto extends BillRowDto {
 }
 export interface LegislaturesDto {
   states: { stateIdx: number; usps: string; name: string; governorParty: number | null;
-    chambers: { name: string; kind: string; seats: number; composition: { party: number; seats: number }[]; majority: number | null }[];
+    chambers: { name: string; kind: string; seats: number; composition: { party: number; seats: number }[]; majority: number | null;
+      /** How the seats are elected (Phase 7.4): districts in effect, how many elect several members, and floterial districts. */
+      districts: { count: number; multi: number; floterial: number; maxSeats: number; mode: string } }[];
     trifecta: number | null; session: { year: number; laws: number; vetoes: number; budgetLate: boolean } | null }[];
   totals: { dChambers: number; rChambers: number; split: number; dTrifectas: number; rTrifectas: number; dLegislators: number; rLegislators: number; others: number };
 }

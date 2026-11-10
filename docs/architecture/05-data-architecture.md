@@ -121,6 +121,10 @@ CREATE TABLE rcv_round     (contest_id INTEGER, rev INTEGER, round INTEGER, cand
 -- two candidacies: Yes (person and party -1) and No (-2). params_json holds what the ballot kernel needs (issue
 -- direction, cut point, scale, lean, status-quo pull, party cue); law_id links a passed election-law measure to
 -- the election_law row it enacted (source 'initiative').
+-- Schema 10 (Phase 7.4): contest.seats (members elected; > 1 for a "vote for N" race, whose counts are marks, N per
+-- ballot, with the unused marks as undervotes) and contest_seat(contest_id, office_id, candidacy_id), the offices a
+-- vote-for-N race fills and the candidacy that won each; district.label (the state's name for a district) and
+-- district_member(kind, idx, member), the ordinary districts a floterial district spans (New Hampshire).
 CREATE TABLE electoral_vote(election_id INTEGER, contest_id INTEGER, candidacy_id INTEGER, ev INTEGER, kind TEXT);
 CREATE TABLE recount       (recount_id INTEGER PRIMARY KEY, contest_id INTEGER, trigger TEXT, requested INTEGER,
                             completed INTEGER, from_rev INTEGER, to_rev INTEGER, net_change_json TEXT);

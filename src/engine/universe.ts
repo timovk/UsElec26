@@ -27,13 +27,13 @@ import { loadElectionLaw } from './lawStore';
 import { CensusEngine } from './census';
 import { CareersEngine, emptyCareersState, type CareersState } from './careersEngine';
 import { GovernmentEngine, emptyGovernmentState, type GovernmentState } from './governmentEngine';
-import { materializeLegislatures } from './legislatures';
+import { materializeLegislatures, reseatChamber } from './legislatures';
 import { courtsMonthly, courtsYearStart, fillSeat, materializeDownballot, seatVacancyResolution, type CourtHost } from './downballot';
 import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from './economyEngine';
 import { SIM_START } from '../core/time';
 
 const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
-export const ENGINE_VERSION = '0.7.3.1';
+export const ENGINE_VERSION = '0.7.4';
 /** How often (wall time) a long advance commits its batched writes to storage. */
 const COMMIT_INTERVAL_MS = 10000;
 
@@ -369,6 +369,9 @@ export class Universe {
     const w = this.world;
     const r0 = Rng.stream(w.seed, 'legislatures', 'install');
     void r0;
+    // Phase 7.4: New Hampshire's floterial districts (stored once), before seats are laid out.
+    const fl = w.districts.ensureFloterials();
+    if (fl.added) this.commit(null, () => fl.write(this.db));
     const n = materializeLegislatures({
       world: w, newPerson: (r, tier, party, st, opts) => this.newPerson(r, tier, party, st, opts), addOffice: (o) => this.addOffice(o),
       installTerm: (officeId, person, start, acquired) => {
@@ -376,7 +379,7 @@ export class Universe {
         w.current.set(officeId, t); w.pending.terms.push(t); return t;
       },
     });
-    if (!n) return;
+    if (!n) { await this.reseatLegislatures(); return; }
     for (const ch of w.chambers) if (ch.kind === 'state_upper' || ch.kind === 'state_lower') { const first = w.offices.find((o) => o.chamberId === ch.id && (o.kind === 'state_senator' || o.kind === 'state_representative')); if (first) this.markChamber(first.id); }
     this.commit(null);
   }
@@ -395,6 +398,31 @@ export class Universe {
    * Down-ballot offices, elected boards and state courts (Phase 7.2): created once — at founding, or when a
    * universe saved before Phase 7.2 is first opened.
    */
+  /**
+   * Phase 7.4, for universes saved before it: each chamber's seats follow the 2016 law (members per district,
+   * district names, positions). A later plan whose districts collapsed into one number (letter-coded districts,
+   * Maryland and South Dakota) gives way to the 2016 lines until the next census.
+   */
+  async reseatLegislatures(): Promise<void> {
+    const w = this.world, year = daysToCivil(easternDay(w.time)).y;
+    for (const st of w.pack.states) for (const sld of ['sldu', 'sldl'] as const) {
+      const ds = w.districts.districtsOf(sld, st.idx, year);
+      if (!ds.length || ds[0]!.planId === 0 || new Set(ds.map((d) => d.number)).size === ds.length) continue;
+      const base = w.districts.table(sld).filter((d) => d.stateIdx === st.idx && d.planId === 0 && !d.members).sort((a, b) => a.number - b.number);
+      const counties = w.pack.counties.filter((c) => c.stateIdx === st.idx); if (!counties.length || !base.length) continue;
+      const b0 = counties[0]!.buStart, nb = counties.reduce((a, c) => a + c.buCount, 0);
+      const pos = new Map(base.map((d, i) => [d.idx, i])), col = w.pack.bu[sld];
+      const local = Int32Array.from({ length: nb }, (_, i) => pos.get(col[b0 + i]!) ?? -1);
+      const planId = (this.db.value<number>('SELECT MAX(plan_id) FROM district_plan') ?? 0) + 1;
+      const adopted = await w.districts.adopt(sld, st.idx, w.districts.latestCensus() ?? 2010, year, w.time, local, base.map((d) => d.number), base.map((d) => d.seats), base.map((d) => d.pop2010),
+        { maxDeviation: 0, contiguous: true, countiesSplit: 0, nested: false, repaired: 'the 2016 lines, replacing a plan whose districts had collapsed (Phase 7.4)' }, planId);
+      this.commit(null, () => adopted.write(this.db));
+    }
+    const changed: Office[] = [];
+    for (const st of w.pack.states) for (const kind of ['state_senator', 'state_representative'] as const) changed.push(...reseatChamber(w, st.idx, kind, year));
+    if (changed.length) this.commit(null, () => { for (const o of changed) this.db.run('UPDATE office SET title = ?, district_idx = ? WHERE office_id = ?', [o.title, o.districtIdx, o.id]); });
+  }
+
   ensureDownballot(): void {
     const w = this.world;
     const n = materializeDownballot({

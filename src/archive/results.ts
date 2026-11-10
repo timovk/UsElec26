@@ -89,7 +89,14 @@ export function writeTotals(db: Db, contestId: number, candidacyIds: number[], t
   const votes = totals.slice(0, k - 1), valid = votes.reduce((a, b) => a + b, 0);
   const order = votes.map((v, j) => [v, j] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
   order.forEach(([v, j], rank) => db.run('INSERT INTO contest_total VALUES (?,?,?,?,?,?)', [contestId, rev, candidacyIds[j]!, v, valid > 0 ? v / valid : 0, rank + 1]));
-  db.run('INSERT INTO contest_turnout VALUES (?,?,?,?,?,?)', [contestId, rev, totals.reduce((a, b) => a + b, 0), valid, totals[k - 1]!, eligible]);
+  // A vote-for-N contest (Phase 7.4): its counts are marks, N per ballot (the unused ones last).
+  const seats = seatsOf(db, contestId);
+  db.run('INSERT INTO contest_turnout VALUES (?,?,?,?,?,?)', [contestId, rev, Math.round(totals.reduce((a, b) => a + b, 0) / seats), valid, totals[k - 1]!, eligible]);
+}
+
+/** Members a contest elects (1 before schema 10). */
+export function seatsOf(db: Db, contestId: number): number {
+  return db.value<number>('SELECT seats FROM contest WHERE contest_id = ?', [contestId]) ?? 1;
 }
 
 /** A totals-only revision (unofficial count, canvass) sealed over its canonical totals. */
@@ -205,7 +212,7 @@ function feedSums(rec: Awaited<ReturnType<typeof decodeNightRecord>>): { sums: n
 export async function auditElection(db: Db, electionId: number, buState: (bu: number) => number, stateBuStart: (s: number) => number, buCounty: (bu: number) => number): Promise<AuditFinding[]> {
   const findings: AuditFinding[] = [];
   const fail = (check: string, detail: string) => findings.push({ check, ok: false, detail });
-  const contests = db.all<{ contest_id: number; kind: string; state_idx: number | null }>('SELECT contest_id, kind, state_idx FROM contest WHERE election_id = ? ORDER BY contest_id', [electionId]);
+  const contests = db.all<{ contest_id: number; kind: string; state_idx: number | null; seats: number | null }>('SELECT contest_id, kind, state_idx, seats FROM contest WHERE election_id = ? ORDER BY contest_id', [electionId]);
   const turnoutByState = new Map<number, Awaited<ReturnType<typeof readTurnout>>>();
   let checkedUnits = 0, checkedContests = 0, checkedRows = 0;
   // The election's night record, if it was counted.
@@ -267,8 +274,9 @@ export async function auditElection(db: Db, electionId: number, buState: (bu: nu
         if (!t) { fail('Per-unit turnout present', `state ${s}`); break; }
         const i = bu - stateBuStart(s);
         let sum = 0; for (let j = 0; j < k; j++) { const v = votes[j]![u]!; if (v < 0) { fail('No negative counts', `contest ${c.contest_id} rev ${rv.rev} BU ${bu}`); break; } sum += v; }
-        // Cast ballots: votes + undervotes = ballots. Counted revisions: never more than were cast.
-        if (rv.rev === 0 ? sum !== t.ballots[i] : sum > t.ballots[i]!) { fail('Votes + undervotes = ballots (every unit)', `contest ${c.contest_id} rev ${rv.rev} BU ${bu}: ${sum} vs ${t.ballots[i]}`); break; }
+        // Cast ballots: votes + undervotes = ballots (N marks per ballot in a vote-for-N contest). Counted revisions: never more than were cast.
+        const marks = (c.seats ?? 1) * t.ballots[i]!;
+        if (rv.rev === 0 ? sum !== marks : sum > marks) { fail('Votes + undervotes = ballots (every unit)', `contest ${c.contest_id} rev ${rv.rev} BU ${bu}: ${sum} vs ${marks}`); break; }
         if (t.ballots[i]! > t.eligible[i]!) { fail('Ballots ≤ eligible', `BU ${bu}`); break; }
         checkedUnits++;
       }

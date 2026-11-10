@@ -122,6 +122,7 @@ boroughs, census areas and unorganized areas are present with the correct legal 
 | Louisiana parishes, Alaska boroughs/census areas, Virginia independent cities | `geo_unit.attrs.legal_type` drives labels ("Parish", "Borough", "Census Area", "City") |
 | Alaska results | RJ = state house district (SLDL is in the BU key, so this is exact). Borough-level displays are aggregations, labeled as such. |
 | New England | RJ = town/MCD. County displays aggregate towns. ME/NH unorganized territories are their own RJs. |
+| Multi-member state house districts | Seats per district from the 2016 law (Phase 7.4); the Census files have the districts but not their seat counts, which follow population where the state apportions by it (VT, WV, NH, MD subdistricts). New Hampshire's floterial districts overlap the ordinary ones and are not in the Census files: they are generated, as unions of ordinary districts. |
 | Connecticut | 8 counties at the 2016 vintage (no county government. Displays still work). |
 | County set over time | Frozen at the 2016 vintage. Post-2016 real-world changes (Valdez-Cordova split in 2019, Connecticut planning regions in 2022) were administrative decisions in the *real* timeline and are not imported. The versioning system can represent them if a simulated law ever requires it. |
 | Nebraska | Unicameral, nonpartisan legislature (SLDU only); EVs by CD |

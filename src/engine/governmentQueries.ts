@@ -9,6 +9,7 @@ import { NONE16 } from '../geo/pack';
 import { fullName, PARTY_D, PARTY_R, type Office } from '../institutions/model';
 import type { DistrictKind } from './districts';
 import { sldLean } from './legislatures';
+import { seatRule } from '../rules/legislativeSeats2016';
 import { unitsPerMeter } from './census';
 import type { BillDto, BillRowDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GovernmentQuery, LegislaturesDto, StateOfficesDto } from './protocol';
 import { DOWNBALLOT_2016, bodyName, elected, seatUp, type BodyDef } from '../rules/downballot2016';
@@ -114,7 +115,7 @@ async function bill(u: Universe, id: number): Promise<BillDto | null> {
 }
 
 function legislatures(u: Universe): LegislaturesDto {
-  const w = u.world;
+  const w = u.world, year = daysToCivil(easternDay(w.time)).y;
   const sessions = new Map<number, { year: number; laws: number; vetoes: number; budgetLate: boolean }>();
   for (const r of u.db.all<{ year: number; state_idx: number; laws: number; vetoes: number; budget_late: number }>('SELECT year, state_idx, laws, vetoes, budget_late FROM state_session WHERE year = (SELECT MAX(year) FROM state_session)')) sessions.set(r.state_idx, { year: r.year, laws: r.laws, vetoes: r.vetoes, budgetLate: !!r.budget_late });
   const totals = { dChambers: 0, rChambers: 0, split: 0, dTrifectas: 0, rTrifectas: 0, dLegislators: 0, rLegislators: 0, others: 0 };
@@ -130,7 +131,10 @@ function legislatures(u: Universe): LegislaturesDto {
       const majority = 2 * d > c.seats ? PARTY_D : 2 * r > c.seats ? PARTY_R : null;
       if (majority === PARTY_D) totals.dChambers++; else if (majority === PARTY_R) totals.rChambers++; else totals.split++;
       totals.dLegislators += d; totals.rLegislators += r; totals.others += c.seats - d - r;
-      return { name: c.name, kind: c.kind, seats: c.seats, composition: comp, majority };
+      const ds = w.districts.districtsOf(c.kind === 'state_upper' ? 'sldu' : 'sldl', st.idx, year).filter((x) => x.seats > 0);
+      const districts = { count: ds.length, multi: ds.filter((x) => x.seats > 1).length, floterial: ds.filter((x) => x.members).length, maxSeats: Math.max(0, ...ds.map((x) => x.seats)),
+        mode: seatRule(st.usps, c.kind === 'state_upper' ? 'upper' : 'lower')?.mode ?? 'single' };
+      return { name: c.name, kind: c.kind, seats: c.seats, composition: comp, majority, districts };
     });
     const trifecta = governorParty !== null && chambers.length > 0 && chambers.every((c) => c.majority === governorParty) ? governorParty : null;
     if (trifecta === PARTY_D) totals.dTrifectas++; else if (trifecta === PARTY_R) totals.rTrifectas++;
@@ -174,7 +178,8 @@ function districtMap(u: Universe, state: number, plan: DistrictKind, year: numbe
   const w = u.world, pack = w.pack, D = w.districts;
   const counties = pack.counties.filter((c) => c.stateIdx === state);
   if (!counties.length) return null;
-  const list = D.districtsOf(plan, state, year);
+  // Floterial districts (New Hampshire) overlap the ordinary ones and have no area of their own on the map.
+  const list = D.districtsOf(plan, state, year).filter((d) => !d.members);
   if (!list.length) return null;
   const local = new Map(list.map((d, i) => [d.idx, i]));
   const asg = D.assignment(plan, year);
@@ -204,7 +209,7 @@ function districtMap(u: Universe, state: number, plan: DistrictKind, year: numbe
       const parties = byNumber.get(d.number) ?? [];
       const dn = parties.filter((p) => p === PARTY_D).length, rn = parties.filter((p) => p === PARTY_R).length;
       return {
-        idx: i, label: plan === 'cd' ? d.code ?? String(d.number) : `${d.number}${d.seats > 1 ? ` (${d.seats} seats)` : ''}`, population: d.pop2010,
+        idx: i, label: plan === 'cd' ? d.code ?? String(d.number) : `${d.label}${d.seats > 1 ? ` (${d.seats} seats)` : ''}`, population: d.pop2010,
         holderParty: parties.length ? (dn > rn ? PARTY_D : rn > dn ? PARTY_R : parties[0]!) : null,
         lean: Math.round(10 * (plan === 'cd' ? leanMargin(w.lean.cd, d.idx) : lean![d.idx] ?? 0)) / 10,
       };

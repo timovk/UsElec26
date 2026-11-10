@@ -164,6 +164,7 @@ function CompBar({ c }: { c: LegislaturesDto['states'][number]['chambers'][numbe
   return <div title={c.composition.map((x) => `${PARTY_NAME[x.party]} ${x.seats}`).join(', ')}>
     <div className="tiny" style={{ marginBottom: 2 }}>{c.composition.map((x) => <span key={x.party} style={{ marginRight: 8, color: x.party === 1 ? 'var(--dem-2)' : x.party === 2 ? 'var(--rep-2)' : 'var(--text-2)' }}>{PARTY_ABBR[x.party]} {x.seats}</span>)}</div>
     <SeatBar composition={c.composition} seats={c.seats} />
+    {(c.districts.multi > 0 || c.districts.mode !== 'single') && <div className="tiny muted" style={{ marginTop: 2 }}>{districtsText(c)}</div>}
   </div>;
 }
 
@@ -433,6 +434,16 @@ function StateOfficesPanel({ state }: { state?: number }) {
       )}
     </>
   );
+}
+
+/** How a chamber's seats are elected (Phase 7.4): single-member, "vote for N", numbered positions or staggered seats. */
+function districtsText(ch: LegislaturesDto['states'][number]['chambers'][number]): string {
+  const d = ch.districts;
+  if (!d.count) return '';
+  if (d.mode === 'posts') return `${d.count} districts, each electing ${d.maxSeats} members to numbered positions`;
+  if (d.mode === 'staggered') return `${d.count} districts of ${d.maxSeats} members, elected in alternate cycles`;
+  if (!d.multi) return `${d.count} single-member districts`;
+  return `${ch.seats} seats in ${d.count} districts; ${d.multi} elect several members on one ballot (vote for up to ${d.maxSeats})${d.floterial ? `; ${d.floterial} floterial districts overlap the others` : ''}`;
 }
 
 // ---- Ballot measures (Phase 7.3) -------------------------------------------------------------------------------

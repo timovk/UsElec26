@@ -210,6 +210,20 @@ CREATE TABLE ballot_measure (contest_id INTEGER PRIMARY KEY, state_idx INTEGER N
 CREATE INDEX ballot_measure_state ON ballot_measure(state_idx, year);
 `;
 
+/**
+ * Phase 7.4: multi-member districts. A contest elects `seats` members (one race per "vote for N" district);
+ * `contest_seat` lists the offices it fills and, once decided, the candidacy that won each. Districts carry the
+ * state's name for them (`label`), and a floterial district (New Hampshire) lists the ordinary districts it spans
+ * in `district_member`.
+ */
+const V10 = `
+ALTER TABLE contest ADD COLUMN seats INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE district ADD COLUMN label TEXT;
+CREATE TABLE district_member (kind TEXT NOT NULL, idx INTEGER NOT NULL, member INTEGER NOT NULL, PRIMARY KEY (kind, idx, member));
+CREATE TABLE contest_seat (contest_id INTEGER NOT NULL, office_id INTEGER NOT NULL, candidacy_id INTEGER, PRIMARY KEY (contest_id, office_id));
+CREATE INDEX contest_seat_office ON contest_seat(office_id);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, description: 'Phase 1 foundational universe schema', up: (db) => db.exec(V1) },
   { version: 2, description: 'Phase 2 elections, contests, candidacies and the results archive', up: (db) => db.exec(V2) },
@@ -220,6 +234,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 7, description: 'Phase 7.1 election law over time, ranked-choice rounds and nonpartisan ballots', up: (db) => db.exec(V7) },
   { version: 8, description: 'Phase 7.2 seats of down-ballot offices, boards and state courts', up: (db) => db.exec(V8) },
   { version: 9, description: 'Phase 7.3 ballot measures', up: (db) => db.exec(V9) },
+  { version: 10, description: 'Phase 7.4 multi-member and floterial districts', up: (db) => db.exec(V10) },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

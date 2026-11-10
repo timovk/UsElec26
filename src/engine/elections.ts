@@ -15,7 +15,9 @@ import { cohortClasses } from '../electorate/kernel';
 import type { RcvOutcome } from './nightJob';
 import { buildShard, stateRanges, type StateRange } from '../electorate/shards';
 import { retirementExtra } from '../careers/model';
-import { legislativeField, legislativeSeatUp, sldLean } from './legislatures';
+import { chamberRule, floterialMap, legislativeBlockField, legislativeField, legislativePosts, legislativeSeatUp, sldLean, type LegCandidate, type LegKind } from './legislatures';
+import { districtWord } from '../rules/legislativeSeats2016';
+import type { DistrictInfo } from './districts';
 import { TURNOUT_OFFSET, calibrateTurnout, drawEnvironment, setEnvironmentEconomy, stepEnvironment, type Environment } from '../electorate/environment';
 import { certifiedFromCast, prepareContest, prepareDerived, prepareRejected, prepareRollup, prepareTurnout, readRollup, writeContest, writeTotalsRevision, K, totalsOf, type ContestResult } from '../archive/results';
 import { crc32 } from '../core/codec';
@@ -32,7 +34,7 @@ import { MODE_PROV, ST_CALLED, ST_WITHDRAWN, type StateNight } from '../counting
 import { COUNTING_RULES_2016 } from '../rules/counting2016';
 import { aggregate, candidateQuality, heldKinds, kernelContest, packGeo, type CandidacyRow, type ContestRow } from './electionModel';
 import { backgroundFor, bodyDistricts, seatBody, seatElectionIn, seatHomeCounty, seatMargin } from './downballot';
-import { elected, isDownballot, isJudicial, type BodyDef } from '../rules/downballot2016';
+import { elected, isDownballot, isJudicial, type BodyDef, bodyName } from '../rules/downballot2016';
 import { MeasureStore, createMeasures, decideMeasure, measureCounts } from './measures';
 import { passWeights, type Threshold } from '../rules/measures2016';
 import type { World } from './world';
@@ -114,6 +116,7 @@ export class ElectionEngine {
   /** Regular races in a year, from office terms and the legal schedule. */
   regularRaces(year: number): Race[] {
     const out: Race[] = [];
+    const posts = legislativePosts(this.w, year);
     for (const o of this.w.offices) {
       let up = false;
       if (o.kind === 'president') up = year % 4 === 0;
@@ -121,7 +124,7 @@ export class ElectionEngine {
       else if (o.kind === 'us_representative') up = year % 2 === 0 && !this.w.districts.isAbolished(o.id, year);
       else if (o.kind === 'state_senator' || o.kind === 'state_representative') {
         const t = this.w.districts.table(o.kind === 'state_senator' ? 'sldu' : 'sldl')[o.districtIdx!];
-        up = !!t && legislativeSeatUp(o, t.number, year, this.w.pack.states[o.stateIdx!]!.usps);
+        up = !!t && legislativeSeatUp(o, t.number, year, this.w.pack.states[o.stateIdx!]!.usps, posts.get(o.id)?.post ?? 1);
       }
       else if (STATEWIDE.includes(o.kind)) {
         const inst = STATES_2016[this.w.pack.states[o.stateIdx!]!.usps];
@@ -568,8 +571,14 @@ export class ElectionEngine {
       this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [contest, p.id, party, order, incumbent ? 1 : 0, null, 'running', quality]);
     // Statewide offices before boards and courts (an officeholder runs for one office at a time).
     const sorted = [...races].sort((a, b) => a.office.rank - b.office.rank);
+    // "Vote for N" bodies (Phase 7.4): the seats of a body up together are one statewide race.
+    const blocks = new Map<string, Race[]>();
+    for (const race of sorted) { const b = seatBody(w, race.office); if (b?.voteForN && elected(b) && !race.office.seat?.district) { const l = blocks.get(b.key); if (l) l.push(race); else blocks.set(b.key, [race]); } }
+    const inBlock = new Set<Race>(); for (const l of blocks.values()) if (l.length > 1) for (const x of l) inBlock.add(x);
     this.h.commit(() => {
+      for (const group of blocks.values()) if (group.length > 1) out.push(this.blockDownballot(group, stateIdx, year, generalId, primaryId, swing, insertContest, insertCand));
       for (const race of sorted) {
+        if (inBlock.has(race)) continue;
         const o = race.office, b = seatBody(w, o); if (!b || !elected(b)) continue;
         const r = this.rng('db-filing', year, o.id);
         const margin = seatMargin(w, o, year) + swing;
@@ -653,6 +662,57 @@ export class ElectionEngine {
   }
 
   /**
+   * A statewide "vote for N" race of a board (Phase 7.4): the incumbents of the seats up run unless retiring; each
+   * major party nominates up to N (by convention in Michigan; in a primary where more file, as in Arizona); minor
+   * parties often field one. The top N on the November ballot win.
+   */
+  private blockDownballot(group: Race[], stateIdx: number, year: number, generalId: number, primaryId: number | null, swing: number,
+    insertContest: (electionId: number, o: Office, kind: string, method: string, label: string, status: string, termStart: number | null, next: number | null, nonpartisan: boolean) => number,
+    insertCand: (contest: number, p: Person, party: number, order: number, incumbent: boolean, quality: number) => void): string {
+    const w = this.w, offices = group.map((x) => x.office).sort((a, b) => a.id - b.id), o = offices[0]!, b = seatBody(w, o)!, k = offices.length;
+    const r = this.rng('db-filing', year, o.id);
+    const margin = seatMargin(w, o, year) + swing;
+    const field = new Map<number, { person: Person; quality: number; incumbent: boolean }[]>([[PARTY_D, []], [PARTY_R, []]]);
+    for (const x of offices) {
+      const inc = w.current.get(x.id), p = inc ? w.persons.get(inc.personId) : undefined;
+      if (!p || p.deathDay !== null || this.runningIn(year).has(p.id) || !field.has(p.partyId)) continue;
+      const age = ageOn(p.birthDay, easternDay(group[0]!.termStart || w.time));
+      const hostile = Math.max(0, (p.partyId === PARTY_D ? -margin : margin) / 100);
+      if (r.bernoulli(Math.min(0.9, 0.12 + Math.max(0, age - 66) * 0.04 + hostile * 0.2))) { this.h.news('retirement', `${fullName(p)} will not seek another term`, `${x.title} ${fullName(p)} (${this.abbr(p.partyId)}) will leave office at the end of the term.`, { personId: p.id }); continue; }
+      field.get(p.partyId)!.push({ person: p, quality: this.quality(p) - 0.3 * this.h.scandalOf(p.id), incumbent: true }); this.runningIn(year).add(p.id);
+    }
+    const add = (party: number) => {
+      const c = (r.bernoulli(0.3) ? this.ladderCandidate(r, party, stateIdx, null, year) : null) ?? this.downballotNewcomer(r, party, o, year);
+      const pp = c.person.partyId === PARTY_D || c.person.partyId === PARTY_R ? c.person.partyId : party;
+      field.get(pp)!.push({ ...c, incumbent: false }); this.runningIn(year).add(c.person.id);
+    };
+    const primaries = !b.noPrimary && primaryId !== null;
+    for (const party of [PARTY_D, PARTY_R]) {
+      const pr = this.prospects(party, margin);
+      for (let i = field.get(party)!.length; i < k; i++) if (r.bernoulli(Math.min(0.98, 0.55 + 0.9 * pr))) add(party);
+      if (primaries && field.get(party)!.length >= k && r.bernoulli(0.35)) add(party);
+    }
+    if (field.get(PARTY_D)!.length + field.get(PARTY_R)!.length === 0) add(margin > 0 ? PARTY_D : PARTY_R);
+    const label = `${year} ${bodyName(b, w.pack.states[stateIdx]!.name)}`;
+    const general = insertContest(generalId, o, 'general', 'block', label, 'filing', group[0]!.termStart, null, false);
+    this.db.run('UPDATE contest SET seats = ? WHERE contest_id = ?', [k, general]);
+    for (const x of offices) this.db.run('INSERT INTO contest_seat(contest_id, office_id, candidacy_id) VALUES (?,?,NULL)', [general, x.id]);
+    let pending = false;
+    for (const party of [PARTY_D, PARTY_R]) {
+      const f = field.get(party)!;
+      if (f.length > k && primaries) {
+        const prim = insertContest(primaryId!, o, 'primary', 'block', `${label} ${PARTY_NAME[party]} primary`, 'set', null, general, false);
+        this.db.run('UPDATE contest SET seats = ?, party_id = ? WHERE contest_id = ?', [k, party, prim]);
+        f.forEach((c, i) => insertCand(prim, c.person, party, i, c.incumbent, c.quality));
+        pending = true;
+      } else f.slice(0, k).forEach((c) => insertCand(general, c.person, party, BALLOT_ORDER(party), c.incumbent, c.quality));
+    }
+    [PARTY_L, PARTY_G].forEach((party, i) => { if (r.bernoulli([0.5, 0.25][i]!)) { const c = this.downballotNewcomer(r, party, o, year); insertCand(general, c.person, party, BALLOT_ORDER(party), false, c.quality); } });
+    if (!pending) this.db.run("UPDATE contest SET status = 'set' WHERE contest_id = ?", [general]);
+    return label;
+  }
+
+  /**
    * A nonpartisan race: every candidate on one ballot without party labels. A nonpartisan primary narrows the
    * field to two (`two`); on primary day a majority wins outright (`majority`, the other candidates are eliminated);
    * West Virginia's courts are decided on primary day (`final`); otherwise everyone is on the general ballot
@@ -680,32 +740,63 @@ export class ElectionEngine {
     return [label];
   }
 
-  /** State legislative seats: one general contest per seat, each party's nominee chosen without a primary. */
+  /**
+   * State legislative seats: one general contest per seat, each party's nominee chosen without a primary; in a
+   * "vote for N" district (Phase 7.4) one contest for the district's seats, with up to N nominees per party.
+   */
   private legislativeFiling(year: number, stateIdx: number, generalId: number, races: Race[]): number {
     if (!races.length) return 0;
-    const w = this.w;
+    const w = this.w, st = w.pack.states[stateIdx]!;
     const lean = { sldu: sldLean(w, 'sldu', w.districts.assignment('sldu', year)), sldl: sldLean(w, 'sldl', w.districts.assignment('sldl', year)) };
     const env = this.environmentFor(year);
     const swing = 100 * 0.17 * env.national * 2;
-    let retirements = 0;
     const law = w.law.on(stateIdx, this.db.value<number>('SELECT day FROM election WHERE election_id = ?', [generalId])!);
+    const sldOf = (o: Office) => (o.kind === 'state_senator' ? 'sldu' : 'sldl') as 'sldu' | 'sldl';
+    const districtOf = (o: Office) => { const sld = sldOf(o), t = w.districts.table(sld)[o.districtIdx!]!; return w.districts.districtNumbered(sld, stateIdx, t.number, year) ?? t; };
+    // A floterial district's lean: its member districts', by population.
+    const marginOf = (sld: 'sldu' | 'sldl', d: DistrictInfo) => {
+      if (!d.members?.length) return lean[sld][d.idx] ?? 0;
+      let s = 0, p = 0; for (const m of d.members) { const x = w.districts.table(sld)[m]!; const q = Math.max(1, x.pop2010); s += q * (lean[sld][m] ?? 0); p += q; }
+      return p > 0 ? s / p : 0;
+    };
+    // Group a "vote for N" district's seats into one race.
+    const blocks = new Map<string, { d: DistrictInfo; races: Race[] }>(); const singles: { race: Race; d: DistrictInfo }[] = [];
+    for (const race of races) {
+      const o = race.office, d = districtOf(o);
+      if (chamberRule(st.usps, o.kind as LegKind)?.mode === 'block' && (d.seats > 1 || races.some((x) => x !== race && x.office.kind === o.kind && districtOf(x.office).idx === d.idx))) {
+        const key = `${o.kind}|${d.idx}`; const g = blocks.get(key); if (g) g.races.push(race); else blocks.set(key, { d, races: [race] });
+      } else singles.push({ race, d });
+    }
+    const running = this.runningIn(year);
+    const person = (r: Rng, sld: 'sldu' | 'sldl', d: DistrictInfo) => (party: number) => this.h.newPerson(r, 'C', party, stateIdx, { homeCounty: this.homeCountyLeg(r, stateIdx, sld, d.members?.length ? d.members[r.int(d.members.length)]! : d.idx, year), ageMean: 48, prominence: 0.02 });
+    const insertContest = (o: Office, d: DistrictInfo, method: string, label: string, termStart: number | null, seats: number) => {
+      this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year, nonpartisan, seats) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [generalId, o.id, 'general', null, stateIdx, d.idx, method, label, 'set', null, null, termStart, null, null, null, year, law.nonpartisan.includes(o.kind) ? 1 : 0, seats]);
+      return Number(this.db.value('SELECT last_insert_rowid()'));
+    };
+    const insertField = (cid: number, field: LegCandidate[]) => [...field].sort((a, b) => BALLOT_ORDER(a.party) - BALLOT_ORDER(b.party) || Number(b.incumbent) - Number(a.incumbent) || a.person.id - b.person.id)
+      .forEach((c) => this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [cid, c.person.id, c.party, BALLOT_ORDER(c.party), c.incumbent ? 1 : 0, null, 'running', c.quality]));
     this.h.commit(() => {
-      for (const race of races) {
-        const o = race.office, sld = o.kind === 'state_senator' ? 'sldu' : 'sldl';
+      for (const { race, d } of singles) {
+        const o = race.office, sld = sldOf(o);
         const r = this.rng('leg-filing', year, o.id);
-        const district = this.w.districts.districtNumbered(sld, stateIdx, w.districts.table(sld)[o.districtIdx!]!.number, year)?.idx ?? o.districtIdx!;
-        const margin = (lean[sld][district] ?? 0) + swing;
-        const { field, retired } = legislativeField(w, r, o, margin, year, (party) => this.h.newPerson(r, 'C', party, stateIdx, { homeCounty: this.homeCountyLeg(r, stateIdx, sld, district, year), ageMean: 48, prominence: 0.02 }), (p, b) => this.quality(p, b), this.runningIn(year));
-        if (retired) retirements++;
+        const { field } = legislativeField(w, r, o, marginOf(sld, d) + swing, year, person(r, sld, d), (p, b) => this.quality(p, b), running);
         // One nominee per party (no legislative primaries yet), so only a ranked general changes the method.
         const method = generalMethod(law, o.kind) === 'rcv' ? 'rcv' : 'plurality';
-        this.db.run('INSERT INTO contest(election_id, office_id, kind, party_id, state_idx, district_idx, method, label, status, winner_candidacy, runner_up_candidacy, term_start, parent_contest, next_contest, ev, year, nonpartisan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-          [generalId, o.id, 'general', null, stateIdx, district, method, `${year} ${o.title}`, 'set', null, null, race.termStart, null, null, null, year, law.nonpartisan.includes(o.kind) ? 1 : 0]);
-        const cid = Number(this.db.value('SELECT last_insert_rowid()'));
-        field.forEach((c) => this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [cid, c.person.id, c.party, BALLOT_ORDER(c.party), c.incumbent ? 1 : 0, null, 'running', c.quality]));
+        insertField(insertContest(o, d, method, `${year} ${o.title}`, race.termStart, 1), field);
+      }
+      for (const { d, races: rs } of blocks.values()) {
+        const offices = rs.map((x) => x.office).sort((a, b) => a.id - b.id), o = offices[0]!, sld = sldOf(o);
+        const r = this.rng('leg-filing', year, o.id);
+        const { field } = legislativeBlockField(w, r, offices, marginOf(sld, d) + swing, year, person(r, sld, d), (p, b) => this.quality(p, b), running);
+        const ch = w.chambers.find((c) => c.id === o.chamberId);
+        const label = `${year} ${ch?.name ?? o.title}, ${districtWord(d.label)}`.replace(`${st.name} ${st.name}`, st.name);
+        // "Vote for N": plurality at large within the district (a ranked-choice law ranks single-seat races only).
+        const cid = insertContest(o, d, 'block', label, rs[0]!.termStart, offices.length);
+        insertField(cid, field);
+        for (const x of offices) this.db.run('INSERT INTO contest_seat(contest_id, office_id, candidacy_id) VALUES (?,?,NULL)', [cid, x.id]);
       }
     });
-    void retirements;
     return races.length;
   }
 
@@ -862,6 +953,14 @@ export class ElectionEngine {
         let k = extraKey.indexOf(b.key);
         if (k < 0) { k = extraKey.length; extraKey.push(b.key); extra.push(bodyDistricts(this.w, g.stateIdx, b, year)); }
         kcs[i]!.cd = o.seat.district; kcs[i]!.geo = 3 + k;
+      });
+      // Floterial districts (New Hampshire, Phase 7.4): the voters of the ordinary districts they span.
+      g.contests.forEach((c, i) => {
+        if (c.officeKind !== 'state_representative' || c.row.district_idx === null) return;
+        const d = this.w.districts.table('sldl')[c.row.district_idx]; if (!d?.members?.length) return;
+        let k = extraKey.indexOf('#floterial');
+        if (k < 0) { k = extraKey.length; extraKey.push('#floterial'); extra.push(floterialMap(this.w, g.stateIdx, year)); }
+        kcs[i]!.cd = d.idx; kcs[i]!.geo = 3 + k;
       });
       const comp = Math.exp(-Math.abs(this.stateMargin(g.stateIdx, year) + this.rng('perceived', key, g.stateIdx).normal(0, 4)) / 8);
       const inp: JobInput = buildShard(g.turnout ? { ...ctx, tauE: ctx.tauE + g.turnout } : ctx, g.stateIdx, g.kind, g.party, kcs, g.kind === 'general' ? comp : 0);
@@ -1399,6 +1498,15 @@ export class ElectionEngine {
         }
         const { order, share } = this.rank(res, this.rng('tiebreak', c.contest_id));
         if (c.kind === 'retention') { this.decideRetention(c, cands, share[0] ?? 0, certifying, followUps); continue; }
+        if ((c.seats ?? 1) > 1 && c.kind !== 'primary') { this.decideBlock(c, cands, order, share, certifying, followUps); continue; }
+        if ((c.seats ?? 1) > 1 && c.kind === 'primary') {
+          // A "vote for N" party primary (Phase 7.4): the top N are the party's nominees.
+          const adv = order.slice(0, c.seats).map((j) => cands[j]!);
+          if (c.next_contest !== null) for (const x of adv) this.db.run('INSERT INTO candidacy(contest_id, person_id, party_id, ballot_order, incumbent, running_mate, status, quality) VALUES (?,?,?,?,?,?,?,?)', [c.next_contest, x.person.id, x.cand.party_id, BALLOT_ORDER(x.cand.party_id), x.cand.incumbent, null, 'running', x.cand.quality]);
+          for (const x of cands) this.db.run('UPDATE candidacy SET status = ? WHERE candidacy_id = ?', [adv.includes(x) ? 'advanced' : 'eliminated', x.cand.candidacy_id]);
+          this.db.run("UPDATE contest SET status = 'decided', winner_candidacy = ?, runner_up_candidacy = ? WHERE contest_id = ?", [adv[0]?.cand.candidacy_id ?? null, order.length > c.seats! ? cands[order[c.seats!]!]!.cand.candidacy_id : null, c.contest_id]);
+          continue;
+        }
         let win = cands[order[0]!]!, second = order.length > 1 ? cands[order[1]!]! : null;
         let top = share[order[0]!]!;
         // Ranked-choice: without a first-choice majority, the instant runoff decides (Phase 7.1).
@@ -1479,6 +1587,36 @@ export class ElectionEngine {
       for (const [party, list] of nomOutcomes) this.nomination.afterDay(rows[0]!.year, party, easternDay(now), list);
     };
     return { apply, followUps };
+  }
+
+  /**
+   * A "vote for N" race (Phase 7.4): the N candidates with the most votes win. Re-elected incumbents keep their
+   * own seats; the other winners take the district's remaining seats in order.
+   */
+  private decideBlock(c: ContestRow, cands: { cand: CandidacyRow; person: Person }[], order: number[], share: number[], certifying: boolean, followUps: (() => void)[]): void {
+    const w = this.w, now = w.time, n = c.seats ?? 1;
+    const winners = order.slice(0, n).map((j) => cands[j]!), losers = order.slice(n).map((j) => cands[j]!);
+    for (const x of cands) this.db.run('UPDATE candidacy SET status = ? WHERE candidacy_id = ?', [winners.includes(x) ? 'won' : 'lost', x.cand.candidacy_id]);
+    const seats = this.db.all<{ office_id: number }>('SELECT office_id FROM contest_seat WHERE contest_id = ? ORDER BY office_id', [c.contest_id]).map((r) => r.office_id);
+    if (!seats.length && c.office_id !== null) seats.push(c.office_id);
+    const assign = new Map<number, (typeof winners)[number]>();
+    for (const x of winners) {
+      if (!x.cand.incumbent) continue;
+      const own = seats.find((oid) => w.current.get(oid)?.personId === x.person.id);
+      if (own !== undefined && !assign.has(own)) assign.set(own, x);
+    }
+    const placed = new Set(assign.values());
+    const rest = winners.filter((x) => !placed.has(x));
+    for (const oid of seats) { if (assign.has(oid)) continue; const x = rest.shift(); if (x) assign.set(oid, x); }
+    for (const [oid, x] of assign) this.db.run('UPDATE contest_seat SET candidacy_id = ? WHERE contest_id = ? AND office_id = ?', [x.cand.candidacy_id, c.contest_id, oid]);
+    this.db.run('UPDATE contest SET status = ?, winner_candidacy = ?, runner_up_candidacy = ? WHERE contest_id = ?', [certifying ? 'certified' : 'decided', winners[0]?.cand.candidacy_id ?? null, losers[0]?.cand.candidacy_id ?? null, c.contest_id]);
+    const start = c.term_start !== null ? Math.max(c.term_start, now + 60) : now + (certifying ? 7 : 14) * MINUTES_PER_DAY;
+    followUps.push(() => { for (const [oid, x] of assign) this.h.schedule(start, 'take_office', { office: oid, person: x.person.id, contest: c.contest_id }, 3); });
+    for (const x of losers) {
+      if (!x.cand.incumbent) continue;
+      const j = cands.indexOf(x);
+      this.h.news('defeat', `${fullName(x.person)} defeated`, `${fullName(x.person)} (${this.abbr(x.cand.party_id)}) finished outside the top ${n} in ${c.label.replace(/^\d{4} /, '')} with ${(100 * (share[j] ?? 0)).toFixed(1)}% of the votes.`, { personId: x.person.id });
+    }
   }
 
   /** Phase 2 saves only: national certification of results decided at the close of voting. */

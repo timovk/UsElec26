@@ -208,6 +208,21 @@ Ballots are cast over weeks (mail and early voting), not in an instant:
   state's schedule (two- and four-year terms, odd-year states, and all senate seats after redistricting where
   the state does that), with one nominee per party (no primaries yet). A vacancy is filled at the next regular
   election. Control changes are news.
+- **Multi-member and floterial districts** (Phase 7.4, `rules/legislativeSeats2016.ts`, `geo/floterials.ts`):
+  each district elects the members its state's 2016 law gives it. "Vote for N" districts (Arizona, New Jersey,
+  North Dakota, South Dakota, Maryland, Vermont, West Virginia, New Hampshire) hold one race for the district's
+  seats: each party nominates up to N, each ballot marks up to N names, the top N win, and re-elected incumbents
+  keep their own seats. In the kernel a voter type's chance of marking each candidate is the inclusion
+  probability of drawing N names in order without replacement (Plackett–Luce; a 16-point quadrature of the
+  exponential-race integral), mixed with bullet voting (a single mark), which is likelier when the voter's party
+  runs fewer than N; a contest's counts are marks, N per ballot, with the unused marks last. Washington's and
+  Idaho's numbered positions and West Virginia's staggered senate seats are separate races. New Hampshire's
+  floterial districts are generated as the state builds them (whole seats per town district, leftovers pooled
+  across neighbouring districts of a county) and voted on through an extra district map. Statewide boards that
+  elect several seats together (Michigan's, Arizona's Corporation Commission) are vote-for-N races too, with
+  vote-for-N primaries where held. Districts are numbered uniquely within a state (letter-coded districts used to
+  collapse to one number) and carry the state's names for them. After a census, New Hampshire's seats and
+  floterials are recomputed on the new map and members re-seated.
 - **Census and districts:** the census on April 1 of each year ending in 0, Huntington–Hill apportionment on
   December 31, redistricting September–November of the following year, new plans for the elections two years
   after the census, and the new districts take office on January 3 of the year after that. Plans are versioned:

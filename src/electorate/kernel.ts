@@ -9,7 +9,7 @@
  * in any order, on any number of workers, with identical results.
  */
 import { Rng } from '../core/rng';
-import { dexp, dlogistic, dtanh, normCdf } from '../core/math';
+import { dexp, dlog, dlogistic, dtanh, normCdf } from '../core/math';
 import { N_COHORTS, cohortAge, rake, type Marginals } from '../population/cohorts';
 import type { ElectorateParams } from './model';
 import { DIMS } from './model';
@@ -86,6 +86,12 @@ export interface KernelContest {
   options: KernelOption[];
   /** Ranked-choice contest (Phase 7.1): the kernel also returns the voter types behind each first choice, per reporting jurisdiction. */
   rcv?: boolean;
+  /**
+   * Members elected (Phase 7.4; 1 when absent): a "vote for N" ballot. Each voter marks up to N candidates; an
+   * option's count is the ballots marking it, and the last count holds the marks left unused, so a unit's counts
+   * sum to N × its ballots.
+   */
+  seats?: number;
 }
 
 export interface ShardInput {
@@ -209,6 +215,61 @@ export function typeUtilities(inp: Pick<ShardInput, 'homeStateBonus' | 'homeCoun
   }
 }
 
+// 16-point Gauss–Legendre rule on (0, 1): nodes y and weights, and −ln y (deterministic logarithms).
+const GL16: readonly [number, number][] = [[0.0950125098376374, 0.1894506104550685], [0.2816035507792589, 0.1826034150449236], [0.4580167776572274, 0.1691565193950025],
+  [0.6178762444026438, 0.1495959888165767], [0.7554044083550030, 0.1246289712555339], [0.8656312023878318, 0.0951585116824928], [0.9445750230732326, 0.0622535239386479], [0.9894009349916499, 0.0271524594117541]];
+const GL_W = GL16.flatMap(([, w]) => [w / 2, w / 2]);
+const GL_T = GL16.flatMap(([x]) => [-dlog((1 - x) / 2), -dlog((1 + x) / 2)]);
+
+/**
+ * Inclusion probabilities of marking `n` of the options with weights `w` one after another without replacement
+ * (each next mark in proportion to the weights left: the Plackett–Luce order). Option j is marked when fewer
+ * than n others come before it; with exponential arrival times, πⱼ = ∫₀¹ P(fewer than n of the others by
+ * −ln(y)/wⱼ) dy, integrated by a 16-point Gauss–Legendre rule (exact to about 0.01).
+ */
+export function inclusionProbs(w: ArrayLike<number>, n: number, out: Float64Array, dp: Float64Array = new Float64Array(n + 1)): void {
+  const J = w.length;
+  if (n >= J) { for (let j = 0; j < J; j++) out[j] = 1; return; }
+  if (n <= 0) { for (let j = 0; j < J; j++) out[j] = 0; return; }
+  for (let j = 0; j < J; j++) {
+    const wj = w[j]!;
+    if (!(wj > 0)) { out[j] = 0; continue; }
+    let pi = 0;
+    for (let q = 0; q < GL_T.length; q++) {
+      const t = GL_T[q]! / wj;
+      // Count of the others arrived by t, truncated at n (only P(count < n) is needed).
+      dp.fill(0, 0, n + 1); dp[0] = 1;
+      for (let i = 0; i < J; i++) {
+        if (i === j) continue;
+        const p = 1 - dexp(-w[i]! * t);
+        for (let k = n; k >= 1; k--) dp[k] = dp[k]! * (1 - p) + dp[k - 1]! * p;
+        dp[0] = dp[0]! * (1 - p);
+      }
+      let f = 0; for (let k = 0; k < n; k++) f += dp[k]!;
+      pi += GL_W[q]! * f;
+    }
+    out[j] = Math.min(1, Math.max(0, pi));
+  }
+}
+
+/**
+ * A vote-for-N ballot's probabilities for one voter type, from its utilities (options, then abstaining): each
+ * candidate's chance of being marked and, last, of a ballot marking nobody. Voters mark N names one after another;
+ * some mark only one ("bullet voting"), more often when their own party runs fewer than N candidates.
+ */
+export function markProbs(u: ArrayLike<number>, party: ArrayLike<number>, seats: number, out: Float64Array, wBuf: Float64Array, piBuf: Float64Array): void {
+  const J = u.length - 1;
+  let mx = u[J]!; for (let j = 0; j < J; j++) if (u[j]! > mx) mx = u[j]!;
+  let S = 0, best = 0;
+  for (let j = 0; j < J; j++) { wBuf[j] = dexp(u[j]! - mx); S += wBuf[j]!; if (wBuf[j]! > wBuf[best]!) best = j; }
+  const wa = dexp(u[J]! - mx), blank = wa / (wa + S);
+  let nFav = 0; for (let j = 0; j < J; j++) if (party[j] === party[best]) nFav++;
+  const bullet = 0.06 + 0.3 * Math.max(0, 1 - nFav / seats);
+  inclusionProbs(wBuf.subarray(0, J), Math.min(seats, J), piBuf);
+  for (let j = 0; j < J; j++) out[j] = (1 - blank) * ((1 - bullet) * piBuf[j]! + bullet * (S > 0 ? wBuf[j]! / S : 0));
+  out[J] = blank;
+}
+
 /** A growable Int32 buffer (results per contest are collected without boxing every number in a JS array). */
 class IntBuf {
   a = new Int32Array(256); n = 0;
@@ -246,16 +307,19 @@ export function runShard(inp: ShardInput): ShardOutput {
   // every other county shares one table per contest (computed once per shard instead of once per county).
   const probCache = new Map<number, Float64Array>();
   const homes = inp.contests.map((c) => new Set(c.options.map((o) => o.homeCounty).filter((h) => h >= 0)));
-  const pbar = new Float64Array(16), draw = new Int32Array(16);
+  const maxK = inp.contests.reduce((a, c) => Math.max(a, c.options.length + 1), 16);
+  const pbar = new Float64Array(maxK), draw = new Int32Array(maxK);
   let expectedBallots = 0;
 
   const probTable = (ci: number, county: number): Float64Array => {
     const key = ci * 65536 + (homes[ci]!.has(county) ? county : 65535);
     let t = probCache.get(key);
     if (t) return t;
-    const c = inp.contests[ci]!; const J = c.options.length;
+    const c = inp.contests[ci]!; const J = c.options.length, N = c.seats ?? 1;
     t = new Float64Array((J + 1) * N_TYPES);
     const u = new Float64Array(J + 1);
+    const party = N > 1 ? Float64Array.from(c.options, (o) => o.partySign) : null, mk = N > 1 ? new Float64Array(J + 1) : null;
+    const wB = N > 1 ? new Float64Array(J) : null, piB = N > 1 ? new Float64Array(J) : null;
     for (let h = 0; h < N_CLASS; h++) for (let g = 0; g < ZG; g++) {
       const ty = h * ZG + g;
       let mx = c.abstain; u[J] = c.abstain;
@@ -265,6 +329,7 @@ export function runShard(inp: ShardInput): ShardOutput {
           + (o.homeState ? inp.homeStateBonus : 0) + (o.homeCounty === county ? inp.homeCountyBonus : 0);
         if (u[j]! > mx) mx = u[j]!;
       }
+      if (mk) { markProbs(u, party!, N, mk, wB!, piB!); for (let j = 0; j <= J; j++) t[j * N_TYPES + ty] = mk[j]!; continue; }
       let s = 0; for (let j = 0; j <= J; j++) { u[j] = dexp(u[j]! - mx); s += u[j]!; }
       for (let j = 0; j <= J; j++) t[j * N_TYPES + ty] = u[j]! / s;
     }
@@ -327,7 +392,7 @@ export function runShard(inp: ShardInput): ShardOutput {
     for (let li = 0; li < list.length; li++) {
       const ci = list[li]!;
       const c = inp.contests[ci]!;
-      const J = c.options.length, K = J + 1;
+      const J = c.options.length, K = J + 1, N = c.seats ?? 1;
       const P = probTable(ci, county);
       const out = outs[ci]!;
       const tot = totS[ci]!; tot.fill(0);
@@ -335,14 +400,26 @@ export function runShard(inp: ShardInput): ShardOutput {
       for (let m = 0; m < N_MODES; m++) {
         if (lm[m]! <= 0) continue;
         pbar.fill(0, 0, K);
-        for (let j = 0; j < K; j++) { let s = 0; const row = j * N_TYPES; for (let ty = 0; ty < N_TYPES; ty++) s += V[m * N_TYPES + ty]! * P[row + ty]!; pbar[j] = s; out.expected[j]! += s; }
-        if (out.expPartMode) { const eo = (unitPart * N_MODES + m) * K; for (let j = 0; j < K; j++) out.expPartMode[eo + j]! += pbar[j]!; }
+        for (let j = 0; j < K; j++) { let s = 0; const row = j * N_TYPES; for (let ty = 0; ty < N_TYPES; ty++) s += V[m * N_TYPES + ty]! * P[row + ty]!; pbar[j] = s; }
+        // Vote for N: expected marks per candidate, then the marks left unused (blank ballots mark none).
+        let unusedExp = pbar[J]!;
+        if (N > 1) { unusedExp = N * lm[m]!; for (let j = 0; j < J; j++) unusedExp -= pbar[j]!; }
+        for (let j = 0; j < J; j++) out.expected[j]! += pbar[j]!;
+        out.expected[J]! += unusedExp;
+        if (out.expPartMode) { const eo = (unitPart * N_MODES + m) * K; for (let j = 0; j < J; j++) out.expPartMode[eo + j]! += pbar[j]!; out.expPartMode[eo + J]! += unusedExp; }
         if (out.rcvComp) { // ranked-choice: who is behind each first choice (the undervote has no ranking)
           for (let j = 0; j < J; j++) { const co = (rjLocal * J + j) * N_TYPES, row = j * N_TYPES, vo = m * N_TYPES; for (let ty = 0; ty < N_TYPES; ty++) out.rcvComp[co + ty]! += V[vo + ty]! * P[row + ty]!; }
           if (out.rcvCounty![rjLocal]! < 0) out.rcvCounty![rjLocal] = county;
         }
         if (bm[m]! === 0) continue;
-        r.multinomial(bm[m]!, pbar.subarray(0, K), draw);
+        if (N > 1) {
+          // Ballots marking nobody, then each candidate's marks among the rest; the unused marks last.
+          const blank = r.binomial(bm[m]!, Math.min(1, pbar[J]! / lm[m]!)), voters = bm[m]! - blank, den = lm[m]! - pbar[J]!;
+          let used = 0;
+          // (No ballot marks more than N names: the marks drawn never exceed N per ballot.)
+          for (let j = 0; j < J; j++) { draw[j] = voters > 0 && den > 0 ? Math.min(r.binomial(voters, Math.min(1, pbar[j]! / den)), N * voters - used) : 0; used += draw[j]!; }
+          draw[J] = N * bm[m]! - used;
+        } else r.multinomial(bm[m]!, pbar.subarray(0, K), draw);
         const ro = (rjLocal * N_MODES + m) * K;
         for (let j = 0; j < K; j++) { tot[j]! += draw[j]!; out.rjMode[ro + j]! += draw[j]!; }
         if (byMode) for (let j = 0; j < K; j++) byMode[m * K + j] = draw[j]!;

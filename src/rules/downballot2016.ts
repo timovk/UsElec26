@@ -66,6 +66,8 @@ export interface BodyDef {
   spring?: boolean;
   /** Party nominees chosen by convention, not primary (Michigan's boards and Supreme Court). */
   noPrimary?: boolean;
+  /** Seats up together are one "vote for N" race statewide (Michigan's boards, Arizona's Corporation Commission; Phase 7.4). */
+  voteForN?: boolean;
   /** Members elected by district (drawn by the simulation from state house districts): number of districts. */
   districts?: number;
   /** Seats per district (default one each). */
@@ -114,7 +116,7 @@ export const DOWNBALLOT_2016: Record<string, BodyDef[]> = {
     appeals(5, 6, 'partisan', { key: 'criminal', name: 'Court of Criminal Appeals', retireAt: 70 })],
   AK: [supreme(5, 10, 'retention', { retireAt: 70 }), appeals(3, 8, 'retention', { retireAt: 70 })],
   AZ: [treasurer(), supt(), exec('other_statewide', 'Mine Inspector', { key: 'mine' }),
-    commission('Corporation Commission', 5, 4, { seatCycles: [2016, 2016, 2016, 2018, 2018] }),
+    commission('Corporation Commission', 5, 4, { voteForN: true, seatCycles: [2016, 2016, 2016, 2018, 2018] }),
     supreme(5, 6, 'retention', { retireAt: 70 })],
   AR: [treasurer(), auditor(), land(),
     supreme(7, 8, 'nonpartisan', { np: 'majority', onPrimary: true, retireAt: 70 })],
@@ -159,10 +161,10 @@ export const DOWNBALLOT_2016: Record<string, BodyDef[]> = {
     supreme(7, 10, 'retention', { full: 'Maryland Court of Appeals', districts: 7, retireAt: 70, appointer: 'governor' })],
   MA: [treasurer({ name: 'Treasurer and Receiver-General' }), auditor(),
     supreme(7, 0, 'appointed', { full: 'Massachusetts Supreme Judicial Court', years: 'any', retireAt: 70, appointer: 'governor_council' })],
-  MI: [sboe(8, 8, { noPrimary: true, seatCycles: [2016, 2016, 2018, 2018, 2020, 2020, 2022, 2022] }),
-    regents('um', 'University of Michigan Board of Regents', 'Regent', 8, 8, { noPrimary: true, seatCycles: [2016, 2016, 2018, 2018, 2020, 2020, 2022, 2022] }),
-    regents('msu', 'Michigan State University Board of Trustees', 'Trustee', 8, 8, { noPrimary: true, seatCycles: [2016, 2016, 2018, 2018, 2020, 2020, 2022, 2022] }),
-    regents('wsu', 'Wayne State University Board of Governors', 'Governor', 8, 8, { noPrimary: true, seatCycles: [2016, 2016, 2018, 2018, 2020, 2020, 2022, 2022] }),
+  MI: [sboe(8, 8, { noPrimary: true, voteForN: true, seatCycles: [2016, 2016, 2018, 2018, 2020, 2020, 2022, 2022] }),
+    regents('um', 'University of Michigan Board of Regents', 'Regent', 8, 8, { noPrimary: true, voteForN: true, seatCycles: [2016, 2016, 2018, 2018, 2020, 2020, 2022, 2022] }),
+    regents('msu', 'Michigan State University Board of Trustees', 'Trustee', 8, 8, { noPrimary: true, voteForN: true, seatCycles: [2016, 2016, 2018, 2018, 2020, 2020, 2022, 2022] }),
+    regents('wsu', 'Wayne State University Board of Governors', 'Governor', 8, 8, { noPrimary: true, voteForN: true, seatCycles: [2016, 2016, 2018, 2018, 2020, 2020, 2022, 2022] }),
     supreme(7, 8, 'party_np', { noPrimary: true, retireAt: 70 })],
   MN: [auditor(),
     supreme(7, 6, 'nonpartisan', { np: 'two', retireAt: 70 }), appeals(19, 6, 'nonpartisan', { np: 'two', retireAt: 70 })],
