@@ -187,8 +187,7 @@ with them. The universe is still deterministic: the same seed and version give t
 - **No ballot marks more than N names.** Drawing each candidate's marks independently could, by chance, add up to
   more than N per ballot. Each draw is now capped at the marks left.
 - **New Hampshire's floterials, as generated** (47, with 55 seats): the largest under-representation is 27%, by a
-  strict population measure, and most districts are within ±15%. That is an improvement on Phase 6's 31–33%;
-  the real plan's deviations were in the same range.
+  strict population measure, and most districts are within ±15%. That is an improvement on Phase 6's 31–33%.
 - **Decisions:**
   - **Ranked-choice voting** applies only to single-seat races. A state that adopts it keeps plurality voting in its
     vote-for-N districts; multi-winner ranked voting (single transferable vote) is not modelled.
