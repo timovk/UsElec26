@@ -77,7 +77,7 @@ export function Analyst({ n }: { n: NightState }) {
           <section className="card an-wide"><h2>The count over time</h2>{d ? <CountChart m={m} d={d} /> : <p className="muted small">Loading…</p>}</section>
           <section className="card"><h2>Outstanding vote</h2><Outstanding m={m} n={n} /></section>
           <section className="card"><h2>Votes by mode</h2>{d ? <Modes m={m} d={d} /> : null}</section>
-          <section className="card"><h2>County swing</h2><Swing m={m} n={n} base={baseCounties} /></section>
+          <section className="card"><h2>County swing</h2><p className="tiny muted" style={{ marginTop: -6 }}>By town in New England, by House district in Alaska.</p><Swing m={m} n={n} base={baseCounties} /></section>
           <section className="card"><h2>Turnout</h2><Turnout m={m} n={n} ctx={ctx} /></section>
           <section className="card"><h2>Voter survey</h2><Survey m={m} s={surveyData} /></section>
           <section className="card"><h2>Desk calls</h2>{d ? <Calls m={m} d={d} /> : null}</section>
@@ -166,9 +166,11 @@ function Modes({ m, d }: { m: RaceMeta; d: RaceDetailDto }) {
   );
 }
 
+/** The focused race by area: counties, or New England's towns and Alaska's districts (their map areas; Phase 7.5). */
 function countyVotes(m: RaceMeta, n: NightState): Map<number, number[]> {
   const out = new Map<number, number[]>(); const fd = n.focusData; if (!fd || fd.race !== m.i) return out;
-  for (const [rj, v] of fd.byRj) { const c = n.meta.rjCounty[rj]; if (c === undefined) continue; const a = out.get(c) ?? new Array<number>(m.k).fill(0); v.forEach((x, j) => { a[j]! += x; }); out.set(c, a); }
+  const g = n.geo, units = new Map(g?.units.map((x) => [x.idx, g.unitOffset + x.idx]) ?? []);
+  for (const [rj, v] of fd.byRj) { const c = units.get(rj) ?? n.meta.rjCounty[rj]; if (c === undefined) continue; const a = out.get(c) ?? new Array<number>(m.k).fill(0); v.forEach((x, j) => { a[j]! += x; }); out.set(c, a); }
   return out;
 }
 
@@ -178,7 +180,8 @@ function Swing({ m, n, base }: { m: RaceMeta; n: NightState; base: BaselineCount
   if (!base) return <p className="muted small">No previous comparable election in the archive yet (the first simulated cycle has none).</p>;
   const di = m.candidates.findIndex((c) => c.party === 1), ri = m.candidates.findIndex((c) => c.party === 2);
   if (di < 0 || ri < 0) return <p className="muted small">Swing compares the Democratic and Republican margins; this race lacks one of them.</p>;
-  const names = new Map(n.geo?.counties.map((c) => [c.idx, c.name]) ?? []);
+  const names = new Map<number, string>(n.geo?.counties.map((c) => [c.idx, c.name]) ?? []);
+  for (const x of n.geo?.units ?? []) names.set(n.geo!.unitOffset + x.idx, x.kind === 'town' ? x.name : `Alaska ${x.name}`);
   const pts = [...countyVotes(m, n)].flatMap(([c, v]) => { const b = base[c]; const valid = v.slice(0, m.k - 1).reduce((a, x) => a + x, 0); if (!b || valid < 50 || b[2] <= 0) return []; return [{ c, x: (100 * (b[0] - b[1])) / b[2], y: (100 * (v[di]! - v[ri]!)) / valid, w: valid }]; });
   if (!pts.length) return <p className="muted small">Waiting for county results.</p>;
   const S = 240, P = 28, ext = Math.min(100, Math.max(10, ...pts.flatMap((p) => [Math.abs(p.x), Math.abs(p.y)])) * 1.05), maxW = Math.max(...pts.map((p) => p.w));

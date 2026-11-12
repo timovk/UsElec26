@@ -57,6 +57,10 @@
     "topo/counties.topo.json": {
       "bytes": 800005,
       "sha256": "fe8b119e3262b0113cce818c38b38d8db5994def6003581f07fa21f586e98fc4"
+    },
+    "topo/rj.topo.json": {
+      "bytes": 559085,
+      "sha256": "6f5aca26eb629e6f9e42dfabe0c7bcc16b31fa24036f3e60c83a86f5abcb0a3e"
     }
   },
   "packVersion": "2016.1",

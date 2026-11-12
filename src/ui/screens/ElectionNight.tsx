@@ -88,6 +88,7 @@ function DeskView({ n }: { n: NightState }) {
     && (m.kind !== 'control' || atStake(tally?.control[m.race]?.kind))).slice(-40).reverse();
   const focused = focus !== null ? meta.races[focus] : undefined;
   const byRj = focusData && focus !== null && focusData.race === focus ? [...focusData.byRj] : null;
+  const unitSet = useMemo(() => new Set(geo?.units.map((x) => x.idx) ?? []), [geo]);
 
   return (
     <div>
@@ -121,7 +122,7 @@ function DeskView({ n }: { n: NightState }) {
         </section>
 
         <section className="card night-board">
-          {focused ? <RaceBoard m={focused} f={r(focused.i)} byRj={byRj} rjs={meta.rjs} onClose={() => setFocus(null)} />
+          {focused ? <RaceBoard m={focused} f={r(focused.i)} byRj={byRj} rjs={meta.rjs} rjCounty={meta.rjCounty} units={unitSet} onClose={() => setFocus(null)} />
             : <p className="muted small">Select a state on the map or a race in the list.</p>}
           <h3>Races</h3>
           <div className="row wrap" style={{ gap: 6, marginBottom: 6 }}>
@@ -185,7 +186,9 @@ function Status({ f, m }: { f: NightRaceFrame | undefined; m: NightMetaDto['race
   return <span className={`tiny ${f.s === ST.CLOSE ? '' : 'muted'}`} title={STATUS_LABEL[f.s]} style={{ whiteSpace: 'nowrap' }}>{SHORT_STATUS[f.s]}</span>;
 }
 
-function RaceBoard({ m, f, byRj, rjs, onClose }: { m: NightMetaDto['races'][number]; f: NightRaceFrame | undefined; byRj: [number, number[]][] | null; rjs: Record<number, string>; onClose: () => void }) {
+function RaceBoard({ m, f, byRj, rjs, rjCounty, units, onClose }: { m: NightMetaDto['races'][number]; f: NightRaceFrame | undefined; byRj: [number, number[]][] | null; rjs: Record<number, string>; rjCounty: Record<number, number>; units: Set<number>; onClose: () => void }) {
+  // A reporting row links to its town or Alaska district (Phase 7.5), or to its county.
+  const where = (rj: number) => { const name = rjs[rj] ?? String(rj); return units.has(rj) ? <a href={`#/town/${rj}`}>{name}</a> : rjCounty[rj] !== undefined ? <a href={`#/county/${rjCounty[rj]}`}>{name}</a> : name; };
   const ballots = f?.b ?? 0, valid = f ? f.v.slice(0, m.k - 1).reduce((a, b) => a + b, 0) : 0;
   const order = m.candidates.map((c, j) => ({ c, j, v: f?.v[j] ?? 0 })).sort((a, b) => b.v - a.v || a.j - b.j);
   const lead = order.length > 1 ? order[0]!.v - order[1]!.v : 0;
@@ -202,7 +205,7 @@ function RaceBoard({ m, f, byRj, rjs, onClose }: { m: NightMetaDto['races'][numb
         {valid ? <>Lead {fmtInt(lead)} · </> : null}≈ {f && f.e ? Math.min(100, Math.floor(100 * ballots / f.e)) : 0}% of expected vote counted · {fmtInt(f?.pr ?? 0)} of {fmtInt(m.precincts)} precincts reporting
       </div>
       {rows.length > 0 && <div className="night-rj"><table className="data"><thead><tr><th>Reporting</th>{order.slice(0, 2).map((o) => <th key={o.j}>{surname(o.c.name)}</th>)}<th>Votes</th></tr></thead><tbody>
-        {rows.slice(0, 60).map((x) => { const tv = x.v.slice(0, m.k - 1).reduce((a, b) => a + b, 0); return <tr key={x.rj}><td className="small">{rjs[x.rj] ?? x.rj}</td>{order.slice(0, 2).map((o) => <td key={o.j} className="num small">{tv ? (100 * (x.v[o.j] ?? 0) / tv).toFixed(1) : '–'}%</td>)}<td className="num small muted">{fmtInt(x.tot)}</td></tr>; })}
+        {rows.slice(0, 60).map((x) => { const tv = x.v.slice(0, m.k - 1).reduce((a, b) => a + b, 0); return <tr key={x.rj}><td className="small">{where(x.rj)}</td>{order.slice(0, 2).map((o) => <td key={o.j} className="num small">{tv ? (100 * (x.v[o.j] ?? 0) / tv).toFixed(1) : '–'}%</td>)}<td className="num small muted">{fmtInt(x.tot)}</td></tr>; })}
       </tbody></table></div>}
     </div>
   );

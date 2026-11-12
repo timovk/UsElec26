@@ -15,7 +15,7 @@ fictional electorate, set in real American geography and institutions, beginning
 | 5 | Campaigns, polling and forecasts: campaigns and events, fictional pollsters, polling averages, Monte Carlo forecasts, presidential primaries with delegates and conventions, debates and endorsements | ✅ approved ([report](docs/phase-5-report.md)) |
 | 6 | Political evolution: demography, an evolving electorate, economy and approval, careers and succession, Congress and state government, census, apportionment, redistricting, state legislative elections | ✅ implemented, awaiting approval ([report](docs/phase-6-report.md)) |
 | — | Speed: faster simulated years (deferred from Phases 5 and 6); the year 2016 takes about half as long | ✅ on `main` ([report](docs/speed-report.md)) |
-| 7 | Complete electoral coverage, in sub-phases 7.1–7.8 (rules over time and ranked-choice voting, statewide offices and courts, ballot measures, multi-member districts, town reporting, county and city offices, precinct maps) | 7.1 ✅ implemented ([report](docs/phase-7.1-report.md)); 7.2 ✅ approved ([report](docs/phase-7.2-report.md)); 7.3 ✅ approved ([report](docs/phase-7.3-report.md)); 7.4 ✅ approved ([report](docs/phase-7.4-report.md)); 7.5–7.8 planned ([roadmap](docs/architecture/10-roadmap.md#phase-7-complete-electoral-coverage)) |
+| 7 | Complete electoral coverage, in sub-phases 7.1–7.8 (rules over time and ranked-choice voting, statewide offices and courts, ballot measures, multi-member districts, town reporting, county and city offices, precinct maps) | 7.1 ✅ implemented ([report](docs/phase-7.1-report.md)); 7.2 ✅ approved ([report](docs/phase-7.2-report.md)); 7.3 ✅ approved ([report](docs/phase-7.3-report.md)); 7.4 ✅ approved ([report](docs/phase-7.4-report.md)); 7.5 ✅ implemented, awaiting approval ([report](docs/phase-7.5-report.md)); 7.6–7.8 planned ([roadmap](docs/architecture/10-roadmap.md#phase-7-complete-electoral-coverage)) |
 | 8–10 | Archive, advanced systems, polish | [roadmap](docs/architecture/10-roadmap.md) |
 
 ## Using it (Chromebook)
@@ -30,7 +30,8 @@ fictional electorate, set in real American geography and institutions, beginning
    **Primaries** follows the presidential nominating contests, delegates and conventions. **Government** shows approval and
    the economy, Congress (bills and roll calls), the state legislatures, the state offices and courts, the ballot measures,
    the census and apportionment, and every district map. **Archive** holds the election history of every state, congressional district and
-   county; a district code such as TX-15, wherever it appears, opens that district's history.
+   county, and of every New England town and Alaska House district, which is how those states report (their maps and
+   election-night tables show them too); a district code such as TX-15, wherever it appears, opens that district's history.
 4. **Back up regularly** with **Export**. Universes are stored only in this browser until you export them. The save dialog
    can write directly to Google Drive.
 

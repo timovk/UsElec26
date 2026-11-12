@@ -13,7 +13,7 @@ import { Settings } from '../screens/Settings';
 import { ElectorateScreen } from '../screens/ElectorateScreen';
 import { Results } from '../screens/Results';
 import { ContestScreen } from '../screens/ContestScreen';
-import { ArchiveScreen, CountyScreen } from '../screens/CountyScreen';
+import { ArchiveScreen, CountyScreen, TownScreen } from '../screens/CountyScreen';
 import { DistrictScreen } from '../screens/DistrictScreen';
 import { ElectionNight } from '../screens/ElectionNight';
 import { PollsScreen } from '../screens/Polls';
@@ -53,7 +53,7 @@ export function App({ updateAvailable, applyUpdate }: { updateAvailable: boolean
   if (fatal) return <div className="modal-back"><div className="modal"><h2 className="screen-title">Cannot start</h2><p>{fatal}</p><button className="btn" onClick={() => location.reload()}>Retry</button></div></div>;
   if (booting) return <div className="modal-back"><div className="modal"><div className="kicker">Election Night: America</div><p>Starting the simulation engine…</p></div></div>;
 
-  const needsUniverse = ['desk', 'map', 'people', 'electorate', 'results', 'contest', 'county', 'district', 'archive', 'night', 'analyst', 'polls', 'primaries', 'government'].includes(route.screen);
+  const needsUniverse = ['desk', 'map', 'people', 'electorate', 'results', 'contest', 'county', 'town', 'district', 'archive', 'night', 'analyst', 'polls', 'primaries', 'government'].includes(route.screen);
   const screen = (() => {
     if (needsUniverse && !active) return <Hub />; // never query without an open universe
     switch (route.screen) {
@@ -66,6 +66,7 @@ export function App({ updateAvailable, applyUpdate }: { updateAvailable: boolean
       case 'results': return <Results year={route.params[0] ? Number(route.params[0]) : undefined} />;
       case 'contest': return <ContestScreen id={Number(route.params[0])} />;
       case 'county': return <CountyScreen idx={Number(route.params[0])} />;
+      case 'town': return <TownScreen rj={Number(route.params[0])} />;
       case 'district': return <DistrictScreen code={decodeURIComponent(route.params[0] ?? '')} />;
       case 'archive': return <ArchiveScreen stateIdx={route.params[0] !== undefined ? Number(route.params[0]) : undefined} />;
       case 'people': return route.params[0] ? <PersonScreen id={Number(route.params[0])} /> : <People />;
@@ -81,7 +82,7 @@ export function App({ updateAvailable, applyUpdate }: { updateAvailable: boolean
       <nav className="rail" aria-label="Main">
         <img className="logo" src={`${import.meta.env.BASE_URL}icons/icon.svg`} alt="Election Night: America" />
         {NAV.map((n) => (n.needsUniverse && !active ? null : (
-          <a key={n.id} href={`#/${n.id}`} className={route.screen === n.id || (n.id === 'hub' && route.screen === '') || (n.id === 'results' && route.screen === 'contest') || (n.id === 'archive' && (route.screen === 'county' || route.screen === 'district')) ? 'active' : ''}>
+          <a key={n.id} href={`#/${n.id}`} className={route.screen === n.id || (n.id === 'hub' && route.screen === '') || (n.id === 'results' && route.screen === 'contest') || (n.id === 'archive' && (route.screen === 'county' || route.screen === 'town' || route.screen === 'district')) ? 'active' : ''}>
             <span className="ico" aria-hidden>{n.ico}</span>{n.label}
           </a>)))}
         {active && PLANNED.map((p) => <span key={p.label} className="planned" title={`Planned for Phase ${p.phase}`}><span className="ico" aria-hidden>{p.ico}</span>{p.label}<span className="tiny">Phase {p.phase}</span></span>)}

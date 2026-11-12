@@ -106,6 +106,7 @@ fetch ─► verify (SHA-256) ─► parse (shapefile/dbf/csv) ─► block tabl
 | Counties (+ states mesh) | national | TopoJSON | ≈ 0.3 MB (us-atlas equivalent is 795 KB raw) |
 | Counties | per-state detail | TopoJSON per state | ≈ 2–4 MB total, lazily loaded |
 | CDs (115th) | national + detail | TopoJSON | ≈ 1 MB |
+| New England towns, Alaska House districts (Phase 7.5) | national + detail | TopoJSON `topo/rj.topo.json`, keyed by reporting-jurisdiction index | 559 KB raw, 158 KB gzipped |
 | SLDU/SLDL (2016) | per state | TopoJSON | ≈ 6–10 MB total, lazily loaded (Phase 6+) |
 | BUs | per state | TopoJSON, WebGL triangulation at load | ≈ 30–60 MB total, lazily loaded (Phase 7/8) |
 | Semantic tables | — | `ENA1` blobs | ≈ 10–20 MB (copied into each universe) |
@@ -120,8 +121,8 @@ boroughs, census areas and unorganized areas are present with the correct legal 
 | Case | Handling |
 |---|---|
 | Louisiana parishes, Alaska boroughs/census areas, Virginia independent cities | `geo_unit.attrs.legal_type` drives labels ("Parish", "Borough", "Census Area", "City") |
-| Alaska results | RJ = state house district (SLDL is in the BU key, so this is exact). Borough-level displays are aggregations, labeled as such. |
-| New England | RJ = town/MCD. County displays aggregate towns. ME/NH unorganized territories are their own RJs. |
+| Alaska results | RJ = state house district (SLDL is in the BU key, so this is exact). Since Phase 7.5, maps, history pages and election-night tables show Alaska by its 40 2016 House districts, as it reports; borough displays remain aggregations, labeled as such. |
+| New England | RJ = town/MCD. Since Phase 7.5, maps (including the national county layer), history pages and election-night tables show the 1,582 inhabited towns; county pages aggregate them and list them. ME/NH unorganized territories are their own RJs. The 36 uninhabited units (12 water areas; 24 unpopulated townships, grants, gores and unorganized territories) have no voters and are not drawn: the map shows them in the neutral background shade. Four towns whose Census code changed between the 2010 blocks and the 2016 boundaries (Sanford and Penobscot Indian Island, ME; Enosburgh and Alburgh, VT) are matched to their 2016 outline within their county. |
 | Multi-member state house districts | Seats per district from the 2016 law (Phase 7.4); the Census files have the districts but not their seat counts, which follow population where the state apportions by it (VT, WV, NH, MD subdistricts). New Hampshire's floterial districts overlap the ordinary ones and are not in the Census files: they are generated, as unions of ordinary districts. |
 | Connecticut | 8 counties at the 2016 vintage (no county government. Displays still work). |
 | County set over time | Frozen at the 2016 vintage. Post-2016 real-world changes (Valdez-Cordova split in 2019, Connecticut planning regions in 2022) were administrative decisions in the *real* timeline and are not imported. The versioning system can represent them if a simulated law ever requires it. |
@@ -138,6 +139,9 @@ boroughs, census areas and unorganized areas are present with the correct legal 
   **only on data change**. Pan/zoom animations transform a cached bitmap and re-rasterize crisply when the
   animation ends. Measured: a full redraw of 3,142 counties takes 32 ms with software raster at 2× DPR, so
   redraw-on-change is fine and per-frame redraw is avoided.
+  Since Phase 7.5 the county layer also carries New England's towns and Alaska's House districts (4,668 areas). A
+  redraw draws only the areas and border tiles (a 16 × 10 grid) inside the view, and below 2× zoom the towns use
+  outlines thinned to 0.4 map units (arcs thinned once, so neighbours still share borders exactly).
 - **WebGL2 renderer** for dense layers (SLDs, BUs/synthetic precincts). Polygons are triangulated once (earcut), and
   colors come from a per-feature color texture. Recoloring 300k features is a single texture upload, and
   outlines go to a separate line pass.

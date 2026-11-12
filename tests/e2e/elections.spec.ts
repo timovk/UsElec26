@@ -64,7 +64,24 @@ test('simulate the 2016 cycle and inspect results from the nation down to a coun
   await expect(page.getByText(/Passing requires/)).toBeVisible();
   await page.screenshot({ path: 'test-results/e2e-measure.png' });
 
-  // Results map.
+  // Towns and Alaska's districts (Phase 7.5): Vermont's towns, one town's history, an Alaska district's.
+  await page.goto('./#/archive');
+  await page.getByRole('link', { name: 'Vermont', exact: true }).click();
+  const towns = page.locator('section.card', { has: page.getByRole('heading', { name: 'Towns', exact: true }) });
+  await expect(towns).toBeVisible();
+  expect(await towns.locator('tbody tr').count()).toBeGreaterThan(200);
+  await towns.locator('tbody a', { hasText: /^Burlington$/ }).click();
+  await expect(page.getByText('Town election history')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Burlington, Vermont' })).toBeVisible();
+  expect(await page.locator('table.data tbody tr').count()).toBeGreaterThan(5);
+  await page.screenshot({ path: 'test-results/e2e-town.png' });
+  await page.goto('./#/archive');
+  await page.getByRole('link', { name: 'Alaska', exact: true }).click();
+  await page.locator('section.card', { has: page.getByRole('heading', { name: 'House districts', exact: true }) }).locator('tbody a').first().click();
+  await expect(page.getByText('Alaska House district election history')).toBeVisible();
+  expect(await page.locator('table.data tbody tr').count()).toBeGreaterThan(5);
+
+  // Results map (counties, New England's towns and Alaska's districts).
   await page.goto('./#/map/results/2016');
   await expect(page.locator('canvas')).toBeVisible();
   await page.waitForTimeout(2000);

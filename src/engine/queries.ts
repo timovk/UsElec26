@@ -5,6 +5,7 @@ import { fullName, PARTY_D, PARTY_R, type Office, type Person } from '../institu
 import { NONE16 } from '../geo/pack';
 import { N_COHORTS, cohortLabel } from '../population/cohorts';
 import { ISSUE_AXES, TARGET_RANGES, cellLookup } from '../electorate/model';
+import { isUnit, unitNames, unitStates } from '../geo/reportingUnits';
 import { leanMargin } from './world';
 import type { Universe } from './universe';
 import { runArchiveQuery } from './archiveQueries';
@@ -17,7 +18,7 @@ import type {
 
 export function runQuery(u: Universe, q: Query): unknown {
   switch (q.kind) {
-    case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'districtHistory': case 'stateHistory': case 'measures': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
+    case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'townHistory': case 'districtHistory': case 'stateHistory': case 'measures': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
     case 'nights': case 'nightMeta': case 'nightPayload': case 'nightContext': case 'nightBaseline': case 'nightSurvey': case 'nightCalls': return runNightQuery(u, q);
     case 'seasonYears': case 'seasonOverview': case 'seasonRace': case 'pollList': case 'pollster': case 'forecastRun': case 'forecastCalibration': case 'primaries': return runSeasonQuery(u, q);
     case 'economy': case 'congress': case 'bill': case 'legislatures': case 'census': case 'districtMap': case 'electionLaw': case 'stateOffices': return runGovernmentQuery(u, q);
@@ -93,21 +94,44 @@ function geoMeta(u: Universe): GeoMeta {
     states: p.states.map((s) => ({ idx: s.idx, usps: s.usps, name: s.name, fips: s.fips })),
     counties: p.counties.map((c) => ({ idx: c.idx, geoid: c.geoid, name: c.fullName, stateIdx: c.stateIdx, legalType: c.legalType })),
     cds: p.cds.map((c) => ({ idx: c.idx, geoid: c.geoid, stateIdx: c.stateIdx, label: `${p.states[c.stateIdx]!.usps}-${c.district === 0 ? 'AL' : String(c.district).padStart(2, '0')}` })),
+    units: p.rj.filter(isUnit).map((r) => ({ idx: r.idx, name: unitNames(p)[r.idx]!, kind: r.kind as 'town' | 'ak_house_district', stateIdx: r.stateIdx, countyIdx: r.countyIdx, pop: r.pop2010 })),
+    unitOffset: p.counties.length,
+    unitStates: [...unitStates(p)].sort((a, b) => a - b),
   };
 }
 
 const partyCode = (party: number | null | undefined): number | null => (party === PARTY_D ? 1 : party === PARTY_R ? -1 : party ? 0 : null);
 
+/**
+ * Sum a per-BU quantity over each reporting unit shown in place of counties (Phase 7.5), into `out` at the
+ * unit's map area (`counties.length + rj`).
+ */
+function forUnitBus(u: Universe, f: (bu: number, area: number) => void): void {
+  const w = u.world, units = unitStates(w.pack), off = w.pack.counties.length;
+  for (const c of w.pack.counties) {
+    if (!units.has(c.stateIdx)) continue;
+    for (let b = c.buStart; b < c.buStart + c.buCount; b++) { const rj = w.pack.bu.rj[b]!; if (rj !== NONE16 && w.pack.rj[rj]?.kind !== 'county') f(b, off + rj); }
+  }
+}
+
 function mapLayer(u: Universe, layer: MapDtoLayer, metric: MapLayerDto['metric']): MapLayerDto {
   const w = u.world;
-  const n = layer === 'state' ? w.pack.states.length : layer === 'county' ? w.pack.counties.length : w.pack.cds.length;
+  // The county layer also carries New England's towns and Alaska's districts, after the counties (Phase 7.5).
+  const n = layer === 'state' ? w.pack.states.length : layer === 'county' ? w.pack.counties.length + w.pack.rj.length : w.pack.cds.length;
   const values: (number | null)[] = new Array(n).fill(null);
   if (metric === 'lean') {
     const l = layer === 'state' ? w.lean.state : layer === 'county' ? w.lean.county : w.lean.cd;
-    for (let i = 0; i < n; i++) values[i] = l.votes[i]! > 0 ? Math.round(leanMargin(l, i) * 10) / 10 : null;
+    const nl = layer === 'county' ? w.pack.counties.length : n;
+    for (let i = 0; i < nl; i++) values[i] = l.votes[i]! > 0 ? Math.round(leanMargin(l, i) * 10) / 10 : null;
+    if (layer === 'county') {
+      const d = new Float64Array(n), t = new Float64Array(n);
+      forUnitBus(u, (b, a) => { d[a]! += w.lean.bu.dVotes[b]!; t[a]! += w.lean.bu.votes[b]!; });
+      for (let a = nl; a < n; a++) if (t[a]! > 0) values[a] = Math.round(1000 * (2 * d[a]! / t[a]! - 1)) / 10;
+    }
     return { layer, metric, values, legend: `Underlying two-party lean (D+ / R+ points)${newPlanNote(u, layer)}`, provenance: 'simulationTruth' };
   }
-  const stateOf = (i: number) => (layer === 'state' ? i : layer === 'county' ? w.pack.counties[i]!.stateIdx : w.pack.cds[i]!.stateIdx);
+  const off = w.pack.counties.length;
+  const stateOf = (i: number) => (layer === 'state' ? i : layer === 'county' ? (i < off ? w.pack.counties[i]!.stateIdx : w.pack.rj[i - off]!.stateIdx) : w.pack.cds[i]!.stateIdx);
   if (metric === 'governor') {
     const byState = new Map(w.offices.filter((o) => o.kind === 'governor').map((o) => [o.stateIdx!, partyCode(w.current.get(o.id)?.partyId)]));
     for (let i = 0; i < n; i++) values[i] = byState.get(stateOf(i)) ?? null;
@@ -128,6 +152,9 @@ function mapLayer(u: Universe, layer: MapDtoLayer, metric: MapLayerDto['metric']
       for (let b = c.buStart; b < c.buStart + c.buCount; b++) { const k = w.pack.bu.cd[b]!; if (k === NONE16) continue; const pc = cdParty[k]; if (pc === null || pc === undefined) continue; sumP += pc * w.pop.vep[b]!; sumW += w.pop.vep[b]!; }
       values[c.idx] = sumW > 0 ? sumP / sumW : null;
     }
+    const sp = new Float64Array(n), sw = new Float64Array(n);
+    forUnitBus(u, (b, a) => { const k = w.pack.bu.cd[b]!; if (k === NONE16) return; const pc = cdParty[k]; if (pc === null || pc === undefined) return; sp[a]! += pc * w.pop.vep[b]!; sw[a]! += w.pop.vep[b]!; });
+    for (let a = off; a < n; a++) if (sw[a]! > 0) values[a] = sp[a]! / sw[a]!;
   } else {
     w.pack.states.forEach((s) => { const ps = w.pack.cds.filter((c) => c.stateIdx === s.idx).map((c) => cdParty[c.idx] ?? 0); values[s.idx] = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null; });
   }
@@ -154,6 +181,24 @@ function entity(u: Universe, layer: MapDtoLayer, idx: number): EntityDetail {
         ...chambers.map((c) => ({ label: c.name, value: [...c.composition].sort((a, b) => a[0] - b[0]).map(([p, n]) => `${w.parties.find((x) => x.id === p)?.abbrev ?? 'Vacant'} ${n}`).join(' · ') })),
       ],
       officials: officialsOf(idx, cds),
+    };
+  }
+  if (layer === 'county' && idx >= w.pack.counties.length) {
+    // A New England town or an Alaska State House district (Phase 7.5): its area index follows the counties'.
+    const rj = idx - w.pack.counties.length, r = w.pack.rj[rj]!;
+    const cdSet = new Set<number>(); let vep = 0, d = 0, t = 0;
+    forUnitBus(u, (b, a) => { if (a !== idx) return; vep += w.pop.vep[b]!; d += w.lean.bu.dVotes[b]!; t += w.lean.bu.votes[b]!; if (w.pack.bu.cd[b]! !== NONE16) cdSet.add(w.pack.bu.cd[b]!); });
+    const st = w.pack.states[r.stateIdx]!, county = r.countyIdx !== null ? w.pack.counties[r.countyIdx]! : null;
+    const m = t > 0 ? 100 * (2 * d / t - 1) : 0;
+    return {
+      layer, idx, title: r.kind === 'town' ? `${unitNames(w.pack)[rj]}, ${st.usps}` : `Alaska ${r.name}`,
+      subtitle: r.kind === 'town' ? `Town · ${county?.fullName ?? st.name}` : 'State House district as of 2016: Alaska reports its results by these districts',
+      stats: [
+        { label: 'Population (2010)', value: fmt(r.pop2010) }, { label: 'Voting-eligible population', value: fmt(vep) },
+        { label: 'Underlying lean', value: `${m >= 0 ? 'D' : 'R'}+${Math.abs(m).toFixed(1)}`, provenance: 'simulation truth' },
+        { label: 'Congressional districts', value: [...cdSet].map((k) => geoMeta(u).cds[k]!.label).join(', ') || '—' },
+      ],
+      officials: officialsOf(r.stateIdx, [...cdSet]),
     };
   }
   if (layer === 'county') {

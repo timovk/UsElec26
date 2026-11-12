@@ -6,8 +6,9 @@ import { raceShort } from './nightStory';
 import type { BaselineCountiesDto, BaselineDto, NightCallDto, NightContextDto, NightListItem, NightMetaDto, NightQuery, SurveyDto } from './protocol';
 import { ST_CALLED, ST_RUNOFF, ST_WITHDRAWN } from '../counting/types';
 import { readRollup } from '../archive/results';
-import { baselineContest, eligibleOf } from './baselines';
+import { baselineContest, eligibleOf, rjTotals } from './baselines';
 import type { Universe } from './universe';
+import { isUnit, unitNames, unitStates } from '../geo/reportingUnits';
 
 export async function runNightQuery(u: Universe, q: NightQuery): Promise<unknown> {
   switch (q.kind) {
@@ -50,7 +51,7 @@ async function nightMeta(u: Universe, id: number): Promise<NightMetaDto | null> 
     }),
     states: rec.states.map((s) => ({ idx: s.stateIdx, usps: pack.states[s.stateIdx]!.usps, name: pack.states[s.stateIdx]!.name, closeFirst: s.closeFirst, closeLast: s.closeLast, certify: s.certify })),
     chambers: rec.chambers,
-    rjs: Object.fromEntries([...new Set(rec.parts.rj)].map((rj) => [rj, pack.rj[rj]?.name ?? `#${rj}`])),
+    rjs: Object.fromEntries([...new Set(rec.parts.rj)].map((rj) => [rj, unitNames(pack)[rj] ?? `#${rj}`])),
     rjCounty: Object.fromEntries([...new Set(rec.parts.rj)].flatMap((rj) => { const c = pack.rj[rj]?.countyIdx; return c === null || c === undefined ? [] : [[rj, c]]; })),
     story: rec.story ?? { version: 1, alerts: [], lines: [], speakers: [] },
   };
@@ -117,20 +118,21 @@ export async function liveTallies(u: Universe, year: number): Promise<{ presiden
 }
 
 /** Counted votes of a contest by county and by congressional district at the current universe time. */
-export async function liveGeo(u: Universe, contestId: number): Promise<{ counties: Map<number, number[]>; cds: Map<number, number[]> } | null> {
+export async function liveGeo(u: Universe, contestId: number): Promise<{ counties: Map<number, number[]>; cds: Map<number, number[]>; rjs: Map<number, number[]> } | null> {
   const nightId = u.db.value<number>('SELECT n.night_id FROM night_election n JOIN contest c ON c.election_id = n.election_id WHERE c.contest_id = ?', [contestId]);
   if (nightId === undefined) return null;
   const pb = await playbackFor(u, nightId); if (!pb) return null;
   const ri = pb.rec.races.findIndex((r) => r.contestId === contestId && r.cd < 0);
   if (ri < 0) return null;
-  const k = pb.rec.races[ri]!.k, counties = new Map<number, number[]>(), cds = new Map<number, number[]>();
+  const k = pb.rec.races[ri]!.k, counties = new Map<number, number[]>(), cds = new Map<number, number[]>(), rjs = new Map<number, number[]>();
   const add = (m: Map<number, number[]>, key: number, v: Float64Array) => { const a = m.get(key) ?? new Array<number>(k).fill(0); for (let j = 0; j < k; j++) a[j]! += v[j]!; m.set(key, a); };
   for (const [part, v] of pb.raceByPart(ri, u.world.time)) {
     const rj = pb.rec.parts.rj[part]!, county = u.world.pack.rj[rj]?.countyIdx;
     if (county !== null && county !== undefined) add(counties, county, v);
     add(cds, pb.rec.parts.cd[part]!, v);
+    add(rjs, rj, v);
   }
-  return { counties, cds };
+  return { counties, cds, rjs };
 }
 
 // ---- Map context: eligible voters and previous comparable results ---------------------------------------
@@ -181,6 +183,13 @@ async function nightBaseline(u: Universe, id: number, race: number): Promise<Bas
   for (const [c, v] of entry.counties) {
     const valid = v.slice(0, k).reduce((a, x) => a + x, 0);
     out[c] = [d >= 0 ? v[d]! : 0, ri >= 0 ? v[ri]! : 0, valid, el.ballots[c] ?? valid, el.county[c] ?? 0];
+  }
+  // Towns and Alaska's districts (Phase 7.5), at their map areas after the counties.
+  const pack = u.world.pack, off = pack.counties.length;
+  if (unitStates(pack).has(b.state_idx)) for (const [rj, v] of await rjTotals(u, b.contest_id, k + 1)) {
+    const rec2 = pack.rj[rj]; if (!rec2 || !isUnit(rec2)) continue;
+    const a = off + rj, valid = v.slice(0, k).reduce((x, y) => x + y, 0);
+    out[a] = [d >= 0 ? v[d]! : 0, ri >= 0 ? v[ri]! : 0, valid, el.ballots[a] ?? valid, el.county[a] ?? 0];
   }
   return out;
 }

@@ -42,12 +42,25 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
   // map feature order (topology) → engine index
   const idToIdx = useMemo(() => {
     if (!meta) return null;
+    // The county layer also holds New England's towns and Alaska's districts (ids rj:<index>), after the counties (Phase 7.5).
+    const county = new Map<string, number>(meta.counties.map((c) => [c.geoid, c.idx]));
+    for (const x of meta.units) county.set(`rj:${x.idx}`, meta.unitOffset + x.idx);
     return {
-      state: new Map(meta.states.map((s) => [s.fips, s.idx])), county: new Map(meta.counties.map((c) => [c.geoid, c.idx])), cd: new Map(meta.cds.map((c) => [c.geoid, c.idx])),
+      state: new Map(meta.states.map((s) => [s.fips, s.idx])), county, cd: new Map(meta.cds.map((c) => [c.geoid, c.idx])),
     };
   }, [meta]);
 
-  const geomFor = (l: MapLayer) => (basemap ? (l === 'state' ? basemap.states : l === 'county' ? basemap.counties : basemap.cds) : null);
+  const geomFor = (l: MapLayer) => (basemap ? (l === 'state' ? basemap.states : l === 'county' ? basemap.units : basemap.cds) : null);
+  const unitByArea = useMemo(() => new Map(meta?.units.map((x) => [meta.unitOffset + x.idx, x]) ?? []), [meta]);
+  /** An area's name: a state, a county ("Kent County, DE"), a town ("Bethel, CT") or an Alaska district. */
+  const areaName = (l: MapLayer, idx: number): string => {
+    if (!meta) return '';
+    if (l === 'state') return meta.states[idx]!.name;
+    if (l === 'cd') return meta.cds[idx]!.label;
+    const unit = unitByArea.get(idx);
+    if (unit) return unit.kind === 'town' ? `${unit.name}, ${meta.states[unit.stateIdx]!.usps}` : `Alaska ${unit.name}`;
+    return `${meta.counties[idx]!.name}, ${meta.states[meta.counties[idx]!.stateIdx]!.usps}`;
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas || !basemap) return;
@@ -73,14 +86,14 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
       if (!res || res.layer !== layer) return;
       r.layer = geom;
       r.fills = geom.ids.map((id) => { const i = map.get(id); if (i === undefined) return null; const a = resultArea(res, i); return a ? areaColor(mode, a, shareParty) : res.cells ? null : marginColor(res.values[i] ?? null); });
-      r.drawCountyMesh = layer === 'county';
+      r.drawCountyMesh = layer === 'county'; r.mesh = layer === 'county' ? basemap!.unitMesh : null;
       r.highlight = selected && selected.layer === layer ? geom.ids.findIndex((id) => map.get(id) === selected.idx) : -1;
       r.draw(); return;
     }
     if (!data || data.layer !== layer || data.metric !== metric) return;
     r.layer = geom;
     r.fills = geom.ids.map((id) => { const i = map.get(id); const v = i === undefined ? null : data.values[i] ?? null; return metric === 'lean' ? marginColor(v) : partyShareColor(v); });
-    r.drawCountyMesh = layer === 'county'; r.outlineMesh = layer === 'cd' ? null : null;
+    r.drawCountyMesh = layer === 'county'; r.mesh = layer === 'county' ? basemap!.unitMesh : null; r.outlineMesh = layer === 'cd' ? null : null;
     r.highlight = selected && selected.layer === layer ? geom.ids.findIndex((id) => map.get(id) === selected.idx) : -1;
     r.draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,7 +119,7 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
       if (i < 0 || !geom || !map || !meta || !data) { setTip(null); return; }
       const idx = map.get(geom.ids[i]!);
       if (idx === undefined) { setTip(null); return; }
-      const name = layer === 'state' ? meta.states[idx]!.name : layer === 'county' ? `${meta.counties[idx]!.name}, ${meta.states[meta.counties[idx]!.stateIdx]!.usps}` : meta.cds[idx]!.label;
+      const name = areaName(layer, idx);
       const ra = view === 'results' && res ? resultArea(res, idx) : null;
       setTip({ x: e.offsetX + 14, y: e.offsetY + 12, text: view === 'results' ? `${name} — ${ra ? modeLabel(mode, ra, shareParty) : 'No contest'}` : `${name} — ${valueLabel(data.values[idx] ?? null)}` });
     };
@@ -175,7 +188,7 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
             )}
             <div className="row">{view === 'results' ? <span className="badge record">Archived results · {resYear}</span> : data?.provenance === 'simulationTruth' ? <Truth /> : <span className="badge record">Officeholders on this date</span>}<span className="tiny muted">{view === 'results' ? (mode === 'margin' || !res?.cells ? res?.legend : `${MODE_CAPTION[mode]}${res.legend.includes('so far') ? ' · count in progress (unofficial)' : ''}`) : data?.legend}</span></div>
           </div>
-          <p className="tiny muted">Boundaries: U.S. Census Bureau cartographic boundary files (2016 vintage), 115th Congress districts. Scroll or use ＋/－ to zoom, drag to pan, click for details.</p>
+          <p className="tiny muted">Boundaries: U.S. Census Bureau cartographic boundary files (2016 vintage), 115th Congress districts; New England by town and Alaska by State House district, as they report. Scroll or use ＋/－ to zoom, drag to pan, click for details.</p>
         </div>
         <aside className="card">
           {view === 'results' && res?.ev && res.ev.length > 0 && (
@@ -187,10 +200,10 @@ export function MapScreen({ initial }: { initial?: { year: number } } = {}) {
           )}
           {!entity ? <p className="muted">Click a state, county or district to see its details and officeholders.</p> : (
             <>
-              <div className="kicker">{entity.layer === 'cd' ? 'Congressional district' : entity.layer}</div>
+              <div className="kicker">{entity.layer === 'cd' ? 'Congressional district' : entity.layer === 'county' && meta && entity.idx >= meta.unitOffset ? (unitByArea.get(entity.idx)?.kind === 'town' ? 'town' : 'Alaska House district') : entity.layer}</div>
               <h2 style={{ marginBottom: 2 }}>{entity.title}</h2>
               <div className="small muted" style={{ marginBottom: 10 }}>{entity.subtitle}</div>
-              <div className="row"><button className="btn small" onClick={zoomToSelected}>Zoom to</button>{entity.layer === 'county' && <a className="btn small" href={`#/county/${entity.idx}`}>Election history</a>}{entity.layer === 'state' && <a className="btn small" href={`#/archive/${entity.idx}`}>Election history</a>}{entity.layer === 'cd' && /^[A-Z]{2}-(AL|\d{2})/.test(entity.subtitle) && <a className="btn small" href={districtHref(entity.subtitle.slice(0, 5))}>Election history</a>}</div>
+              <div className="row"><button className="btn small" onClick={zoomToSelected}>Zoom to</button>{entity.layer === 'county' && <a className="btn small" href={meta && entity.idx >= meta.unitOffset ? `#/town/${entity.idx - meta.unitOffset}` : `#/county/${entity.idx}`}>Election history</a>}{entity.layer === 'state' && <a className="btn small" href={`#/archive/${entity.idx}`}>Election history</a>}{entity.layer === 'cd' && /^[A-Z]{2}-(AL|\d{2})/.test(entity.subtitle) && <a className="btn small" href={districtHref(entity.subtitle.slice(0, 5))}>Election history</a>}</div>
               <table className="data" style={{ marginTop: 10 }}><tbody>{entity.stats.map((s) => <tr key={s.label}><td className="muted">{s.label}</td><td className="num">{s.value}{s.provenance && <span className="badge truth" style={{ marginLeft: 6 }}>◆</span>}</td></tr>)}</tbody></table>
               <h3>Officials</h3>
               {entity.officials.map((o) => <OfficeHolder key={o.officeId} o={o} />)}

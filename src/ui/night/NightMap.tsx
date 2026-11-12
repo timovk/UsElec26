@@ -35,8 +35,14 @@ export function NightMap(p: NightMapProps) {
   const shown = useRef<number | null>(null); // the level the camera is at (or flying to)
   useEffect(() => { getBasemap().then(setBasemap).catch(() => {}); }, []);
   const stateFips = useMemo(() => new Map(p.geo?.states.map((s) => [s.fips, s.idx]) ?? []), [p.geo]);
-  const countyIdx = useMemo(() => new Map(p.geo?.counties.map((c) => [c.geoid, c]) ?? []), [p.geo]);
   const cdIdx = useMemo(() => new Map(p.geo?.cds.map((c) => [c.geoid, c.idx]) ?? []), [p.geo]);
+  // A state's areas: counties, or New England's towns and Alaska's districts (ids rj:<index>; Phase 7.5).
+  const unitArea = useMemo(() => {
+    const m = new Map<string, { area: number; stateIdx: number; name: string }>();
+    for (const c of p.geo?.counties ?? []) m.set(c.geoid, { area: c.idx, stateIdx: c.stateIdx, name: c.name });
+    for (const x of p.geo?.units ?? []) m.set(`rj:${x.idx}`, { area: p.geo!.unitOffset + x.idx, stateIdx: x.stateIdx, name: x.kind === 'town' ? x.name : `Alaska ${x.name}` });
+    return m;
+  }, [p.geo]);
   const national = p.byDistrict && basemap?.cds ? 'cds' : 'states';
 
   useEffect(() => {
@@ -69,15 +75,15 @@ export function NightMap(p: NightMapProps) {
       });
       r.dimOutside = dimPath(basemap, stateFips, lvl);
     } else {
-      r.layer = basemap.counties; r.drawCountyMesh = true;
+      r.layer = basemap.units; r.mesh = basemap.unitMesh; r.drawCountyMesh = true;
       const data = p.focus && p.focusRace !== null && p.focus.race === p.focusRace ? countyAreas(p, p.focusRace) : null;
       const max = data ? Math.max(0, ...[...data.values()].map((a) => Math.max(0, a.expected - sumArr(a.votes)))) : 0;
-      // Counties with a meaningful share of their expected vote still out are outlined (winner and margin views).
+      // Areas with a meaningful share of their expected vote still out are outlined (winner and margin views; towns from 500 votes).
       const out = new Path2D(); let anyOut = false;
-      r.fills = basemap.counties.ids.map((id, fi) => {
-        const c = countyIdx.get(id); if (!c || c.stateIdx !== lvl) return null;
-        const a = data?.get(c.idx);
-        if (a && a.expected > 0 && a.votes && (p.mode === 'winner' || p.mode === 'margin')) { const counted = sumArr(a.votes); if (counted < 0.9 * a.expected && a.expected - counted > 2000) { out.addPath(basemap.counties.paths[fi]!); anyOut = true; } }
+      r.fills = basemap.units.ids.map((id, fi) => {
+        const c = unitArea.get(id); if (!c || c.stateIdx !== lvl) return null;
+        const a = data?.get(c.area);
+        if (a && a.expected > 0 && a.votes && (p.mode === 'winner' || p.mode === 'margin')) { const counted = sumArr(a.votes); if (counted < 0.9 * a.expected && a.expected - counted > (id.startsWith('rj:') ? 500 : 2000)) { out.addPath(basemap.units.paths[fi]!); anyOut = true; } }
         return a ? areaColor(p.mode === 'winner' ? 'margin' : p.mode, a, p.shareParty, max) : '#2a3156';
       });
       r.outlines = anyOut ? out : null;
@@ -135,7 +141,7 @@ export function NightMap(p: NightMapProps) {
       if (!c || c.stateIdx !== shown.current) { p.onLevel(null); return; }
       const race = p.byDistrict!.get(c.idx); if (race !== undefined) p.onPickRace?.(race);
     } else {
-      const c = h.i >= 0 ? countyIdx.get(basemap.counties.ids[h.i]!) : undefined;
+      const c = h.i >= 0 ? unitArea.get(basemap.units.ids[h.i]!) : undefined;
       if (!c || c.stateIdx !== shown.current) p.onLevel(null);
     }
   };
@@ -147,9 +153,9 @@ export function NightMap(p: NightMapProps) {
       const i = national === 'cds' ? p.byDistrict!.get(cdIdx.get(id) ?? -1) : p.byState.get(stateFips.get(id) ?? -1);
       if (i !== undefined) text = describe(p, i);
     } else {
-      const c = countyIdx.get(id);
+      const c = unitArea.get(id);
       if (c && c.stateIdx === shown.current && p.focusRace !== null) {
-        const a = countyAreas(p, p.focusRace)?.get(c.idx);
+        const a = countyAreas(p, p.focusRace)?.get(c.area);
         const v = a ? areaValue(p.mode, a, p.shareParty) : null;
         text = `${c.name}${a ? ` · ${modeText(p, a, v)}` : ''}`;
       }
@@ -158,10 +164,18 @@ export function NightMap(p: NightMapProps) {
   };
   return (
     <div className={`nmap ${p.className ?? ''}`} onMouseLeave={() => setTip(null)}>
-      <canvas ref={ref} onClick={click} onMouseMove={move} aria-label={p.level === null ? 'National map: select a state to zoom in' : 'State map by county: select outside the state to zoom out'} role="img" />
+      <canvas ref={ref} onClick={click} onMouseMove={move} aria-label={p.level === null ? 'National map: select a state to zoom in' : 'State map by county (by town in New England, by district in Alaska): select outside the state to zoom out'} role="img" />
       {tip && <div className="map-tip" style={{ left: Math.min(tip.x + 12, 9999), top: tip.y + 12 }}>{tip.text}</div>}
     </div>
   );
+}
+
+const unitCache = new WeakMap<object, Map<number, number>>();
+/** Reporting jurisdiction → its map area, for New England's towns and Alaska's districts. */
+function unitAreas(p: NightMapProps): Map<number, number> {
+  const g = p.geo; if (!g) return new Map();
+  let m = unitCache.get(g); if (!m) { m = new Map(g.units.map((x) => [x.idx, g.unitOffset + x.idx])); unitCache.set(g, m); }
+  return m;
 }
 
 const sumArr = (v: ArrayLike<number> | null) => { if (!v) return 0; let s = 0; for (let j = 0; j < v.length; j++) s += v[j]!; return s; };
@@ -175,14 +189,19 @@ function raceArea(p: NightMapProps, i: number): Area {
   };
 }
 
-/** The focused race by county (reporting jurisdictions summed into their county). */
+/**
+ * The focused race by area: reporting jurisdictions summed into their county, except New England's towns and
+ * Alaska's districts, which are areas of their own (after the counties; Phase 7.5).
+ */
 function countyAreas(p: NightMapProps, race: number): Map<number, Area> | null {
   const f = p.focus; if (!f || f.race !== race) return null;
   const m = p.meta.races[race]!, K = m.k, parties = m.candidates.map((c) => c.party), closed = (p.races[race]?.s ?? 0) !== ST.NONE;
   const out = new Map<number, Area>();
   const get = (c: number) => { let a = out.get(c); if (!a) { a = { votes: new Array<number>(K).fill(0), parties, expected: 0, called: -1, closed, eligible: m.office !== 'us_representative' ? p.ctx?.eligibleCounty[c] ?? 0 : 0, base: null }; const b = p.baseCounties?.[c]; if (b) a.base = { d: b[0], r: b[1], valid: b[2], ballots: b[3], eligible: b[4] }; out.set(c, a); } return a; };
-  for (const [rj, v] of f.byRj) { const c = p.meta.rjCounty[rj]; if (c === undefined) continue; const a = get(c); const av = a.votes as number[]; for (let j = 0; j < K; j++) av[j]! += v[j] ?? 0; }
-  for (const [rj, e] of f.expected) { const c = p.meta.rjCounty[rj]; if (c === undefined) continue; get(c).expected += e; }
+  const units = unitAreas(p);
+  const areaOf = (rj: number) => (units.has(rj) ? units.get(rj)! : p.meta.rjCounty[rj]);
+  for (const [rj, v] of f.byRj) { const c = areaOf(rj); if (c === undefined) continue; const a = get(c); const av = a.votes as number[]; for (let j = 0; j < K; j++) av[j]! += v[j] ?? 0; }
+  for (const [rj, e] of f.expected) { const c = areaOf(rj); if (c === undefined) continue; get(c).expected += e; }
   for (const a of out.values()) if (sumArr(a.votes) <= 0) a.votes = null;
   return out;
 }

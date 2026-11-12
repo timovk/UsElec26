@@ -226,6 +226,13 @@ export interface GeoMeta {
   states: { idx: number; usps: string; name: string; fips: string }[];
   counties: { idx: number; geoid: string; name: string; stateIdx: number; legalType: string }[];
   cds: { idx: number; geoid: string; stateIdx: number; label: string }[];
+  /**
+   * Reporting units shown in place of counties (Phase 7.5): New England's towns and Alaska's State House
+   * districts. On maps a unit's area index is `unitOffset + idx` (counties come first).
+   */
+  units: { idx: number; name: string; kind: 'town' | 'ak_house_district'; stateIdx: number; countyIdx: number | null; pop: number }[];
+  unitOffset: number;
+  unitStates: number[];
 }
 
 export interface MapLayerDto { layer: MapLayer; metric: MapMetric; values: (number | null)[]; legend: string; provenance: 'simulationTruth' | 'publicRecord' }
@@ -265,6 +272,7 @@ export type ArchiveQuery =
   | { kind: 'electionYears' }
   | { kind: 'contest'; id: number }
   | { kind: 'countyHistory'; county: number }
+  | { kind: 'townHistory'; rj: number }
   | { kind: 'districtHistory'; code: string }
   | { kind: 'measures'; year?: number; state?: number }
   | { kind: 'stateHistory'; state: number }
@@ -323,6 +331,20 @@ export interface CountyHistoryDto {
   /** Congressional districts the county lies in today (codes). */
   districts: string[];
   rows: HistoryRow[];
+  /** New England (Phase 7.5): the county's towns, which report its results. */
+  towns: { rj: number; name: string; pop: number }[];
+}
+/**
+ * A New England town or an Alaska State House district (Phase 7.5): the units these states report by. Every
+ * contest's result there, from the archive's counts by reporting jurisdiction.
+ */
+export interface TownHistoryDto {
+  found: boolean; rj: number; name: string; kind: 'town' | 'ak_house_district'; state: string; stateIdx: number;
+  county: { idx: number; name: string } | null;
+  pop2010: number;
+  /** Congressional districts it lies in today (codes). */
+  districts: string[];
+  rows: HistoryRow[];
 }
 /** A congressional district by its code (e.g. TX-15): its House elections, and every contest's result within it as drawn at the time. */
 export interface DistrictHistoryDto {
@@ -347,6 +369,8 @@ export interface StateHistoryDto {
   rows: HistoryRow[];
   districts: { code: string; holder: { personId: number; name: string; party: number } | null; lean: number }[];
   counties: { idx: number; name: string }[];
+  /** New England's towns or Alaska's districts (Phase 7.5), with the last presidential margin there. */
+  units: { rj: number; name: string; kind: 'town' | 'ak_house_district'; county: string | null; pop: number; year: number | null; dMargin: number | null }[];
 }
 export interface ResultsMapDto {
   year: number; office: ResultsOffice; layer: MapLayer; values: (number | null)[]; legend: string; national: { party: number; votes: number }[] | null; ev: { party: number; ev: number; name: string }[] | null;

@@ -2,13 +2,14 @@
 import { daysToCivil, easternDay, formatDay, isoDay } from '../core/time';
 import { fullName, PARTY_D, PARTY_R, optionPerson } from '../institutions/model';
 import { NONE16, cdCode } from '../geo/pack';
+import { isUnit, unitNames, unitStates } from '../geo/reportingUnits';
 import { MODE_NAMES } from '../electorate/kernel';
 import { auditElection, decodeContestBlob, readRollup, type StateRollup } from '../archive/results';
 import { liveContest, liveGeo, liveTallies, type LiveContest } from './nightQueries';
 import { decodeIntColumns } from '../core/codec';
 import type { Universe } from './universe';
-import { baselineContest, turnoutByBu } from './baselines';
-import type { ArchiveQuery, CandidateDto, ContestDetail, CountyHistoryDto, DistrictHistoryDto, ElectionListItem, HistoryRow, MeasureListDto, ResultsMapDto, StateHistoryDto, YearSummary } from './protocol';
+import { baselineContest, rjTotals, turnoutByBu } from './baselines';
+import type { ArchiveQuery, CandidateDto, ContestDetail, CountyHistoryDto, DistrictHistoryDto, ElectionListItem, HistoryRow, MeasureListDto, ResultsMapDto, StateHistoryDto, TownHistoryDto, YearSummary } from './protocol';
 import { MEASURE_KIND_LABEL, thresholdText, type MeasureKind, type Threshold } from '../rules/measures2016';
 import { leanMargin } from './world';
 
@@ -21,6 +22,7 @@ export async function runArchiveQuery(u: Universe, q: ArchiveQuery): Promise<unk
     case 'elections': return elections(u, q.year);
     case 'contest': return contest(u, q.id);
     case 'countyHistory': return countyHistory(u, q.county);
+    case 'townHistory': return townHistory(u, q.rj);
     case 'districtHistory': return districtHistory(u, q.code);
     case 'measures': return measureList(u, q.year, q.state);
     case 'stateHistory': return stateHistory(u, q.state);
@@ -211,7 +213,37 @@ async function countyHistory(u: Universe, county: number): Promise<CountyHistory
   const year = daysToCivil(easternDay(w.time)).y, cdOf = w.districts.assignment('cd', year), cds = new Set<number>();
   for (let b = c.buStart; b < c.buStart + c.buCount; b++) if (cdOf[b] !== NONE16 && w.pop.vep[b]! > 0) cds.add(cdOf[b]!);
   const districts = [...cds].sort((a, b) => a - b).map((k) => cdCode({ states: w.pack.states, cds: w.districts.cds }, k)).sort();
-  return { county, name: c.fullName, state: w.pack.states[c.stateIdx]!.name, stateIdx: c.stateIdx, districts, rows };
+  const names = unitNames(w.pack);
+  const towns = w.pack.rj.filter((r) => r.countyIdx === county && isUnit(r)).map((r) => ({ rj: r.idx, name: names[r.idx]!, pop: r.pop2010 })).sort((a, b) => a.name.localeCompare(b.name));
+  return { county, name: c.fullName, state: w.pack.states[c.stateIdx]!.name, stateIdx: c.stateIdx, districts, rows, towns };
+}
+
+/**
+ * A New England town or an Alaska State House district (Phase 7.5): every contest on its ballots, from the
+ * archive's counts by reporting jurisdiction (the contests of its county, or for Alaska of the state).
+ */
+async function townHistory(u: Universe, rj: number): Promise<TownHistoryDto> {
+  const w = u.world, r = w.pack.rj[rj];
+  if (!r || !isUnit(r)) return { found: false, rj, name: '', kind: 'town', state: '', stateIdx: -1, county: null, pop2010: 0, districts: [], rows: [] };
+  const st = w.pack.states[r.stateIdx]!;
+  const contests = r.countyIdx !== null
+    ? u.db.all<CRow & { day: number }>(`SELECT c.*, e.day FROM contest_geo g JOIN contest c ON c.contest_id = g.contest_id JOIN election e ON e.election_id = c.election_id
+        WHERE g.county_idx = ? AND c.kind IN ('general','special','pres_state','retention','measure') AND c.status IN ('decided','certified') ORDER BY e.day DESC, c.contest_id`, [r.countyIdx])
+    : u.db.all<CRow & { day: number }>(`SELECT c.*, e.day FROM contest c JOIN election e ON e.election_id = c.election_id
+        WHERE c.state_idx = ? AND c.kind IN ('general','special','pres_state','retention','measure') AND c.status IN ('decided','certified') ORDER BY e.day DESC, c.contest_id`, [r.stateIdx]);
+  const rows: HistoryRow[] = [];
+  for (const x of contests) {
+    const k = Number(u.db.value('SELECT COUNT(*) FROM candidacy WHERE contest_id = ?', [x.contest_id]) ?? 0) + 1;
+    const v = (await rjTotals(u, x.contest_id, k)).find(([id]) => id === rj)?.[1];
+    if (v && v.some((n) => n > 0)) rows.push(historyRow(u, x, v));
+  }
+  // Its congressional districts today.
+  const year = daysToCivil(easternDay(w.time)).y, cdOf = w.districts.assignment('cd', year), cds = new Set<number>();
+  const counties = r.countyIdx !== null ? [w.pack.counties[r.countyIdx]!] : w.pack.counties.filter((c) => c.stateIdx === r.stateIdx);
+  for (const c of counties) for (let b = c.buStart; b < c.buStart + c.buCount; b++) if (w.pack.bu.rj[b] === rj && cdOf[b] !== NONE16 && w.pop.vep[b]! > 0) cds.add(cdOf[b]!);
+  const districts = [...cds].map((k) => cdCode({ states: w.pack.states, cds: w.districts.cds }, k)).sort();
+  const county = r.countyIdx !== null ? { idx: r.countyIdx, name: w.pack.counties[r.countyIdx]!.fullName } : null;
+  return { found: true, rj, name: r.kind === 'town' ? unitNames(w.pack)[rj]! : r.name, kind: r.kind as 'town' | 'ak_house_district', state: st.name, stateIdx: r.stateIdx, county, pop2010: r.pop2010, districts, rows };
 }
 
 /** A contest's result in one area (votes per candidacy in ballot order, then undervotes). */
@@ -292,7 +324,7 @@ async function districtHistory(u: Universe, code: string): Promise<DistrictHisto
 }
 
 /** A state's statewide contests (President, Senate, Governor and every statewide office and court seat), its districts and its counties. */
-function stateHistory(u: Universe, stateIdx: number): StateHistoryDto {
+async function stateHistory(u: Universe, stateIdx: number): Promise<StateHistoryDto> {
   const w = u.world, st = w.pack.states[stateIdx]!, year = daysToCivil(easternDay(w.time)).y;
   const contests = u.db.all<CRow & { day: number }>(
     `SELECT c.*, e.day FROM contest c JOIN election e ON e.election_id = c.election_id LEFT JOIN office o ON o.office_id = c.office_id LEFT JOIN office_seat s ON s.office_id = c.office_id
@@ -311,7 +343,22 @@ function stateHistory(u: Universe, stateIdx: number): StateHistoryDto {
     return { code: cdCode(ref, d.idx), holder: h ? { personId: h.personId, name: h.name, party: h.party } : null, lean: Math.round(10 * leanMargin(w.lean.cd, d.idx)) / 10 };
   });
   const counties = w.pack.counties.filter((c) => c.stateIdx === stateIdx).map((c) => ({ idx: c.idx, name: c.fullName }));
-  return { stateIdx, name: st.name, usps: st.usps, rows, districts, counties };
+  // New England's towns and Alaska's districts (Phase 7.5), with the last presidential result there.
+  const names = unitNames(w.pack), unitList = w.pack.rj.filter((r) => r.stateIdx === stateIdx && isUnit(r));
+  const units: StateHistoryDto['units'] = [];
+  if (unitList.length) {
+    const pres = contests.find((c) => c.kind === 'pres_state');
+    const order = pres ? u.db.all<{ party_id: number }>('SELECT party_id FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [pres.contest_id]).map((x) => x.party_id) : [];
+    const by = new Map(pres ? await rjTotals(u, pres.contest_id, order.length + 1) : []);
+    const di = order.indexOf(PARTY_D), ri = order.indexOf(PARTY_R);
+    for (const r of unitList) {
+      const v = by.get(r.idx), d = v && di >= 0 ? v[di]! : 0, rr = v && ri >= 0 ? v[ri]! : 0;
+      units.push({ rj: r.idx, name: names[r.idx]!, kind: r.kind as 'town' | 'ak_house_district', county: r.countyIdx !== null ? w.pack.counties[r.countyIdx]!.fullName : null, pop: r.pop2010,
+        year: pres && v ? pres.year : null, dMargin: d + rr > 0 ? Math.round(1000 * (d - rr) / (d + rr)) / 10 : null });
+    }
+    units.sort((a, b) => (a.county ?? '').localeCompare(b.county ?? '') || a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }
+  return { stateIdx, name: st.name, usps: st.usps, rows, districts, counties, units };
 }
 
 /** Two-party margins (D positive, points) for an office and year at state, county or district level. */
@@ -320,8 +367,11 @@ async function resultsMap(u: Universe, year: number, office: ResultsMapDto['offi
   const kindFilter = office === 'president' ? "c.kind = 'pres_state'" : `c.kind IN ('general','special') AND o.kind = '${office}'`;
   const rows = u.db.all<CRow>(`SELECT c.* FROM contest c LEFT JOIN office o ON o.office_id = c.office_id WHERE c.year = ? AND ${kindFilter} AND c.status IN ('decided','certified','counting') ORDER BY c.contest_id`, [year]);
   let counting = false;
-  const n = layer === 'state' ? w.pack.states.length : layer === 'county' ? w.pack.counties.length : w.districts.cds.length;
+  // The county layer also carries New England's towns and Alaska's districts, after the counties (Phase 7.5).
+  const off = w.pack.counties.length, units = layer === 'county' ? unitStates(w.pack) : new Set<number>();
+  const n = layer === 'state' ? w.pack.states.length : layer === 'county' ? off + w.pack.rj.length : w.districts.cds.length;
   const cdOf = w.districts.assignment('cd', year);
+  const isUnitRj = (rj: number) => { const r = w.pack.rj[rj]; return !!r && isUnit(r); };
   const D = new Float64Array(n), R = new Float64Array(n), V = new Float64Array(n), Bc = new Float64Array(n), has = new Uint8Array(n);
   const lead = new Map<number, Map<number, number>>(); // area → party → votes (for the leading party)
   const bD = new Float64Array(n), bR = new Float64Array(n), bV = new Float64Array(n), bHas = new Uint8Array(n);
@@ -332,11 +382,13 @@ async function resultsMap(u: Universe, year: number, office: ResultsMapDto['offi
     const order = u.db.all<{ party_id: number }>('SELECT party_id FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [c.contest_id]).map((r) => r.party_id);
     const di = order.indexOf(PARTY_D), ri = order.indexOf(PARTY_R);
     let entry = rolls.get(`${c.election_id}:${c.state_idx}`)?.contests.find((x) => x.id === c.contest_id);
+    let byRj: [number, number[]][] = [];
     if (c.status === 'counting') {
       // The count so far (never the sealed cast ballots).
       const g = await liveGeo(u, c.contest_id); if (!g) continue;
       entry = { id: c.contest_id, k: order.length + 1, counties: [...g.counties], cds: [...g.cds] }; counting = true;
-    }
+      if (units.has(c.state_idx!)) byRj = [...g.rjs].filter(([rj]) => isUnitRj(rj));
+    } else if (units.has(c.state_idx!)) byRj = (await rjTotals(u, c.contest_id, order.length + 1)).filter(([rj]) => isUnitRj(rj));
     if (!entry) continue;
     const addTo = (i: number, v: number[]) => {
       if (i < 0 || i >= n || i === NONE16) return; has[i] = 1; if (di >= 0) D[i]! += v[di]!; if (ri >= 0) R[i]! += v[ri]!;
@@ -350,6 +402,7 @@ async function resultsMap(u: Universe, year: number, office: ResultsMapDto['offi
       else for (const [cd, v] of e.cds) f(cd, v);
     };
     spread(entry, order.length + 1, addTo);
+    for (const [rj, v] of byRj) addTo(off + rj, v);
     // The previous comparable result (same office, else the state's last presidential race), for swing maps.
     const b = baselineContest(u, c.contest_id);
     if (b) {
@@ -358,7 +411,9 @@ async function resultsMap(u: Universe, year: number, office: ResultsMapDto['offi
         const bo = u.db.all<{ party_id: number }>('SELECT party_id FROM candidacy WHERE contest_id = ? ORDER BY ballot_order, candidacy_id', [b.contest_id]).map((r) => r.party_id);
         const bdi = bo.indexOf(PARTY_D), bri = bo.indexOf(PARTY_R);
         baseYears.add(b.year);
-        spread(be, bo.length + 1, (i, v) => { if (i < 0 || i >= n || i === NONE16) return; bHas[i] = 1; if (bdi >= 0) bD[i]! += v[bdi]!; if (bri >= 0) bR[i]! += v[bri]!; for (let j = 0; j < bo.length; j++) bV[i]! += v[j]!; });
+        const addBase = (i: number, v: number[]) => { if (i < 0 || i >= n || i === NONE16) return; bHas[i] = 1; if (bdi >= 0) bD[i]! += v[bdi]!; if (bri >= 0) bR[i]! += v[bri]!; for (let j = 0; j < bo.length; j++) bV[i]! += v[j]!; };
+        spread(be, bo.length + 1, addBase);
+        if (units.has(b.state_idx)) for (const [rj, v] of await rjTotals(u, b.contest_id, bo.length + 1)) if (isUnitRj(rj)) addBase(off + rj, v);
       }
     }
     if (office === 'president') for (const [, v] of entry.counties) order.forEach((p, j) => national.set(p, (national.get(p) ?? 0) + v[j]!));
@@ -370,7 +425,10 @@ async function resultsMap(u: Universe, year: number, office: ResultsMapDto['offi
     const el = new Float64Array(n), ba = new Float64Array(n); let any = false;
     for (const e of pairs) {
       const t = await turnoutByBu(u, e.election_id, e.state_idx); if (!t) continue; any = true;
-      for (let i = 0; i < t.eligible.length; i++) { const a = area(t.start + i); if (a === NONE16 || a >= n) continue; el[a]! += t.eligible[i]!; ba[a]! += t.ballots[i]!; }
+      for (let i = 0; i < t.eligible.length; i++) {
+        const a = area(t.start + i); if (a === NONE16 || a >= n) continue; el[a]! += t.eligible[i]!; ba[a]! += t.ballots[i]!;
+        if (units.has(e.state_idx)) { const rj = w.pack.bu.rj[t.start + i]!; if (rj !== NONE16 && isUnitRj(rj)) { el[off + rj]! += t.eligible[i]!; ba[off + rj]! += t.ballots[i]!; } }
+      }
     }
     return any ? { el, ba } : null;
   };

@@ -31,6 +31,7 @@ API is **not** used, because it now requires a key. Every step caches its output
 | `acs` | ACS 2012–2016 block-group/tract B01001, B15003, B19013 from the summary file, plus the CVAP special tabulation | `.cache/work/acs/`, `cvap.json` |
 | `bu` | Joins everything, builds counties/districts/towns/reporting jurisdictions, and imputes missing ACS values (flagged) | `.cache/work/tables.json` |
 | `geometry` | Pre-projected (Albers USA, us-atlas convention), simplified and quantized TopoJSON for counties/states/nation and CD115. County adjacency comes from full-resolution TIGER/Line. | `public/geo-packs/2016.1/topo/` |
+| `rjgeometry` | (Phase 7.5) Pre-projected TopoJSON of the reporting units that are not counties: New England's inhabited towns (`cb_2016_<st>_cousub_500k`) and Alaska's 40 State House districts (`cb_2016_02_sldl_500k`), keyed by reporting-jurisdiction index. Towns whose code changed between the 2010 blocks and the 2016 files are matched within their county. Fails if a unit has no outline. | `public/geo-packs/2016.1/topo/rj.topo.json` |
 | `pack` | Writes the pack JSON tables, `bu.bin.gz`, `manifest.json` (file hashes, source list) and `data/timezones/county-tz.csv` | `public/geo-packs/2016.1/` |
 | `validate` | Re-reads the written pack and checks every contract guarantee against independent references. Writes the report and exits non-zero on failure. | `docs/data/geo-pack-2016.1-validation.md` |
 

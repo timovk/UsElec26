@@ -119,7 +119,7 @@ measures, jurisdiction rules with effective dates (RCV, top-two, runoffs, nonpar
 Alaska HD reporting, synthetic-precinct map layer (WebGL2).
 - **Tests:** rule versioning (no retroactive application); RCV tabulation known-answer tests; storage budget re-measured.
 
-**Status:** 7.1 implemented — see [../phase-7.1-report.md](../phase-7.1-report.md). 7.2 implemented — see [../phase-7.2-report.md](../phase-7.2-report.md). 7.3 implemented — see [../phase-7.3-report.md](../phase-7.3-report.md). 7.4 implemented — see [../phase-7.4-report.md](../phase-7.4-report.md). Correction to the 7.1 line below:
+**Status:** 7.1 implemented — see [../phase-7.1-report.md](../phase-7.1-report.md). 7.2 implemented — see [../phase-7.2-report.md](../phase-7.2-report.md). 7.3 implemented — see [../phase-7.3-report.md](../phase-7.3-report.md). 7.4 implemented — see [../phase-7.4-report.md](../phase-7.4-report.md). 7.5 implemented — see [../phase-7.5-report.md](../phase-7.5-report.md). Correction to the 7.1 line below:
 real-world changes after 2016 (Alaska's top-four in 2022, Maine's ranked-choice voting in 2018) are not scheduled.
 Per §3.4 of the simulation architecture, rules change only through simulated law; 7.1 builds the mechanisms and
 the states' own reform sessions.
@@ -151,6 +151,9 @@ Ideas agreed for later, outside the numbered phases until they are scheduled:
   and the appellate courts elected statewide.
 - **Court rulings** (from 7.2): courts deciding cases that matter to the simulation (redistricting suits,
   election-law cases), and rulings that spark campaigns against a justice at a retention election.
+- **Municipal reporting beyond New England** (from 7.5): maps, pages and election-night tables by municipality or
+  township in the states that report that way (Wisconsin, Michigan, Minnesota and others), as 7.5 does for New
+  England's towns and Alaska's districts. Their counts would first have to run on those units.
 
 ### Phase 8: Advanced historical archive
 Deliverables: rich county histories, long-term trends, interactive timelines, animated historical maps,
