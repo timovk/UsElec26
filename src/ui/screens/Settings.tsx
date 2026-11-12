@@ -63,11 +63,30 @@ export function Settings() {
           <button className="btn" disabled={running} onClick={() => void runDiag()}>{running ? 'Running…' : 'Run diagnostics'}</button>
           {diag && <table className="data" style={{ marginTop: 10 }}><tbody>{diag.map((d) => <tr key={d.name}><td>{d.name}</td><td className="num"><strong>{d.value.toLocaleString()}</strong> {d.unit}</td><td className="tiny muted">{d.note}</td></tr>)}</tbody></table>}
         </section>
-        <section className="card">
+        <section className="card" style={{ gridColumn: '1 / -1' }}>
           <h2>About</h2>
-          <p className="small">Election Night: America · engine {engineVersion} · Phase 3 (election-night counting).</p>
-          <p className="small">Geography and population: U.S. Census Bureau (2010 Census, ACS 2012–2016, CVAP 2012–2016, 2016 cartographic boundaries, 115th Congress and 2016 legislative block equivalency files). Names: Census 2010 surnames and 1990 given names. All politicians, parties' coalitions and events are fictional.</p>
-          <p className="tiny muted">Reduced motion follows your system setting. Audio arrives with the election-night broadcast (Phase 4).</p>
+          {/* Keep this card current: update it at the end of every phase. */}
+          <p className="small"><strong>Election Night: America</strong> · engine {engineVersion} · built through Phase 7.5 of the roadmap (Phases 1–6 and 7.1–7.5).</p>
+          <p className="small">A persistent simulation of American elections that starts on January 1, 2016. The geography, the population and the institutions are real as of that day. Every politician, campaign and event is fictional, and each universe writes its own history from there.</p>
+          <h3>What it simulates</h3>
+          <ul className="small">
+            <li><strong>The country:</strong> 3,142 counties built from about 265,000 Census-block areas, with each area's adults by age, race and education. Every January the population moves on: people age, die, come of age, naturalize and move. The electorate evolves too: party platforms shift and loyalties drift, so realignments emerge rather than being scripted.</li>
+            <li><strong>Elections:</strong> President (with the Electoral College), Senate, House, governors and every state legislature, including multi-member districts and New Hampshire's floterial districts. Also the other statewide offices, elected boards, state courts (partisan, nonpartisan and retention elections) and statewide ballot measures. Primaries and runoffs follow each state's 2016 rules. Presidential nominations are won through primaries and caucuses, delegates and conventions.</li>
+            <li><strong>Election law:</strong> each state's law of January 1, 2016. It changes only through the universe's own legislatures and ballot measures: ranked-choice voting, top-two and top-four primaries, open or closed primaries. Real-world changes after 2016 are not imported.</li>
+            <li><strong>Campaigns and polls:</strong> fundraising, debates, scandals and endorsements; 32 fictional pollsters; polling averages and forecasts, scored against the results.</li>
+            <li><strong>Election night:</strong> poll closings, and the count as each state reports it: by county, by town in New England, by House district in Alaska. There is a voter survey and a decision desk, and the broadcast carries projections, Key Race Alerts and commentary. Every night can be replayed.</li>
+            <li><strong>Between elections:</strong> the economy and presidential approval. Careers: retirements, scandals, deaths, appointments and special elections. Congress's bills and roll calls, and each state's legislative session. The census every ten years, apportionment and redistricting.</li>
+            <li><strong>History:</strong> every result is archived, certified and audited. Every state, congressional district, county, New England town and Alaska House district has a history page. Maps show each year's presidential, Senate, governor and House results.</li>
+          </ul>
+          <h3>Not yet in the simulation</h3>
+          <p className="small">County offices (planned for Phase 7.6), mayors, city councils and school boards (7.7), and precinct maps (7.8). Also live primary nights, and primaries for state legislative seats (parties nominate directly).</p>
+          <h3>Sources</h3>
+          <ul className="small">
+            <li><strong>Geography and population:</strong> U.S. Census Bureau: the 2010 Census redistricting data, ACS 2012–2016 five-year estimates, the CVAP 2012–2016 special tabulation, the 2016 cartographic boundary files (states, counties, New England towns, congressional and state legislative districts), and the block equivalency files for the 115th Congress and the 2016 state legislative districts.</li>
+            <li><strong>Names:</strong> 2010 Census surnames and 1990 Census given names. Real politicians' names (members of Congress since 1945, presidents, vice presidents and recent governors) are used only to keep them out of the generated names.</li>
+            <li><strong>Election law, offices, calendars and courts:</strong> as of January 1, 2016, compiled from state constitutions and statutes as summarized by NCSL, Ballotpedia and state election offices. Some details are approximations.</li>
+          </ul>
+          <p className="tiny muted">Your universes stay in this browser: the app has no server. The election-night broadcast plays short synthesized sound cues (mute with 🔈). Reduced motion follows your system setting until you choose otherwise in the broadcast controls.</p>
         </section>
       </div>
     </>
