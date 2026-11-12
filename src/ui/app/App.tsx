@@ -42,8 +42,8 @@ export function App({ updateAvailable, applyUpdate }: { updateAvailable: boolean
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
-    engine.request<{ storage: StorageInfo; slots: SlotInfo[]; engineVersion: string }>({ type: 'init' })
-      .then((r) => { set({ ready: true, storage: r.storage, slots: r.slots, engineVersion: r.engineVersion }); })
+    engine.request<{ storage: StorageInfo; slots: SlotInfo[]; engineVersion: string; engineUpdatedIn: string }>({ type: 'init' })
+      .then((r) => { set({ ready: true, storage: r.storage, slots: r.slots, engineVersion: r.engineVersion, engineUpdatedIn: r.engineUpdatedIn }); })
       .catch((e: Error) => set({ fatal: e.message }))
       .finally(() => setBooting(false));
   }, [set]);

@@ -34,6 +34,11 @@ import { SIM_START } from '../core/time';
 
 const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
 export const ENGINE_VERSION = '0.7.4';
+/**
+ * The phase in which the engine (the simulation itself) last changed, shown with ENGINE_VERSION in Settings → About.
+ * Change both together. A phase that changes only screens, maps or pages (7.5) leaves both as they are.
+ */
+export const ENGINE_UPDATED_IN = '7.4';
 /** How often (wall time) a long advance commits its batched writes to storage. */
 const COMMIT_INTERVAL_MS = 10000;
 
