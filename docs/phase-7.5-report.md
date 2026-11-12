@@ -1,6 +1,6 @@
 # Phase 7.5 Report — Town and Alaska Reporting
 
-**Status:** implemented, awaiting approval.
+**Status:** approved.
 **Engine version:** 0.7.4 (unchanged) · **Schema version:** 10 (unchanged) · **Night record:** version 2 (unchanged) ·
 **Geography pack:** 2016.1, one presentation file added (`topo/rj.topo.json`)
 
