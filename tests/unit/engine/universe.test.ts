@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { makeFixturePack } from '../../fixtures/fixturePack';
 import { fixtureNames, packToFiles } from '../../fixtures/packFiles';
 import { initSqlite, MemoryStorage } from '../../../src/persistence/storage';
-import { Universe } from '../../../src/engine/universe';
+import { ENGINE_HISTORY, ENGINE_VERSION, Universe, engineVersionName } from '../../../src/engine/universe';
 import { contentHash, integrityReport } from '../../../src/persistence/audit';
 import { MINUTES_PER_DAY, SIM_START } from '../../../src/core/time';
 import type { Sqlite3Static } from '@sqlite.org/sqlite-wasm';
@@ -84,4 +84,29 @@ describe('Universe lifecycle', () => {
     expect(await contentHash(v.db)).toBe(h);
     void storage;
   });
+});
+
+describe('Engine versions', () => {
+  it('count updates 1.0, 2.0, … (a minor fix adds .1); an old phase-based name is the same engine', async () => {
+    const v = ENGINE_HISTORY.map((e) => e.version.split('.').map(Number) as [number, number]);
+    expect(v[0]).toEqual([1, 0]);
+    for (let i = 1; i < v.length; i++) {
+      const [a, b] = v[i - 1]!, [c, d] = v[i]!;
+      expect((c === a + 1 && d === 0) || (c === a && d === b + 1)).toBe(true);
+    }
+    expect(ENGINE_VERSION).toBe(ENGINE_HISTORY[ENGINE_HISTORY.length - 1]!.version);
+    expect(engineVersionName('0.1.0')).toBe('1.0'); expect(engineVersionName('0.7.3.1')).toBe('9.1'); expect(engineVersionName('0.7.4')).toBe('10.0');
+    expect(engineVersionName('10.0')).toBe('10.0');
+    // Opening a universe records an engine switch only when the engine really changed.
+    for (const [old, newer] of [['0.1.0', true], ['0.7.4', ENGINE_VERSION !== '10.0']] as const) {
+      const { storage, u } = await make('ledger-1');
+      u.db.run('UPDATE engine_ledger SET engine_version = ?', [old]);
+      const name = u.fileName; u.close();
+      const r = await Universe.open(storage, name, names);
+      const ledger = r.db.all<{ engine_version: string; to_time: number | null }>('SELECT engine_version, to_time FROM engine_ledger ORDER BY seq');
+      expect(ledger.length).toBe(newer ? 2 : 1);
+      expect(engineVersionName(ledger[ledger.length - 1]!.engine_version)).toBe(ENGINE_VERSION);
+      r.close();
+    }
+  }, 300_000);
 });

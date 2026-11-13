@@ -4,7 +4,7 @@
  * The UI talks to it exclusively through the message protocol in src/engine/protocol.ts.
  */
 import type { EngineEvent, Request, Response as EngineResponse, SlotInfo, StorageInfo } from '../engine/protocol';
-import { Universe, ENGINE_VERSION, ENGINE_UPDATED_IN } from '../engine/universe';
+import { Universe, ENGINE_VERSION, ENGINE_UPDATED } from '../engine/universe';
 import { runQuery } from '../engine/queries';
 import { SEMANTIC_FILES } from '../geo/pack';
 import { gzip, isGzip } from '../core/codec';
@@ -55,7 +55,7 @@ async function getNames(): Promise<NameData> {
   return names;
 }
 
-async function init(): Promise<{ storage: StorageInfo; slots: SlotInfo[]; engineVersion: string; engineUpdatedIn: string }> {
+async function init(): Promise<{ storage: StorageInfo; slots: SlotInfo[]; engineVersion: string; engineUpdated: string }> {
   if (!sqlite3) sqlite3 = await initSqlite();
   if (!storage) {
     const gotLock = await new Promise<boolean>((resolve) => {
@@ -72,7 +72,7 @@ async function init(): Promise<{ storage: StorageInfo; slots: SlotInfo[]; engine
       storage = new MemoryStorage(sqlite3);
     }
   }
-  return { storage: await storageInfo(false), slots: listSlots(), engineVersion: ENGINE_VERSION, engineUpdatedIn: ENGINE_UPDATED_IN };
+  return { storage: await storageInfo(false), slots: listSlots(), engineVersion: ENGINE_VERSION, engineUpdated: ENGINE_UPDATED };
 }
 
 async function storageInfo(requestPersist: boolean): Promise<StorageInfo> {

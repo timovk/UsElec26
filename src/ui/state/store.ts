@@ -4,7 +4,7 @@ import { engine } from './engineClient';
 
 interface AppState {
   ready: boolean; fatal: string | null;
-  storage: StorageInfo | null; slots: SlotInfo[]; engineVersion: string; engineUpdatedIn: string;
+  storage: StorageInfo | null; slots: SlotInfo[]; engineVersion: string; engineUpdated: string;
   active: SlotInfo | null; time: number | null; playing: boolean;
   progress: { step: string; fraction: number } | null;
   toasts: { id: number; text: string; kind: 'info' | 'error' }[];
@@ -17,7 +17,7 @@ interface AppState {
 
 let toastId = 1;
 export const useApp = create<AppState>((set, get) => ({
-  ready: false, fatal: null, storage: null, slots: [], engineVersion: '', engineUpdatedIn: '', active: null, time: null, playing: false, progress: null, toasts: [], liveNews: [], revision: 0,
+  ready: false, fatal: null, storage: null, slots: [], engineVersion: '', engineUpdated: '', active: null, time: null, playing: false, progress: null, toasts: [], liveNews: [], revision: 0,
   set: (p) => set(p),
   toast: (text, kind = 'info') => {
     const id = toastId++;

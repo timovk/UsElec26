@@ -10,7 +10,7 @@ import { MapRenderer, loadBasemap, marginColor } from '../map/renderer';
 const BUILT_THROUGH = '7.5';
 
 export function Settings() {
-  const { storage, active, engineVersion, engineUpdatedIn, set, toast } = useApp();
+  const { storage, active, engineVersion, engineUpdated, set, toast } = useApp();
   const [integrity, setIntegrity] = useState<IntegrityReport | null>(null);
   const [diag, setDiag] = useState<DiagnosticsResult[] | null>(null);
   const [running, setRunning] = useState(false);
@@ -69,8 +69,8 @@ export function Settings() {
         <section className="card" style={{ gridColumn: '1 / -1' }}>
           <h2>About</h2>
           {/* Keep this card current: update it at the end of every phase. */}
-          <p className="small"><strong>Election Night: America</strong> · built through Phase {BUILT_THROUGH} of the roadmap · simulation engine {engineVersion}, last updated in Phase {engineUpdatedIn}.</p>
-          <p className="tiny muted">The engine version changes only when the simulation itself changes. A phase that adds only screens, maps or pages keeps it: the same seed then still gives the same universe.</p>
+          <p className="small"><strong>Election Night: America</strong> · built through Phase {BUILT_THROUGH} of the roadmap · simulation engine {engineVersion}, last updated {engineUpdated}.</p>
+          <p className="tiny muted">The engine version goes up by one each time the simulation itself changes; a minor fix adds .1. A phase that adds only screens, maps or pages keeps it: the same seed then still gives the same universe.</p>
           <p className="small">A persistent simulation of American elections that starts on January 1, 2016. The geography, the population and the institutions are real as of that day. Every politician, campaign and event is fictional, and each universe writes its own history from there.</p>
           <h3>What it simulates</h3>
           <ul className="small">

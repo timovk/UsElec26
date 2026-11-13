@@ -1,7 +1,7 @@
 # Phase 7.5 Report — Town and Alaska Reporting
 
 **Status:** approved.
-**Engine version:** 0.7.4 (unchanged) · **Schema version:** 10 (unchanged) · **Night record:** version 2 (unchanged) ·
+**Engine version:** 10.0, formerly named 0.7.4 (unchanged; versions now count engine updates, see [architecture §2.5](architecture/02-application-architecture.md)) · **Schema version:** 10 (unchanged) · **Night record:** version 2 (unchanged) ·
 **Geography pack:** 2016.1, one presentation file added (`topo/rj.topo.json`)
 
 Phase 7.5 is the fifth of eight Phase 7 sub-phases ([roadmap](architecture/10-roadmap.md#phase-7-complete-electoral-coverage)).

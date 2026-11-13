@@ -176,6 +176,26 @@ through the `core/time` US time-zone engine (§3.6).
    and compares database content hashes.
 6. **Engine-version ledger.** Model code changes between releases. The universe records which engine version
    simulated which period. History is never re-derived from code: the archive stores outcomes.
+
+   **Engine version numbers** count the updates of the simulation itself: each update adds one to the major
+   number, and only a really minor tweak adds .1. A release that changes only screens, maps or pages keeps the
+   version, and the same seed then gives the same universe. Settings → About shows the version and the phase that
+   last changed it. The list lives in `ENGINE_HISTORY` (`src/engine/universe.ts`). Until Phase 7.5, versions were
+   named after the phase. Universes saved then keep the old name in their ledger, and it is read as the new one:
+
+   | Engine | Old name | Updated |
+   |---|---|---|
+   | 1.0 | 0.1.0 | Phase 1 |
+   | 2.0 | 0.2.0 | Phase 2 |
+   | 3.0 | 0.3.0 | Phase 3 |
+   | 4.0 | 0.4.0 | Phase 4 |
+   | 5.0 | 0.5.0 | Phase 5 |
+   | 6.0 | 0.6.0 | Phase 6 (the speed work after it left every result unchanged) |
+   | 7.0 | 0.7.1 | Phase 7.1 |
+   | 8.0 | 0.7.2 | Phase 7.2 |
+   | 9.0 | 0.7.3 | Phase 7.3 |
+   | 9.1 | 0.7.3.1 | After Phase 7.3: North Carolina's primary runoff threshold |
+   | 10.0 | 0.7.4 | Phase 7.4 (Phase 7.5 changed only maps and pages) |
 7. **Playback independence.** Election-night playback reads a stored record and cannot affect outcomes.
 
 ## 2.6 Error handling and recovery

@@ -33,12 +33,34 @@ import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from 
 import { SIM_START } from '../core/time';
 
 const ELECTION_EVENTS = new Set(['general', 'primary', 'runoff', 'special', 'pres_nomination']);
-export const ENGINE_VERSION = '0.7.4';
 /**
- * The phase in which the engine (the simulation itself) last changed, shown with ENGINE_VERSION in Settings → About.
- * Change both together. A phase that changes only screens, maps or pages (7.5) leaves both as they are.
+ * Every version of the engine (the simulation itself), oldest first. Each update of the simulation adds one to the
+ * major number; only a really minor tweak adds .1. A phase that changes only screens, maps or pages (7.5) adds
+ * nothing. Add the new version here at the end of a phase that changes the engine: Settings → About shows it with
+ * `updated`.
+ *
+ * Until Phase 7.5 versions were numbered after the phase (0.1.0 … 0.7.4). Universes saved by those releases keep
+ * the old name in their engine ledger; `legacy` maps it to the current name.
  */
-export const ENGINE_UPDATED_IN = '7.4';
+export const ENGINE_HISTORY: readonly { version: string; legacy?: string; updated: string }[] = [
+  { version: '1.0', legacy: '0.1.0', updated: 'in Phase 1' },
+  { version: '2.0', legacy: '0.2.0', updated: 'in Phase 2' },
+  { version: '3.0', legacy: '0.3.0', updated: 'in Phase 3' },
+  { version: '4.0', legacy: '0.4.0', updated: 'in Phase 4' },
+  { version: '5.0', legacy: '0.5.0', updated: 'in Phase 5' },
+  { version: '6.0', legacy: '0.6.0', updated: 'in Phase 6' },
+  { version: '7.0', legacy: '0.7.1', updated: 'in Phase 7.1' },
+  { version: '8.0', legacy: '0.7.2', updated: 'in Phase 7.2' },
+  { version: '9.0', legacy: '0.7.3', updated: 'in Phase 7.3' },
+  { version: '9.1', legacy: '0.7.3.1', updated: "after Phase 7.3 (North Carolina's runoff threshold)" },
+  { version: '10.0', legacy: '0.7.4', updated: 'in Phase 7.4' },
+];
+const CURRENT_ENGINE = ENGINE_HISTORY[ENGINE_HISTORY.length - 1]!;
+export const ENGINE_VERSION = CURRENT_ENGINE.version;
+/** When the engine last changed, for Settings → About ("in Phase 7.4"). */
+export const ENGINE_UPDATED = CURRENT_ENGINE.updated;
+/** The current name of an engine version recorded by any release (old phase-based names included). */
+export const engineVersionName = (v: string): string => ENGINE_HISTORY.find((e) => e.legacy === v)?.version ?? v;
 /** How often (wall time) a long advance commits its batched writes to storage. */
 const COMMIT_INTERVAL_MS = 10000;
 
@@ -183,7 +205,8 @@ export class Universe {
         vacancies: new Map(rows.vacancies.map((v) => [v.officeId, v])), chambers: rows.chambers, history: rows.meta.history, ids: rows.meta.ids, pending: emptyPending(),
       };
       const last = db.get<{ seq: number; engine_version: string }>('SELECT seq, engine_version FROM engine_ledger WHERE to_time IS NULL ORDER BY seq DESC LIMIT 1');
-      if (last && last.engine_version !== ENGINE_VERSION) {
+      // A version recorded under its old name (0.7.4 = 10.0) is the same engine: no switch is recorded.
+      if (last && engineVersionName(last.engine_version) !== ENGINE_VERSION) {
         db.tx(() => {
           db.run('UPDATE engine_ledger SET to_time = ? WHERE seq = ?', [world.time, last.seq]);
           db.run('INSERT INTO engine_ledger(from_time, to_time, engine_version, schema_version) VALUES (?,?,?,?)', [world.time, null, ENGINE_VERSION, SCHEMA_VERSION]);
