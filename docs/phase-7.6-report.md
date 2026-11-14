@@ -1,6 +1,6 @@
 # Phase 7.6 Report — County Offices
 
-**Status:** implemented, awaiting your approval.
+**Status:** approved; every county remains the default scope.
 **Engine version:** 11.0 (was 10.0) · **Schema version:** 11 (was 10) · **Night record:** version 3 (was 2; older
 records read as before) · **Geography pack:** 2016.1 (unchanged)
 
