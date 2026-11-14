@@ -202,6 +202,19 @@ exactly a `MarginMove` story with a cause clause and an `OutstandingVote` clause
 - **Skipping the night:** advancing the universe past Election Day without watching is allowed. The record
   exists either way and can be watched later as a replay.
 
+### County races (Phase 7.6)
+Every county race on a general-election ballot is counted on the night with its state's races, from the same
+batches, and the desk projects it, but it stays out of the broadcast (banners, ticker, alerts, commentary). The night
+record (version 3) keeps them apart in a `local` section: the races, their rows grouped by race, their wire rows and
+desk events. The Broadcast Worker reads them on demand (`localFrame`, `localDetail`); the broadcast frames are
+unchanged. They are followed in the Desk (County offices: featured races first, the executive, sheriff and
+prosecutor of the counties of a million people or more, then by state and county), the Analyst (county races) and
+the Results Explorer (County offices). To keep the count cheap, a county race's votes are pooled by night part and
+mode and split across that part's batches (instead of unit by unit), with the plan shared by every race over the
+same units; ballots never counted are still drawn unit by unit, since certification subtracts them per unit. A
+projected county race is not re-examined. Their unofficial count and canvass are revisions 1 and 2 like the
+statewide races'.
+
 ## 8.8 After election night
 
 - Later batches (day 2, day 3, …) surface as dated news items and update results views as the universe clock

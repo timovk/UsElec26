@@ -29,6 +29,9 @@ export interface NightState {
   startCoverage: () => void;
   /** One race in detail from the Broadcast Worker (Analyst Mode). */
   raceDetail: (race: number, t: number, truth: boolean) => Promise<RaceDetailDto | null>;
+  /** County races (Phase 7.6): frames of some local races at t, and one local race in detail. */
+  localFrames: (races: number[], t: number) => Promise<NightRaceFrame[]>;
+  localDetail: (race: number, t: number) => Promise<RaceDetailDto | null>;
 }
 
 export const leaderOf = (r: NightRaceFrame | undefined, k: number) => {
@@ -135,11 +138,13 @@ export function useNight(nightId: number): NightState | null {
   }, [meta]);
 
   const raceDetail = useCallback(async (race: number, at: number, truth: boolean) => (bc.current && ready ? bc.current.raceDetail(race, at, truth) : null), [ready]);
+  const localFrames = useCallback(async (list: number[], at: number) => (bc.current && ready && list.length ? bc.current.localFrame(at, list) : []), [ready]);
+  const localDetail = useCallback(async (race: number, at: number) => (bc.current && ready ? bc.current.localDetail(race, at) : null), [ready]);
 
   if (!meta || pos === null || edge === null) return null;
   const live = edge < meta.feedEnd && pos >= edge - Math.max(2, (speed * 3) / 60);
   return {
     meta, geo, markers, t: pos, edge, live, beforeCoverage: edge < meta.coverageStart,
-    playing, setPlaying, speed, setSpeed, races, tally, focus, setFocus, focusData, seek, startCoverage, raceDetail,
+    playing, setPlaying, speed, setSpeed, races, tally, focus, setFocus, focusData, seek, startCoverage, raceDetail, localFrames, localDetail,
   };
 }

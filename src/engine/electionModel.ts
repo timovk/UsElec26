@@ -1,12 +1,13 @@
 /** Contest-level modelling shared by the election engine: candidate quality, valence and result aggregation. */
 import { Rng } from '../core/rng';
-import type { Office, OfficeKind, Person } from '../institutions/model';
+import type { Office, OfficeKind, Person, Term } from '../institutions/model';
 import { PARTY_D, PARTY_R } from '../institutions/model';
 import type { KernelContest, ShardInput, ShardOutput } from '../electorate/kernel';
 import { N_CLASS, N_MODES } from '../electorate/kernel';
-import type { ContestResult } from '../archive/results';
+import { marksOf, type ContestResult } from '../archive/results';
 import type { MeasureParams } from './measures';
 import type { GeoPack } from '../geo/pack';
+import { heldOffices } from './world';
 
 export interface ContestRow {
   contest_id: number; election_id: number; office_id: number | null; kind: string; party_id: number | null; state_idx: number | null;
@@ -21,23 +22,32 @@ export interface CandidacyRow { candidacy_id: number; contest_id: number; person
 
 /** Office salience in the vote choice (weight on partisanship). */
 export function officeWeight(kind: string): number {
-  return ({ president: 1, us_senator: 0.95, us_representative: 0.9, governor: 0.75, lt_governor: 0.85, attorney_general: 0.85, secretary_of_state: 0.85 } as Record<string, number>)[kind] ?? 0.85;
+  return ({ president: 1, us_senator: 0.95, us_representative: 0.9, governor: 0.75, lt_governor: 0.85, attorney_general: 0.85, secretary_of_state: 0.85,
+    // County offices (Phase 7.6): voters weigh party less, the more local and administrative the office.
+    county_board: 0.7, county_executive: 0.72, sheriff: 0.55, prosecutor: 0.62, county_clerk: 0.5, court_clerk: 0.5, county_treasurer: 0.5,
+    county_assessor: 0.5, county_auditor: 0.5, county_recorder: 0.5, coroner: 0.45, county_surveyor: 0.45, county_official: 0.5 } as Record<string, number>)[kind] ?? 0.85;
 }
 /** Undervote propensity by office (logit of abstaining relative to voting). Down-ballot races lose more voters (Phase 7.2). */
 export function officeAbstain(kind: string): number {
   return ({ president: -4.2, us_senator: -3.5, us_representative: -3.0, governor: -3.7, lt_governor: -2.4, attorney_general: -2.3, secretary_of_state: -2.3,
     treasurer: -2.6, auditor: -2.5, superintendent: -2.5, insurance_commissioner: -2.4, agriculture_commissioner: -2.4, labor_commissioner: -2.3, land_commissioner: -2.4,
-    other_statewide: -2.2, commissioner: -2.1, education_board: -1.9, regent: -1.8, justice: -2.1, appellate_judge: -1.9 } as Record<string, number>)[kind] ?? -2.5;
+    other_statewide: -2.2, commissioner: -2.1, education_board: -1.9, regent: -1.8, justice: -2.1, appellate_judge: -1.9,
+    county_board: -2.2, county_executive: -2.6, sheriff: -2.5, prosecutor: -2.2, county_clerk: -2.0, court_clerk: -1.9, county_treasurer: -2.0,
+    county_assessor: -2.0, county_auditor: -1.9, county_recorder: -1.9, coroner: -1.8, county_surveyor: -1.7, county_official: -1.9 } as Record<string, number>)[kind] ?? -2.5;
 }
 const INCUMBENCY: Record<string, number> = { president: 0.08, us_senator: 0.15, us_representative: 0.22, governor: 0.12, lt_governor: 0.12, attorney_general: 0.14, secretary_of_state: 0.14,
   treasurer: 0.14, auditor: 0.14, superintendent: 0.14, insurance_commissioner: 0.14, agriculture_commissioner: 0.15, labor_commissioner: 0.14, land_commissioner: 0.14,
-  other_statewide: 0.14, commissioner: 0.12, education_board: 0.12, regent: 0.12, justice: 0.22, appellate_judge: 0.22 };
+  other_statewide: 0.14, commissioner: 0.12, education_board: 0.12, regent: 0.12, justice: 0.22, appellate_judge: 0.22,
+  county_board: 0.2, county_executive: 0.18, sheriff: 0.3, prosecutor: 0.24, county_clerk: 0.28, court_clerk: 0.28, county_treasurer: 0.28,
+  county_assessor: 0.28, county_auditor: 0.28, county_recorder: 0.28, coroner: 0.26, county_surveyor: 0.26, county_official: 0.28 };
 
 const TIER: Partial<Record<OfficeKind, number>> = {
   president: 1, vice_president: 0.92, governor: 0.86, us_senator: 0.86, cabinet: 0.7, lt_governor: 0.64, attorney_general: 0.64,
   secretary_of_state: 0.6, us_representative: 0.62, state_leg_leader: 0.5, congress_leader: 0.62,
   treasurer: 0.55, auditor: 0.52, superintendent: 0.5, insurance_commissioner: 0.5, agriculture_commissioner: 0.5, labor_commissioner: 0.46, land_commissioner: 0.5,
   other_statewide: 0.44, commissioner: 0.45, education_board: 0.36, regent: 0.36, justice: 0.62, appellate_judge: 0.52,
+  county_executive: 0.46, sheriff: 0.4, prosecutor: 0.42, county_board: 0.34, county_clerk: 0.3, court_clerk: 0.3, county_treasurer: 0.3,
+  county_assessor: 0.3, county_auditor: 0.3, county_recorder: 0.28, coroner: 0.26, county_surveyor: 0.26, county_official: 0.3,
 };
 
 /** Retention elections (Phase 7.2): the yes vote's baseline appeal, and how much distance from the judge's views costs it. */
@@ -109,8 +119,9 @@ export function kernelContest(seed: string, c: ContestRow, cands: { cand: Candid
       homeCounty: person.homeCounty ?? -1, homeState: person.homeState === stateIdx,
     };
   });
-  const seats = c.seats ?? 1;
-  const uncontested = cands.length <= seats;
+  // Marks per ballot: the seats, or one fewer under Pennsylvania's limited voting (Phase 7.6).
+  const seats = marksOf(c);
+  const uncontested = cands.length <= (c.seats ?? 1);
   return {
     id: c.contest_id, cd: (officeKind === 'us_representative' || officeKind === 'state_senator' || officeKind === 'state_representative') && c.district_idx !== null ? c.district_idx : -1,
     geo: officeKind === 'state_senator' ? 1 : officeKind === 'state_representative' ? 2 : 0,
@@ -146,11 +157,12 @@ export function aggregate(geo: BuGeo, shards: { input: ShardInput; output: Shard
         if (meta.grain === 'cpart') add(a.cpart, county * 65536 + cd);
         else { a.units.push(bu); for (let j = 0; j < k; j++) a.votes.push(co.votes[u * k + j]!); }
       }
-      for (let lr = 0; lr < input.rjCount; lr++) for (let m = 0; m < N_MODES; m++) {
+      const span = co.rjMode.length / (N_MODES * k), base = co.rjBase ?? 0;
+      for (let lr = 0; lr < span; lr++) for (let m = 0; m < N_MODES; m++) {
         const o = (lr * N_MODES + m) * k; let any = false;
         for (let j = 0; j < k; j++) if (co.rjMode[o + j]!) { any = true; break; }
         if (!any) continue;
-        const key = (input.rjFirst + lr) * N_MODES + m;
+        const key = (input.rjFirst + base + lr) * N_MODES + m;
         let v = a.rj.get(key); if (!v) { v = new Array<number>(k).fill(0); a.rj.set(key, v); }
         for (let j = 0; j < k; j++) v[j]! += co.rjMode[o + j]!;
       }
@@ -172,8 +184,6 @@ export function aggregate(geo: BuGeo, shards: { input: ShardInput; output: Shard
   return res;
 }
 
-export function heldKinds(current: Map<number, { personId: number }>, officeById: Map<number, Office>, personId: number): OfficeKind[] {
-  const out: OfficeKind[] = [];
-  for (const [oid, t] of current) if (t.personId === personId) out.push(officeById.get(oid)!.kind);
-  return out;
+export function heldKinds(current: Map<number, Term>, officeById: Map<number, Office>, personId: number): OfficeKind[] {
+  return heldOffices(current, personId).map((oid) => officeById.get(oid)!.kind);
 }

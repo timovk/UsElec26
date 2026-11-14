@@ -140,7 +140,7 @@ async function handle(req: Request): Promise<unknown> {
         packFiles.set(f, b);
       }));
       if (storage instanceof OpfsStorage) await storage.ensureCapacity(2);
-      universe = attach(await Universe.create(storage!, { name: req.name, seed: req.seed }, packFiles, await getNames(), (step, fraction) => emit({ event: 'progress', step, fraction })));
+      universe = attach(await Universe.create(storage!, { name: req.name, seed: req.seed, ...(req.county ? { county: req.county } : {}) }, packFiles, await getNames(), (step, fraction) => emit({ event: 'progress', step, fraction })));
       return slotInfo(universe.fileName);
     }
     case 'open': {
@@ -190,6 +190,17 @@ async function handle(req: Request): Promise<unknown> {
     case 'play': if (!universe) throw new Error('No universe is open.'); startPlay(req.daysPerSecond); return null;
     case 'pause': stopPlay(); if (universe) emit({ event: 'clock', time: universe.world.time, playing: false }); return null;
     case 'query': if (!universe) throw new Error('No universe is open.'); return runQuery(universe, req.query);
+    case 'countyScope': {
+      // Read without a scope; with one, change it (Phase 7.6): offices outside it end, counties brought in get their officeholders.
+      if (!universe) throw new Error('No universe is open.');
+      if (!req.scope) return { scope: universe.countyScope, ended: 0 };
+      stopPlay();
+      await busy;
+      const u = universe, run = u.setCountyScope(req.scope); busy = run.catch(() => 0);
+      const ended = await run;
+      emit({ event: 'clock', time: u.world.time, playing: false });
+      return { scope: u.countyScope, ended };
+    }
     case 'integrity': if (!universe) throw new Error('No universe is open.'); return integrityReport(universe.db);
     case 'diagnostics': return runDiagnostics(() => sqliteWriteBench(sqlite3!), universe);
   }

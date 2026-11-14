@@ -207,6 +207,83 @@ export class Playback {
     return { batches: batches.slice(-limit).reverse(), byMode, events, history };
   }
 
+  // ---- County races (Phase 7.6): the record's local races, read on demand ----------------------------------
+
+  get localCount(): number { return this.rec.local?.races.length ?? 0; }
+  private localByContest: Map<number, number> | null = null;
+  /** The local race counting a contest (−1: none). */
+  localOf(contestId: number): number {
+    if (!this.localByContest) this.localByContest = new Map((this.rec.local?.races ?? []).map((r, i) => [r.contestId, i]));
+    return this.localByContest.get(contestId) ?? -1;
+  }
+  private localEvents: number[][] | null = null;
+  private localWire: number[][] | null = null;
+  private partRowIdx: number[][] | null = null;
+  private localIndex(): void {
+    if (this.localEvents) return;
+    const L = this.rec.local!, R = L.races.length;
+    this.localEvents = Array.from({ length: R }, () => []); for (let i = 0; i < L.events.time.length; i++) this.localEvents[L.events.race[i]!]!.push(i);
+    this.localWire = Array.from({ length: R }, () => []); for (let i = 0; i < L.wire.time.length; i++) this.localWire[L.wire.race[i]!]!.push(i);
+    this.partRowIdx = Array.from({ length: this.rec.parts.rj.length }, () => []);
+    for (let i = 0; i < this.rec.partRows.part.length; i++) this.partRowIdx[this.rec.partRows.part[i]!]!.push(i);
+  }
+
+  /** A county race's state at t: votes counted, precincts reporting, expected vote and the desk's status. */
+  localState(r: number, t: number): RaceState {
+    this.localIndex();
+    const L = this.rec.local!, race = L.races[r]!, k = race.k, end = this.batchesUpTo(t);
+    const votes = new Float64Array(k);
+    for (let i = L.start[r]!; i < L.start[r + 1]!; i++) { if (L.rows.batch[i]! >= end) break; for (let j = 0; j < k; j++) votes[j]! += L.rows.votes[L.rows.off[i]! + j]!; }
+    let ballots = 0; for (let j = 0; j < k; j++) ballots += votes[j]!;
+    let precincts = 0;
+    for (const p of race.parts) for (const i of this.partRowIdx![p]!) if (this.rec.partRows.batch[i]! < end) precincts += this.rec.partRows.precincts[i]!;
+    const ev = L.events, ei = this.lastAtOrBefore(this.localEvents![r]!, ev.time, t), id = ei >= 0 ? this.localEvents![r]![ei]! : -1;
+    const wi = this.lastAtOrBefore(this.localWire![r]!, L.wire.time, t);
+    const calledAt = id >= 0 && ev.status[id] === ST_CALLED ? ev.time[id]! : -1;
+    return {
+      votes, ballots, precincts, expected: wi >= 0 ? L.wire.expected[this.localWire![r]![wi]!]! : 0,
+      status: id >= 0 ? ev.status[id]! : ST_NONE, option: id >= 0 ? ev.option[id]! : -1, option2: id >= 0 ? ev.option2[id]! : -1,
+      prob: id >= 0 ? ev.prob[id]! / 10000 : 0, calledAt, pollClose: id >= 0 && (ev.flags[id]! & 1) === 1 && ev.status[id] === ST_CALLED,
+    };
+  }
+
+  /** A county race's counted votes by reporting jurisdiction up to t. */
+  localByRj(r: number, t: number): Map<number, Float64Array> {
+    const L = this.rec.local!, k = L.races[r]!.k, end = this.batchesUpTo(t), out = new Map<number, Float64Array>();
+    for (let i = L.start[r]!; i < L.start[r + 1]!; i++) {
+      if (L.rows.batch[i]! >= end) break;
+      const rj = this.rec.parts.rj[L.rows.part[i]!]!;
+      let v = out.get(rj); if (!v) { v = new Float64Array(k); out.set(rj, v); }
+      for (let j = 0; j < k; j++) v[j]! += L.rows.votes[L.rows.off[i]! + j]!;
+    }
+    return out;
+  }
+
+  /** One county race in detail up to t (Analyst Mode), as `raceDetail`. */
+  localDetail(r: number, t: number, limit = 300): RaceDetail {
+    this.localIndex();
+    const L = this.rec.local!, k = L.races[r]!.k, B = this.rec.batches, end = this.batchesUpTo(t);
+    const byMode = Array.from({ length: 4 }, () => new Array<number>(k).fill(0));
+    const batches: RaceDetail['batches'] = [], hist: RaceDetail['history'] = [], totals = new Array<number>(k).fill(0);
+    let cum = 0;
+    for (let i = L.start[r]!; i < L.start[r + 1]!; i++) {
+      const b = L.rows.batch[i]!; if (b >= end) break;
+      const row = { time: B.time[b]!, rj: B.rj[b]!, mode: B.mode[b]!, votes: new Array<number>(k).fill(0) };
+      for (let j = 0; j < k; j++) { const v = L.rows.votes[L.rows.off[i]! + j]!; row.votes[j] = v; byMode[row.mode]![j]! += v; totals[j]! += v; cum += v; }
+      batches.push(row);
+      const last = hist[hist.length - 1];
+      if (last && last.time === row.time) { last.ballots = cum; last.votes = totals.slice(); } else hist.push({ time: row.time, ballots: cum, votes: totals.slice() });
+    }
+    const ev = L.events, events: RaceDetail['events'] = [];
+    for (const id of this.localEvents![r]!) {
+      if (ev.time[id]! > t) break;
+      let ballots = 0; for (const h of hist) if (h.time <= ev.time[id]!) ballots = h.ballots;
+      const wi = this.lastAtOrBefore(this.localWire![r]!, L.wire.time, ev.time[id]!);
+      events.push({ time: ev.time[id]!, status: ev.status[id]!, option: ev.option[id]!, prob: ev.prob[id]! / 10000, ballots, expected: wi >= 0 ? L.wire.expected[this.localWire![r]![wi]!]! : 0 });
+    }
+    return { batches: batches.slice(-limit).reverse(), byMode, events, history: hist };
+  }
+
   /** Final counted votes of a race (the end of the feed): the certified count — simulation truth until then. */
   finalVotes(r: number): number[] { return Array.from(this.at(this.rec.feedEnd).races[r]!.votes); }
 

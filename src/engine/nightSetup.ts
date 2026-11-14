@@ -65,7 +65,7 @@ export function precinctTargets(pack: GeoPack, rg: StateRange): Float32Array {
   return out;
 }
 
-export interface NightRaceSource { contestIndex: number; office: string; method: string; parties: number[]; districtEv: boolean; /** Ballot measures (Phase 7.3): the call rule over (yes, no, blank), when not a simple majority. */ pass?: number[] }
+export interface NightRaceSource { contestIndex: number; office: string; /** A county race (Phase 7.6). */ local?: boolean; method: string; parties: number[]; districtEv: boolean; /** Ballot measures (Phase 7.3): the call rule over (yes, no, blank), when not a simple majority. */ pass?: number[] }
 
 /** The races of a state's night: each contest, plus Maine/Nebraska presidential congressional districts. */
 export function nightRaces(pack: GeoPack, stateIdx: number, contests: NightRaceSource[], stateCds?: number[]): NightRace[] {
@@ -77,7 +77,7 @@ export function nightRaces(pack: GeoPack, stateIdx: number, contests: NightRaceS
     const d = c.parties.indexOf(1), r = c.parties.indexOf(2);
     if (d >= 0 && r >= 0) { axis[d] = 1; axis[r] = -1; } else if (n >= 2) { axis[0] = 1; axis[1] = -1; }
     const race: NightRace = {
-      contest: c.contestIndex, cd: -1, office: c.office, axis, recount: rules.recountAuto,
+      contest: c.contestIndex, cd: -1, office: c.office, ...(c.local ? { local: true } : {}), axis, recount: rules.recountAuto,
       surveyed: ['president', 'us_senator', 'governor'].includes(c.office), majority: c.method === 'majority' || c.method === 'jungle' || c.method === 'rcv',
       ...(c.pass ? { pass: c.pass } : {}),
     };

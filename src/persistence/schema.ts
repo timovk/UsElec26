@@ -224,6 +224,28 @@ CREATE TABLE contest_seat (contest_id INTEGER NOT NULL, office_id INTEGER NOT NU
 CREATE INDEX contest_seat_office ON contest_seat(office_id);
 `;
 
+/**
+ * Phase 7.6: county offices. A county office's seat names its county (`county_idx`; −1 for a prosecutor's
+ * multi-county district). `county_plan` holds each plan of county board districts (every Base Unit's district
+ * within its county) from the year it is first used. The scope of county offices simulated is `meta.county_scope`.
+ * News about county offices is `local` (kept for county pages, left out of the national feed). So are contests for
+ * county offices (`contest.local`, set on insert by a trigger): there are tens of thousands a year, and the queries
+ * over federal and state contests (polls, forecasts, results lists) leave them out through a partial index.
+ */
+const V11 = `
+ALTER TABLE office_seat ADD COLUMN county_idx INTEGER;
+CREATE INDEX office_seat_county ON office_seat(county_idx);
+CREATE TABLE county_plan (year INTEGER PRIMARY KEY, payload BLOB NOT NULL);
+ALTER TABLE news ADD COLUMN local INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX news_local ON news(local, news_id);
+ALTER TABLE contest ADD COLUMN local INTEGER NOT NULL DEFAULT 0;
+CREATE TRIGGER contest_local AFTER INSERT ON contest
+  WHEN NEW.office_id IS NOT NULL AND EXISTS (SELECT 1 FROM office_seat WHERE office_id = NEW.office_id AND county_idx IS NOT NULL)
+  BEGIN UPDATE contest SET local = 1 WHERE contest_id = NEW.contest_id; END;
+CREATE INDEX contest_open ON contest(year, status) WHERE local = 0;
+CREATE INDEX contest_local_year ON contest(year) WHERE local = 1;
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, description: 'Phase 1 foundational universe schema', up: (db) => db.exec(V1) },
   { version: 2, description: 'Phase 2 elections, contests, candidacies and the results archive', up: (db) => db.exec(V2) },
@@ -235,6 +257,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 8, description: 'Phase 7.2 seats of down-ballot offices, boards and state courts', up: (db) => db.exec(V8) },
   { version: 9, description: 'Phase 7.3 ballot measures', up: (db) => db.exec(V9) },
   { version: 10, description: 'Phase 7.4 multi-member and floterial districts', up: (db) => db.exec(V10) },
+  { version: 11, description: 'Phase 7.6 county offices and county board districts', up: (db) => db.exec(V11) },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -1,5 +1,6 @@
 /** In-memory institutional model shared by the engine, persistence and the API. */
 import type { DownballotKind } from '../rules/downballot2016';
+import type { CountyKind } from '../rules/county2016';
 
 export type OfficeKind =
   | 'president' | 'vice_president' | 'cabinet'
@@ -10,7 +11,9 @@ export type OfficeKind =
   // Phase 7.2: down-ballot statewide offices, elected boards and state courts (rules/downballot2016).
   | DownballotKind
   // Phase 7.3: the statewide ballot measures of a state (one holderless office per state; its contests are measures).
-  | 'ballot_measure';
+  | 'ballot_measure'
+  // Phase 7.6: county offices (rules/county2016).
+  | CountyKind;
 
 /** State legislative seats (Phase 6). */
 export const LEGISLATOR_KINDS: readonly OfficeKind[] = ['state_senator', 'state_representative'];
@@ -56,7 +59,11 @@ export interface Office {
  * ends) and the term length. Appointments to elected and retention seats move the cycle to the appointee's first
  * election.
  */
-export interface OfficeSeat { body: string; number: number; district: number; cycle: number; termYears: number }
+export interface OfficeSeat {
+  body: string; number: number; district: number; cycle: number; termYears: number;
+  /** A county office (Phase 7.6): its county, or −1 for a prosecutor's multi-county district (body "pros:<key>"). */
+  county?: number;
+}
 
 export interface Term {
   id: number; officeId: number; personId: number; partyId: number | null; start: number; end: number | null;

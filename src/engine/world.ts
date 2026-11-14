@@ -27,12 +27,51 @@ export interface World {
   ids: { person: number; term: number; career: number; news: number; event: number };
   /** Rows produced since the last flush (written by persistence in one transaction). */
   pending: PendingWrites;
+  /** County government (Phase 7.6): the scope of county offices simulated and the board district plans. */
+  county?: CountyWorld;
 }
+
+/** County offices simulated (Phase 7.6): every county, the major counties (250,000 people or more in 2010), or none. */
+export type CountyScope = 'all' | 'major' | 'off';
+/** County government state of a universe: the scope and the board district plans (by first year in effect). */
+export interface CountyWorld { scope: CountyScope; plans: { year: number; plan: Uint16Array }[] }
 
 export interface PendingWrites {
   persons: Person[]; terms: Term[]; termEnds: { id: number; end: number; reason: string }[]; deaths: { id: number; day: number }[];
   careers: import('../institutions/model').CareerEvent[]; news: NewsItem[]; vacanciesSet: Vacancy[]; vacanciesCleared: number[];
   traits: Person[];
+}
+
+/**
+ * Current terms by office, also indexed by person (Phase 7.6: with county offices a universe holds about 46,000
+ * terms, and "which offices does this person hold?" is asked whenever someone takes office or dies).
+ */
+export class TermMap extends Map<number, Term> {
+  private byPerson: Map<number, Set<number>> | undefined;
+  static of(terms: Iterable<Term>): TermMap { const m = new TermMap(); for (const t of terms) m.set(t.officeId, t); return m; }
+  override set(officeId: number, t: Term): this {
+    const idx = (this.byPerson ??= new Map());
+    const prev = super.get(officeId);
+    if (prev) idx.get(prev.personId)?.delete(officeId);
+    super.set(officeId, t);
+    let s = idx.get(t.personId); if (!s) { s = new Set(); idx.set(t.personId, s); } s.add(officeId);
+    return this;
+  }
+  override delete(officeId: number): boolean {
+    const prev = super.get(officeId);
+    if (prev) this.byPerson?.get(prev.personId)?.delete(officeId);
+    return super.delete(officeId);
+  }
+  override clear(): void { this.byPerson?.clear(); super.clear(); }
+  /** Offices a person holds now, in the order their terms were set. */
+  officesOf(personId: number): number[] { return [...(this.byPerson?.get(personId) ?? [])]; }
+}
+
+/** Offices a person holds now. */
+export function heldOffices(current: Map<number, Term>, personId: number): number[] {
+  if (current instanceof TermMap) return current.officesOf(personId);
+  const out: number[] = []; for (const [oid, t] of current) if (t.personId === personId) out.push(oid);
+  return out;
 }
 
 export function emptyPending(): PendingWrites {

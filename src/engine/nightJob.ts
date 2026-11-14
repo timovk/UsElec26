@@ -133,7 +133,7 @@ export function runStateNight(inp: ShardInput, out: ShardOutput, night: NightInp
     seed: night.seed, key: night.key, rjFirst: inp.rjFirst, rjCount: inp.rjCount, rj: inp.bus.rj, close: night.close, young,
     ballotsByMode: out.ballotsByMode, rjOffset: night.rjOffset, parts, precincts, rules: night.rules, mailReject: night.mailReject, provReject: night.provReject,
   });
-  const specs = night.races.map((r) => ({ contest: r.contest, cd: r.cd, k: inp.contests[r.contest]!.options.length + 1 }));
+  const specs = night.races.map((r) => ({ contest: r.contest, cd: r.cd, k: inp.contests[r.contest]!.options.length + 1, ...(r.local ? { pooled: true } : {}) }));
   const cells = out.contests.map((c) => ({ units: c.units, votesByMode: c.votesByMode! }));
   const part = partitionVotes(sch, specs, cells, inp.bus.start, inp.bus.cd, parts, night.key);
 
@@ -179,9 +179,11 @@ export function runStateNight(inp: ShardInput, out: ShardOutput, night: NightInp
   const obsRaces: ObsRace[] = specs.map((sp, ri) => {
     const c = out.contests[sp.contest]!; const K = sp.k, def = night.races[ri]!;
     const fc = def.forecast;
-    const base = publishedBaseline(c.expPartMode!, raceParts[ri]!, K, def.axis, fc ? { state: 0, mode: night.priorError.mode, race: 0 } : { state: night.priorError.state, mode: night.priorError.mode, race: night.priorError.race[ri] ?? 0 }, mr);
+    // The contest's expected votes start at its first part (a county race spans a few of the state's parts; Phase 7.6).
+    const localParts = (raceParts[ri]!).map((p) => p - (c.partBase ?? 0));
+    const base = publishedBaseline(c.expPartMode!, localParts, K, def.axis, fc ? { state: 0, mode: night.priorError.mode, race: 0 } : { state: night.priorError.state, mode: night.priorError.mode, race: night.priorError.race[ri] ?? 0 }, mr);
     // With a public forecast, the desk's expectations are centred on it (the geography still comes from past results).
-    if (fc) centreBaseline(base, c.expPartMode!, raceParts[ri]!, K, def.axis, fc.mean / 100);
+    if (fc) centreBaseline(base, c.expPartMode!, localParts, K, def.axis, fc.mean / 100);
     let svy: ReturnType<typeof voterSurveyCrosstabs> = null;
     if (def.surveyed && K - 1 >= 2) {
       const cast = new Array<number>(K - 1).fill(0);

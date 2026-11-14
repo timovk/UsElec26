@@ -62,7 +62,7 @@ export function Results({ year: yearParam }: { year?: number }) {
           </section>
         </div>
       )}
-      {Array.isArray(list) && list.length > 0 && typeof list[0] === 'object' && <ResultsExplorer list={list} key={year} />}
+      {year !== undefined && Array.isArray(list) && list.length > 0 && typeof list[0] === 'object' && <ResultsExplorer list={list} year={year} key={year} />}
       {year !== undefined && <AuditPanel year={year} />}
     </>
   );

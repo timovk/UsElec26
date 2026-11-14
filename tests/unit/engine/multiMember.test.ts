@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { makeFixturePack } from '../../fixtures/fixturePack';
 import { fixtureNames, packToFiles } from '../../fixtures/packFiles';
 import { initSqlite, MemoryStorage } from '../../../src/persistence/storage';
+import { isCountyKind } from '../../../src/rules/county2016';
 import { Universe } from '../../../src/engine/universe';
 import { integrityReport } from '../../../src/persistence/audit';
 import { zonedToUtc } from '../../../src/core/time';
@@ -175,7 +176,9 @@ describe('multi-member districts in a universe (fixture)', () => {
     }
     await u.advance({ kind: 'until', time: zonedToUtc(2017, 1, 20, 0, 0, 'America/New_York') });
     const rows = (sql: string, p: unknown[] = []) => db.all<Record<string, number | string | null>>(sql, p as never);
-    const blocks = rows("SELECT c.contest_id, c.state_idx, c.seats, c.status, c.method, c.district_idx, o.kind FROM contest c JOIN office o ON o.office_id = c.office_id WHERE c.year = 2016 AND c.kind = 'general' AND c.seats > 1");
+    // Legislative districts and statewide boards (county boards elected at large are Phase 7.6's).
+    const blocks = rows("SELECT c.contest_id, c.state_idx, c.seats, c.status, c.method, c.district_idx, o.kind FROM contest c JOIN office o ON o.office_id = c.office_id WHERE c.year = 2016 AND c.kind = 'general' AND c.seats > 1")
+      .filter((b) => !isCountyKind(String(b.kind)));
     const states = new Set(blocks.filter((b) => b.kind === 'state_representative').map((b) => usps(Number(b.state_idx))));
     for (const s of ['AZ', 'NH', 'SD', 'VT', 'WV']) expect(states.has(s)).toBe(true);
     for (const b of blocks) {

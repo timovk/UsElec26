@@ -155,7 +155,7 @@ describe('election law in a universe (fixture)', () => {
 
     // Alaska: an all-candidate primary where four advance, then ranked generals (no party primaries).
     expect(rows("SELECT contest_id FROM contest WHERE year = 2018 AND state_idx = ? AND kind = 'primary'", [ak])).toEqual([]);
-    const akGen = rows("SELECT c.contest_id, c.method FROM contest c WHERE c.year = 2018 AND c.state_idx = ? AND c.kind = 'general' AND c.parent_contest IS NULL", [ak]);
+    const akGen = rows("SELECT c.contest_id, c.method FROM contest c WHERE c.year = 2018 AND c.state_idx = ? AND c.kind = 'general' AND c.parent_contest IS NULL AND c.local = 0", [ak]);
     expect(akGen.length).toBeGreaterThan(0);
     expect(akGen.every((c) => c.method === 'rcv')).toBe(true);
     for (const p of rows("SELECT contest_id, next_contest FROM contest WHERE year = 2018 AND state_idx = ? AND kind = 'top_two'", [ak])) {

@@ -196,6 +196,7 @@ through the `core/time` US time-zone engine (§3.6).
    | 9.0 | 0.7.3 | Phase 7.3 |
    | 9.1 | 0.7.3.1 | After Phase 7.3: North Carolina's primary runoff threshold |
    | 10.0 | 0.7.4 | Phase 7.4 (Phase 7.5 changed only maps and pages) |
+   | 11.0 | — | Phase 7.6: county offices; also the weekly mortality check, the pooled count of county races, and county candidates who run again |
 7. **Playback independence.** Election-night playback reads a stored record and cannot affect outcomes.
 
 ## 2.6 Error handling and recovery

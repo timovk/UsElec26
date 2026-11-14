@@ -88,6 +88,13 @@ database grew from 18.3 MB to 26.7 MB over the cycle, including rows for candida
 archives primaries at county × congressional-district grain; the atom grain follows when legislative districts arrive
 (Phase 6).
 
+**Measured in Phase 7.6** (real geography, seed SPEED-1, January 1, 2016 → January 1, 2019): the universe database
+is 221 MB with every county's offices, 133 MB with the major counties' only, against 110 MB in Phase 7.5. County
+contests (18,481 in 2016, 1,262 in 2017, 20,535 in 2018) are archived like the others (unit grain, rejected ballots,
+RJ × mode, four revisions for those counted on election night). Of the extra 111 MB, results take 61 MB, the people
+who hold or seek the offices 20 MB, offices and terms 14 MB, contests and candidacies 13 MB, night records 4 MB. The
+Results Explorer lists county contests apart (`contest.local`), on request.
+
 **Levers, in order (none delete history):**
 1. Store BUs in Hilbert-curve order and delta-code against spatial neighbours (expected −15–30%).
 2. A universe-creation option, *Archive detail: county & district level*, stores atom grain instead of BU grain

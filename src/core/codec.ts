@@ -108,6 +108,9 @@ export interface IntColumn { values: ArrayLike<number>; transform?: ColumnTransf
 const ENA1_MAGIC = [0x45, 0x31]; // 'E1'
 
 /** Encode integer columns of equal length. Values must be integers in [0, 2^53) for Raw; any safe integer for Delta. */
+/** ENA1 payloads shorter than this are not deflated. */
+export const SMALL_BLOB = 256;
+
 export async function encodeIntColumns(cols: readonly IntColumn[]): Promise<Uint8Array> {
   const rows = cols[0]?.values.length ?? 0;
   const inner = new ByteWriter();
@@ -123,9 +126,12 @@ export async function encodeIntColumns(cols: readonly IntColumn[]): Promise<Uint
     }
   }
   const raw = inner.toBytes();
-  const body = await deflate(raw);
+  // Small blobs (a county race's results, Phase 7.6) are stored uncompressed: deflate saves little on them and
+  // costs a call each (flags bit 0 = deflated; readers have always honoured it).
+  const packed = raw.length >= SMALL_BLOB;
+  const body = packed ? await deflate(raw) : raw;
   const out = new ByteWriter();
-  out.u8(ENA1_MAGIC[0]!); out.u8(ENA1_MAGIC[1]!); out.u8(1); out.u8(1);
+  out.u8(ENA1_MAGIC[0]!); out.u8(ENA1_MAGIC[1]!); out.u8(1); out.u8(packed ? 1 : 0);
   out.varint(raw.length); out.u32le(crc32(raw)); out.bytes(body);
   return out.toBytes();
 }

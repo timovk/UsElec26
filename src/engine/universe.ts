@@ -17,7 +17,7 @@ import { STATES_2016 } from '../rules/states2016';
 import { NameGenerator, type NameData } from '../politicians/names';
 import { generatePerson } from '../politicians/generate';
 import { genesis, type Progress } from './genesis';
-import { aggregateLean, emptyPending, type World } from './world';
+import { aggregateLean, emptyPending, type World, TermMap, heldOffices } from './world';
 import { loadRows, prepareStateBlobs, rawJsonBlob, readJsonState, writeChamberCompositions, writeGenesis, writePending, writeStateBlobs, type ScheduledEvent } from './save';
 import { ElectionEngine, emptyElectionState, type ElectionHost, type ElectionState, type PersonOptions } from './elections';
 import { InlineRunner, type ShardRunner } from './computePool';
@@ -29,6 +29,9 @@ import { CareersEngine, emptyCareersState, type CareersState } from './careersEn
 import { GovernmentEngine, emptyGovernmentState, type GovernmentState } from './governmentEngine';
 import { materializeLegislatures, reseatChamber } from './legislatures';
 import { courtsMonthly, courtsYearStart, fillSeat, materializeDownballot, seatVacancyResolution, type CourtHost } from './downballot';
+import { countyNewsLocal, countyOf, countyVacancyResolution, fillCountySeat, materializeCounty, retireOutOfScope, type CountyScope } from './county';
+import { isCountyKind } from '../rules/county2016';
+import { encodeIntColumns, decodeIntColumns } from '../core/codec';
 import { EconomyEngine, emptyEconomyEngineState, type EconomyEngineState } from './economyEngine';
 import { SIM_START } from '../core/time';
 
@@ -54,6 +57,7 @@ export const ENGINE_HISTORY: readonly { version: string; legacy?: string; update
   { version: '9.0', legacy: '0.7.3', updated: 'in Phase 7.3' },
   { version: '9.1', legacy: '0.7.3.1', updated: "after Phase 7.3 (North Carolina's runoff threshold)" },
   { version: '10.0', legacy: '0.7.4', updated: 'in Phase 7.4' },
+  { version: '11.0', updated: 'in Phase 7.6' },
 ];
 const CURRENT_ENGINE = ENGINE_HISTORY[ENGINE_HISTORY.length - 1]!;
 export const ENGINE_VERSION = CURRENT_ENGINE.version;
@@ -66,7 +70,7 @@ const COMMIT_INTERVAL_MS = 10000;
 
 export type AdvanceTarget = { kind: 'days'; days: number } | { kind: 'until'; time: SimTime } | { kind: 'nextEvent'; maxDays?: number } | { kind: 'nextElection' };
 
-export interface CreateOptions { name: string; seed?: string }
+export interface CreateOptions { name: string; seed?: string; /** County offices simulated (Phase 7.6): every county (default), the major counties, or none. */ county?: CountyScope }
 
 function randomSeed(): string {
   const b = new Uint8Array(8); crypto.getRandomValues(b);
@@ -130,6 +134,7 @@ export class Universe {
       voteTerm: () => this.economy.voteTerm(),
       deferSql: (sql, params) => { this.pendingSql.push([sql, params]); },
       scandalOf: (personId) => this.careers.scandalOf(personId, easternDay(this.world.time)),
+      setLocalNews: (on, county) => { this.localNews = on; this.localNewsCounty = on ? county ?? null : null; },
       publicFundamentals: (day) => ({ approval: this.economy.publishedApproval(day), ...this.economy.publishedEconomy(day) }),
     };
     this.elections = new ElectionEngine(host, electionState);
@@ -144,6 +149,7 @@ export class Universe {
     const seed = (opts.seed?.trim() || randomSeed()).slice(0, 64);
     const pack = await loadGeoPack(async (f) => { const b = packFiles.get(f); if (!b) throw new Error(`geo pack file missing: ${f}`); return b; });
     const { world, careers, scheduled } = genesis({ seed, name: opts.name || 'Untitled universe', pack, names }, progress);
+    world.county = { scope: opts.county ?? 'all', plans: [] };
     progress('Saving the universe', 0.9);
     const id = `${randomSeed().toLowerCase()}-${seed.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8)}`;
     const fileName = `${UNIVERSE_DIR}u-${id}.sqlite3`;
@@ -169,6 +175,7 @@ export class Universe {
         db.run('INSERT INTO engine_ledger(from_time, to_time, engine_version, schema_version) VALUES (?,?,?,?)', [world.startTime, null, ENGINE_VERSION, SCHEMA_VERSION]);
         db.run('INSERT INTO command_log(sim_time, command_json) VALUES (?,?)', [world.time, JSON.stringify({ kind: 'universe.create', name: world.name, seed })]);
         db.run("INSERT INTO meta VALUES ('created_real', ?), ('last_export_real', '')", [new Date().toISOString()]);
+        db.run("INSERT INTO meta VALUES ('county_scope', ?)", [world.county!.scope]);
       });
       storage.flush(fileName, db);
     } catch (e) { db.close(); storage.remove(fileName); throw e; }
@@ -179,6 +186,7 @@ export class Universe {
     await u.ensureLegislatures();
     u.ensureDownballot();
     u.ensureMeasureOffices();
+    await u.ensureCounty();
     for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
     return u;
   }
@@ -201,8 +209,10 @@ export class Universe {
         seed: rows.universe.seed, name: rows.universe.name, startTime: rows.universe.start_time, time: rows.universe.clock_time,
         pack, pop, electorate, lean: { bu, ...aggregateLean(bu, pack, districts) }, districts, law: loadElectionLaw(db, pack),
         parties: BASE_PARTIES.map((p) => ({ ...p })), persons: new Map(rows.persons.map((p) => [p.id, p])), offices: rows.offices,
-        officeById: new Map(rows.offices.map((o) => [o.id, o])), current: new Map(rows.current.map((t) => [t.officeId, t])),
+        officeById: new Map(rows.offices.map((o) => [o.id, o])), current: TermMap.of(rows.current),
         vacancies: new Map(rows.vacancies.map((v) => [v.officeId, v])), chambers: rows.chambers, history: rows.meta.history, ids: rows.meta.ids, pending: emptyPending(),
+        // County government (Phase 7.6): a universe saved before it simulates every county from now on.
+        county: { scope: (db.value<string>("SELECT value FROM meta WHERE key = 'county_scope'") as CountyScope | undefined) ?? 'all', plans: await loadCountyPlans(db) },
       };
       const last = db.get<{ seq: number; engine_version: string }>('SELECT seq, engine_version FROM engine_ledger WHERE to_time IS NULL ORDER BY seq DESC LIMIT 1');
       // A version recorded under its old name (0.7.4 = 10.0) is the same engine: no switch is recorded.
@@ -228,6 +238,7 @@ export class Universe {
       for (const t of world.current.values()) if (t.partyId !== null) u.lastParty.set(t.officeId, t.partyId);
       if (names) { await u.ensureLegislatures(); u.ensureDownballot(); }
       u.ensureMeasureOffices();
+      if (names) await u.ensureCounty();
       return u;
     } catch (e) { db.close(); throw e; }
   }
@@ -313,7 +324,7 @@ export class Universe {
     this.db.tx(() => {
       for (const o of this.pendingOffices.splice(0)) {
         this.db.run('INSERT INTO office VALUES (?,?,?,?,?,?,?,?,?)', [o.id, o.kind, o.title, o.stateIdx, o.districtIdx, o.senateClass, o.chamberId, o.dept, o.rank]);
-        if (o.seat) this.db.run('INSERT INTO office_seat VALUES (?,?,?,?,?,?)', [o.id, o.seat.body, o.seat.number, o.seat.district, o.seat.cycle, o.seat.termYears]);
+        if (o.seat) this.db.run('INSERT INTO office_seat VALUES (?,?,?,?,?,?,?)', [o.id, o.seat.body, o.seat.number, o.seat.district, o.seat.cycle, o.seat.termYears, o.seat.county ?? null]);
       }
       writePending(this.db, w);
       this.elections.season.flush();
@@ -364,14 +375,16 @@ export class Universe {
     if (cv.d === 15) await this.government.monthly(day);
     if (cv.m === 12 && cv.d === 31) this.government.yearEnd(cv.y);
     await this.elections.daily(day);
-    const r = Rng.stream(w.seed, 'mortality', day);
+    // Mortality: each living person is checked once a week, on a weekday of their own (Phase 7.6: with every
+    // county's officeholders and candidates there are four times as many people to check), at the weekly hazard.
+    const r = Rng.stream(w.seed, 'mortality', day), wd = day % 7;
     for (const p of w.persons.values()) { // Map iteration is insertion (id) order: deterministic
-      if (p.deathDay !== null) continue;
+      if (p.deathDay !== null || p.id % 7 !== wd) continue;
       let b = this.birthCivil.get(p.birthDay);
       if (!b) { b = daysToCivil(p.birthDay); this.birthCivil.set(p.birthDay, b); }
       const age = cv.y - b.y - (cv.m < b.m || (cv.m === b.m && cv.d < b.d) ? 1 : 0); // ageOn(p.birthDay, day)
       const annual = Math.min(0.6, 0.55 * Math.exp(-10.4 + 0.094 * age));
-      if (r.float() < annual / 365.25) this.death(p, day);
+      if (r.float() < annual * 7 / 365.25) this.death(p, day);
     }
   }
 
@@ -466,6 +479,49 @@ export class Universe {
     this.commit(null);
   }
 
+  /**
+   * County offices (Phase 7.6): created once (at founding, or when a universe saved before Phase 7.6 is first opened),
+   * and their vacant seats in scope filled — also after the scope is widened. Board district plans not yet stored are
+   * written.
+   */
+  async ensureCounty(): Promise<void> {
+    const w = this.world; if (!w.county) w.county = { scope: 'all', plans: [] };
+    const upgraded = w.time > SIM_START + 10;
+    const n = materializeCounty({
+      world: w, newPerson: (r, tier, party, st, opts) => this.newPerson(r, tier, party, st, opts), addOffice: (o) => this.addOffice(o),
+      installTerm: (officeId, person, start, acquired) => {
+        const t: Term = { id: w.ids.term++, officeId, personId: person.id, partyId: person.partyId, start, end: null, acquired, endReason: null,
+          provenance: upgraded ? 'created when the universe gained county offices (Phase 7.6)' : PRE_SIM };
+        w.current.set(officeId, t); w.pending.terms.push(t); return t;
+      },
+    });
+    const stored = new Set(this.db.all<{ year: number }>('SELECT year FROM county_plan').map((r) => r.year));
+    const plans = [] as { year: number; payload: Uint8Array }[];
+    for (const p of w.county.plans) if (!stored.has(p.year)) plans.push({ year: p.year, payload: await encodeIntColumns([{ values: p.plan }]) });
+    if (!n && !plans.length && this.db.value<string>("SELECT value FROM meta WHERE key = 'county_scope'") !== undefined) return;
+    for (const t of w.current.values()) if (t.partyId !== null) this.lastParty.set(t.officeId, t.partyId);
+    this.commit(null, () => {
+      for (const p of plans) this.db.run('INSERT OR REPLACE INTO county_plan VALUES (?,?)', [p.year, p.payload]);
+      this.db.run("INSERT OR REPLACE INTO meta VALUES ('county_scope', ?)", [w.county!.scope]);
+    });
+  }
+
+  /** Which counties' elected offices this universe simulates (Phase 7.6). */
+  get countyScope(): CountyScope { return countyOf(this.world).scope; }
+
+  /** Change the county offices simulated (Settings): narrowing ends the terms outside the scope; widening fills the seats. */
+  async setCountyScope(scope: CountyScope): Promise<number> {
+    const w = this.world, cw = countyOf(w); if (cw.scope === scope) return 0;
+    w.county = { ...cw, scope };
+    const ended = retireOutOfScope(this.courtHost);
+    this.commit(null, () => {
+      this.db.run("INSERT OR REPLACE INTO meta VALUES ('county_scope', ?)", [scope]);
+      this.db.run('INSERT INTO command_log(sim_time, command_json) VALUES (?,?)', [w.time, JSON.stringify({ kind: 'county.scope', scope })]);
+    });
+    await this.ensureCounty();
+    return ended;
+  }
+
   /** Ballot measures (Phase 7.3): one holderless office per state, under which the state's measures are filed. */
   ensureMeasureOffices(): void {
     const w = this.world;
@@ -543,6 +599,7 @@ export class Universe {
       case 'new_congress_districts': this.census.newCongressDistricts(n('census'), n('firstYear')); return;
       case 'filing': E.filing(n('year'), n('state')); return;
       case 'spring_filing': E.springFiling(n('year'), n('state'), n('election'), n('primary')); return;
+      case 'local_filing': E.localFiling(n('year'), n('state'), n('election')); return;
       case 'spring': await E.spring(n('election')); return;
       case 'seat_vacate': E.seatVacate(n('office'), String(d.reason ?? 'term ended')); return;
       case 'pres_filing': E.presFiling(n('year')); return;
@@ -581,17 +638,25 @@ export class Universe {
 
   private news(kind: string, headline: string, body: string, refs: Record<string, unknown>, time?: SimTime): void {
     const w = this.world;
+    // County offices' news is local (Phase 7.6): while county races are decided, or about a county office.
+    if (!refs.local) {
+      const o = typeof refs.officeId === 'number' ? w.officeById.get(refs.officeId) : undefined;
+      const county = o?.seat?.county !== undefined && o.seat.county >= 0 ? o.seat.county : this.localNewsCounty;
+      if (this.localNews || (o && countyNewsLocal(w, o))) refs = { ...refs, local: true, ...(county !== null && county !== undefined ? { county } : {}) };
+    }
     const item = { id: w.ids.news++, time: time ?? w.time, kind, headline, body, refs };
     w.pending.news.push(item); this.newsSink?.push(item);
   }
   /** Collects news produced during an advance (pending writes may be flushed mid-event by election commits). */
   private newsSink: NewsItem[] | null = null;
+  /** Set while news is local (county races being decided), with the county when there is one. */
+  localNews = false;
+  localNewsCounty: number | null = null;
 
   private partyAbbrev(id: number): string { return this.world.parties.find((p) => p.id === id)?.abbrev ?? '?'; }
 
   private termsOf(personId: number): Term[] {
-    const out: Term[] = [];
-    for (const t of this.world.current.values()) if (t.personId === personId) out.push(t);
+    const out = heldOffices(this.world.current, personId).map((oid) => this.world.current.get(oid)!);
     return out.sort((a, b) => (this.world.officeById.get(a.officeId)!.rank - this.world.officeById.get(b.officeId)!.rank));
   }
 
@@ -657,7 +722,7 @@ export class Universe {
       case 'cabinet': return 'Presidential nomination and Senate confirmation';
       case 'congress_leader': case 'state_leg_leader': return 'Election by the party caucus';
       case 'state_senator': case 'state_representative': return 'Interim appointment; the seat is filled at the next regular election';
-      default: return o.seat ? seatVacancyResolution(this.world, o) : 'Appointment by the Governor';
+      default: return isCountyKind(o.kind) ? countyVacancyResolution(this.world, o) : o.seat ? seatVacancyResolution(this.world, o) : 'Appointment by the Governor';
     }
   }
 
@@ -670,12 +735,12 @@ export class Universe {
     const title = held.length ? w.officeById.get(held[0]!.officeId)!.title : null;
     // The news reports the deaths of officeholders and former officeholders, not of every candidate who ever ran
     // (since Phase 6 that is tens of thousands of people, mostly state legislative challengers).
-    const last = title ? undefined : this.db.get<{ kind: string; title: string; state_idx: number | null }>('SELECT o.kind, o.title, o.state_idx FROM office_term t JOIN office o ON o.office_id = t.office_id WHERE t.person_id = ? ORDER BY t.start_time DESC LIMIT 1', [p.id]);
+    const last = title ? undefined : this.db.get<{ office_id: number; kind: string; title: string; state_idx: number | null }>('SELECT o.office_id, o.kind, o.title, o.state_idx FROM office_term t JOIN office o ON o.office_id = t.office_id WHERE t.person_id = ? ORDER BY t.start_time DESC LIMIT 1', [p.id]);
     const stateName = last?.state_idx !== null && last?.state_idx !== undefined ? w.pack.states[last.state_idx]?.name : undefined;
     const former = !last ? null : last.kind === 'state_senator' ? `${stateName} state senator` : last.kind === 'state_representative' ? `${stateName} state representative` : last.kind === 'us_representative' ? 'U.S. Representative' : last.title;
     if (title || former) {
       this.news('death', title ? `${title} ${fullName(p)} dies at ${age}` : `${fullName(p)}, former ${former}, dies at ${age}`,
-        `${fullName(p)} (${this.partyAbbrev(p.partyId)}) died at age ${age}.${title ? ` The death leaves the office of ${title} vacant.` : ''}`, { personId: p.id });
+        `${fullName(p)} (${this.partyAbbrev(p.partyId)}) died at age ${age}.${title ? ` The death leaves the office of ${title} vacant.` : ''}`, { personId: p.id, officeId: held[0]?.officeId ?? last?.office_id });
     }
     w.pending.careers.push({ id: w.ids.career++, personId: p.id, yearFrom: daysToCivil(day).y, yearTo: null, simTime: w.time, kind: 'death', text: `Died in office at age ${age}`.replace(' in office', held.length ? ' in office' : ''), provenance: SIMULATED });
     for (const t of held) { this.endTerm(t.officeId, 'died'); this.succession(t.officeId, p); }
@@ -725,6 +790,7 @@ export class Universe {
     const presParty = presTerm?.partyId ?? PARTY_D;
     const govParty = (s: number) => { const g = w.offices.find((x) => x.kind === 'governor' && x.stateIdx === s); return (g && w.current.get(g.id)?.partyId) || PARTY_D; };
     const r = Rng.stream(w.seed, 'fill', officeId, w.time);
+    if (isCountyKind(o.kind)) { fillCountySeat(this.courtHost, o, r); return; }
     if (o.seat) { fillSeat(this.courtHost, o, r); return; }
     let party = presParty, tier: Person['tier'] = 'B', stateIdx = o.stateIdx ?? 0, how: string;
     switch (o.kind) {
@@ -830,4 +896,10 @@ export class Universe {
 function scheduledFromDb(db: Db): ScheduledEvent[] {
   return db.all<{ event_id: number; sim_time: number; priority: number; kind: string; data_json: string }>('SELECT * FROM scheduled_event ORDER BY sim_time, priority, event_id')
     .map((e) => ({ id: e.event_id, time: e.sim_time, priority: e.priority, kind: e.kind, data: JSON.parse(e.data_json) as Record<string, unknown> }));
+}
+
+/** County board district plans (Phase 7.6), by the first year each is used. */
+async function loadCountyPlans(db: Db): Promise<{ year: number; plan: Uint16Array }[]> {
+  const rows = db.all<{ year: number; payload: Uint8Array }>('SELECT year, payload FROM county_plan ORDER BY year');
+  return Promise.all(rows.map(async (r) => ({ year: r.year, plan: Uint16Array.from((await decodeIntColumns(r.payload))[0]!) })));
 }

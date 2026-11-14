@@ -3,6 +3,7 @@ import type { CountyHistoryDto, GeoMeta, StateHistoryDto, TownHistoryDto } from 
 import { useQuery } from './Desk';
 import { PartyBadge, districtHref, fmtLean } from '../components/common';
 import { HISTORY_OFFICES, HistoryTable, PresidentialTable } from './DistrictScreen';
+import { CountyGovernmentSection } from './CountyGovernment';
 
 export function CountyScreen({ idx }: { idx: number }) {
   const h = useQuery<CountyHistoryDto>({ kind: 'countyHistory', county: idx }, [idx]);
@@ -22,6 +23,7 @@ export function CountyScreen({ idx }: { idx: number }) {
         <HistoryTable rows={rows} empty={`No archived elections yet${office ? ' for this office' : ''}.`} />
         <p className="tiny muted">✔ marks the overall winner of the contest (not necessarily this county's leader).</p>
       </section>
+      <CountyGovernmentSection county={idx} />
       {h.towns.length > 0 && (
         <section className="card" style={{ marginTop: 16 }}>
           <h2>Towns</h2>

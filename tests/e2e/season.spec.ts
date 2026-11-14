@@ -48,16 +48,19 @@ test('the 2016 campaign: primaries, polls, forecasts, conventions and forecast v
   await expect(page.getByRole('heading', { name: 'Senate control' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'House control' })).toBeVisible();
 
-  // July 29: both conventions have met, and the presidential forecast is out.
+  // July 29: both conventions have met.
   await advance(page, '+1 month', 'July 29, 2016');
   await page.goto('./#/primaries/2016');
   await expect(page.locator('.badge.record', { hasText: 'Nominee:' })).toHaveCount(2, { timeout: 30_000 });
   await page.screenshot({ path: 'test-results/e2e-primaries-final.png' });
+  // August 5: forecasts are daily from July 31, so the presidential forecast is out even after a nomination
+  // settled at the convention (the weekly forecast of July 26 can come before it).
+  await advance(page, '+1 week', 'August 5, 2016');
   await page.goto('./#/polls/2016/forecast');
   await expect(page.getByRole('heading', { name: /Electoral votes for/ })).toBeVisible();
 
-  // October 27: the national race's average, then Election Day morning and the final forecast.
-  for (const k of [240, 270, 300]) await advance(page, '+1 month', dayOf2016(k));
+  // November 3: the national race's average, then Election Day morning and the final forecast.
+  for (const k of [247, 277, 307]) await advance(page, '+1 month', dayOf2016(k));
   await page.goto(`./#/polls/2016/race/${encodeURIComponent('PN:2016')}`);
   await expect(page.getByRole('heading', { name: 'Polling average' })).toBeVisible();
   await expect(page.locator('.chart svg path').first()).toBeVisible();

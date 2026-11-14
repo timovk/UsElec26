@@ -125,6 +125,13 @@ CREATE TABLE rcv_round     (contest_id INTEGER, rev INTEGER, round INTEGER, cand
 -- ballot, with the unused marks as undervotes) and contest_seat(contest_id, office_id, candidacy_id), the offices a
 -- vote-for-N race fills and the candidacy that won each; district.label (the state's name for a district) and
 -- district_member(kind, idx, member), the ordinary districts a floterial district spans (New Hampshire).
+-- Schema 11 (Phase 7.6): office_seat.county_idx (a county office's county; -1 for a prosecutor's multi-county district,
+-- body "pros:<key>"); county_plan(year, payload), each plan of county board districts (every Base Unit's district
+-- within its county, ENA1) from the year it is first used; news.local (county news, kept for county pages and out of
+-- the national feed); contest.local, set on insert by the trigger contest_local for a county office's contest, with
+-- the partial indexes contest_open(year, status) WHERE local = 0 and contest_local_year(year) WHERE local = 1, so
+-- queries over federal and state contests skip the tens of thousands of county contests a year. The scope of county
+-- offices simulated (all, major, off) is meta.county_scope.
 CREATE TABLE electoral_vote(election_id INTEGER, contest_id INTEGER, candidacy_id INTEGER, ev INTEGER, kind TEXT);
 CREATE TABLE recount       (recount_id INTEGER PRIMARY KEY, contest_id INTEGER, trigger TEXT, requested INTEGER,
                             completed INTEGER, from_rev INTEGER, to_rev INTEGER, net_change_json TEXT);

@@ -12,6 +12,8 @@
  */
 import { civilToDays, daysToCivil, zonedToUtc, type SimTime } from '../core/time';
 import { buGraph, drawPlan, type PlanRegion } from '../geo/redistrict';
+import { redrawCountyBoards } from './county';
+import { encodeIntColumns } from '../core/codec';
 import { fullName, type Office, type Person } from '../institutions/model';
 import type { Db } from '../persistence/db';
 import { demographySummary } from '../population/evolution';
@@ -174,8 +176,11 @@ export class CensusEngine {
     // State legislative plans: the same districts' worth of seats, redrawn; lower houses nest inside senate
     // districts where 2016 law required it (two or three house districts per senate district).
     const legStats = await this.redistrictLegislature(census, stateIdx, r, pop, b0);
+    // County boards elected by district (Phase 7.6) are redrawn from the same count.
+    const boards = redrawCountyBoards(w, stateIdx, pop, b0, firstYear);
+    if (boards) { const payload = await encodeIntColumns([{ values: boards }]); this.h.commit(() => this.h.db.run('INSERT OR REPLACE INTO county_plan VALUES (?,?)', [firstYear, payload])); }
     const dev = (100 * res.stats.maxDeviation).toFixed(2);
-    this.h.news('redistricting', `${st.name} adopts new congressional and legislative maps`, `${seats} congressional district${seats === 1 ? '' : 's'} for ${firstYear}: largest population deviation ${dev}%, ${res.stats.countiesSplit} counties split${res.stats.contiguous ? '' : ' (some districts are joined across water)'}.${legStats}${gone.length ? ` ${gone.map((o) => { const t = w.current.get(o.id); const p = t ? w.persons.get(t.personId) : null; return `${o.title}${p ? ` (${fullName(p as Person)})` : ''}`; }).join(', ')} will be eliminated.` : ''}`, { state: stateIdx });
+    this.h.news('redistricting', `${st.name} adopts new congressional and legislative maps`, `${seats} congressional district${seats === 1 ? '' : 's'} for ${firstYear}: largest population deviation ${dev}%, ${res.stats.countiesSplit} counties split${res.stats.contiguous ? '' : ' (some districts are joined across water)'}.${legStats}${boards ? ' County commissions elected by district redraw their districts too.' : ''}${gone.length ? ` ${gone.map((o) => { const t = w.current.get(o.id); const p = t ? w.persons.get(t.personId) : null; return `${o.title}${p ? ` (${fullName(p as Person)})` : ''}`; }).join(', ')} will be eliminated.` : ''}`, { state: stateIdx });
   }
 
   private async redistrictLegislature(census: number, stateIdx: number, r: PlanRegion, pop: Float64Array, b0: number): Promise<string> {

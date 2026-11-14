@@ -46,7 +46,7 @@ const personRow = (p: Person) => [p.id, p.given, p.middle, p.surname, p.suffix, 
 const traitsRow = (p: Person) => [p.id, p.traits.asOf, ...p.traits.ideology, p.traits.charisma, p.traits.campaign, p.traits.fundraising, p.traits.leadership, p.traits.integrity, p.traits.ambition, p.traits.recognition];
 const termRow = (t: Term) => [t.id, t.officeId, t.personId, t.partyId, t.start, t.end, t.acquired, t.endReason, t.provenance];
 const careerRow = (c: CareerEvent) => [c.id, c.personId, c.yearFrom, c.yearTo, c.simTime, c.kind, c.text, c.provenance];
-const newsRow = (n: NewsItem) => [n.id, n.time, n.kind, n.headline, n.body, JSON.stringify(n.refs)];
+const newsRow = (n: NewsItem) => [n.id, n.time, n.kind, n.headline, n.body, JSON.stringify(n.refs), n.refs.local ? 1 : 0];
 
 export function insertPersons(db: Db, persons: Iterable<Person>): void {
   const list = [...persons];
@@ -76,7 +76,7 @@ export function writePending(db: Db, w: World): void {
   for (const e of p.termEnds) db.run('UPDATE office_term SET end_time = ?, end_reason = ? WHERE term_id = ?', [e.end, e.reason, e.id]);
   for (const d of p.deaths) db.run('UPDATE person SET death_day = ? WHERE person_id = ?', [d.day, d.id]);
   if (p.careers.length) db.insertMany('INSERT INTO career_event VALUES (?,?,?,?,?,?,?,?)', p.careers.map(careerRow));
-  if (p.news.length) db.insertMany('INSERT INTO news VALUES (?,?,?,?,?,?)', p.news.map(newsRow));
+  if (p.news.length) db.insertMany('INSERT INTO news VALUES (?,?,?,?,?,?,?)', p.news.map(newsRow));
   // A vacancy can be set and cleared several times between commits; persist each touched office's final state.
   const touched = new Set([...p.vacanciesSet.map((v) => v.officeId), ...p.vacanciesCleared]);
   for (const id of touched) {
@@ -132,8 +132,9 @@ export async function loadRows(db: Db): Promise<LoadedRows> {
   }));
   // Seats of down-ballot offices, boards and courts (schema 8).
   const byId = new Map(offices.map((o) => [o.id, o]));
-  for (const r of db.all<{ office_id: number; body: string; seat: number; district: number; cycle_year: number; term_years: number }>('SELECT * FROM office_seat')) {
-    const o = byId.get(r.office_id); if (o) o.seat = { body: r.body, number: r.seat, district: r.district, cycle: r.cycle_year, termYears: r.term_years };
+  for (const r of db.all<{ office_id: number; body: string; seat: number; district: number; cycle_year: number; term_years: number; county_idx?: number | null }>('SELECT * FROM office_seat')) {
+    const o = byId.get(r.office_id);
+    if (o) o.seat = { body: r.body, number: r.seat, district: r.district, cycle: r.cycle_year, termYears: r.term_years, ...(r.county_idx !== null && r.county_idx !== undefined ? { county: r.county_idx } : {}) };
   }
   const current: Term[] = db.all<Record<string, unknown>>('SELECT * FROM office_term WHERE end_time IS NULL ORDER BY term_id').map((r) => ({
     id: r.term_id as number, officeId: r.office_id as number, personId: r.person_id as number, partyId: r.party_id as number | null, start: r.start_time as number,

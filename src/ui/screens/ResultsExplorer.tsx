@@ -17,7 +17,23 @@ type SortKey = 'date' | 'contest' | 'winner' | 'margin';
 const KIND_LABEL: Record<string, string> = { general: 'General', special: 'Special', pres_state: 'Presidential', primary: 'Primary', top_two: 'Top-two primary', pres_nomination: 'Nomination', runoff: 'Runoff', retention: 'Retention', measure: 'Ballot measure' };
 const STAGES = { general: ['general', 'special', 'pres_state', 'runoff', 'retention', 'measure'], primary: ['primary', 'top_two', 'pres_nomination'] } as const;
 
-export function ResultsExplorer({ list }: { list: ElectionListItem[] }) {
+/**
+ * The Explorer over the federal and state contests, or (Phase 7.6) over the county offices' contests, which are
+ * loaded only when asked for: with every county's offices a year has tens of thousands of them.
+ */
+export function ResultsExplorer({ list, year }: { list: ElectionListItem[]; year: number }) {
+  const [scope, setScope] = useState<'main' | 'county'>('main');
+  const county = useQuery<ElectionListItem[]>(scope === 'county' ? { kind: 'elections', year, county: true } : { kind: 'electionYears' }, [scope, year]);
+  const countyList = scope === 'county' && Array.isArray(county) && (county.length === 0 || typeof county[0] === 'object') ? county : null;
+  const switcher = (
+    <div className="seg" role="group" aria-label="Offices listed">{(['main', 'county'] as const).map((k) => <button key={k} className={scope === k ? 'on' : ''} aria-pressed={scope === k} onClick={() => setScope(k)}>{k === 'main' ? 'Federal and state' : 'County offices'}</button>)}</div>
+  );
+  if (scope === 'county' && !countyList) return <section className="card" style={{ marginTop: 16 }}><h2>Results Explorer</h2>{switcher}<p className="muted small" style={{ marginTop: 8 }}>Loading county contests…</p></section>;
+  if (countyList && !countyList.some((e) => e.contests.length)) return <section className="card" style={{ marginTop: 16 }}><h2>Results Explorer</h2>{switcher}<p className="muted small" style={{ marginTop: 8 }}>No county contests in {year}. County offices can be switched off in Settings.</p></section>;
+  return <Explorer key={scope} list={countyList ?? list} switcher={switcher} county={!!countyList} />;
+}
+
+function Explorer({ list, switcher, county }: { list: ElectionListItem[]; switcher: React.ReactNode; county: boolean }) {
   const [q, setQ] = useState('');
   const [stage, setStage] = useState<'general' | 'primary' | 'all'>('general');
   const [office, setOffice] = useState('');
@@ -44,12 +60,12 @@ export function ResultsExplorer({ list }: { list: ElectionListItem[] }) {
   const nightId = list.find((e) => e.nightId !== null)?.nightId ?? null;
   return (
     <>
-      {nightId !== null && <CallsTimeline nightId={nightId} />}
+      {nightId !== null && !county && <CallsTimeline nightId={nightId} />}
       <section className="card" style={{ marginTop: 16 }}>
-        <h2>Results Explorer <span className="muted small">{rows.length.toLocaleString()} of {all.length.toLocaleString()} contests</span></h2>
+        <div className="row between wrap"><h2>Results Explorer <span className="muted small">{rows.length.toLocaleString()} of {all.length.toLocaleString()} {county ? 'county ' : ''}contests</span></h2>{switcher}</div>
         <div className="rx">
           <div className="rx-facets">
-            <input type="search" placeholder="Search contests and winners" aria-label="Search contests and winners" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: '100%' }} />
+            <input type="search" placeholder={county ? 'Search counties, offices and winners' : 'Search contests and winners'} aria-label="Search contests and winners" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: '100%' }} />
             <div className="seg" style={{ marginTop: 8 }}>{(['general', 'primary', 'all'] as const).map((k) => <button key={k} className={stage === k ? 'on' : ''} onClick={() => setStage(k)}>{k === 'general' ? 'General' : k === 'primary' ? 'Primaries' : 'All'}</button>)}</div>
             <Facet title="Office" value={office} set={setOffice} options={[...officeCounts].map(([k, n]) => ({ k: String(k), label: OFFICE_LABEL[String(k)] ?? String(k), n }))} />
             <Facet title="Winning party" value={party ? String(party) : ''} set={(v) => setParty(Number(v) || 0)} options={[...partyCounts].map(([k, n]) => ({ k: String(k), label: ({ 1: 'Democratic', 2: 'Republican', 3: 'Libertarian', 4: 'Green', 5: 'Independent' } as Record<string, string>)[String(k)] ?? String(k), n, color: PARTY_COLORS[Number(k)] }))} />

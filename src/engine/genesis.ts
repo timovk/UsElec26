@@ -13,7 +13,7 @@ import { BASE_PARTIES, PARTY_D, PARTY_R, PRE_SIM, fullName, type CareerEvent, ty
 import { EXECUTIVE_DEPARTMENTS, SENATE_CLASS_NEXT_ELECTION, STATES_2016 } from '../rules/states2016';
 import { NameGenerator, type NameData } from '../politicians/names';
 import { generatePerson, preSimCareer } from '../politicians/generate';
-import { aggregateLean, emptyPending, leanMargin, type World } from './world';
+import { aggregateLean, emptyPending, leanMargin, type World, TermMap } from './world';
 import { Districts } from './districts';
 import { ElectionLaw } from '../rules/electionLaw';
 
@@ -39,7 +39,7 @@ export function genesis(input: GenesisInput, progress: Progress = () => {}): { w
 
   const world: World = {
     seed, name: input.name, startTime: SIM_START, time: SIM_START, pack, pop, electorate, lean,
-    parties: BASE_PARTIES.map((p) => ({ ...p })), persons: new Map(), offices: [], officeById: new Map(), current: new Map(),
+    parties: BASE_PARTIES.map((p) => ({ ...p })), persons: new Map(), offices: [], officeById: new Map(), current: new TermMap(),
     vacancies: new Map(), chambers: [], districts: new Districts(pack), law: new ElectionLaw(pack.states.map((st) => st.usps)), history: { env: {}, presidentTermNumber: 1 },
     ids: { person: 1, term: 1, career: 1, news: 1, event: 1 }, pending: emptyPending(),
   };

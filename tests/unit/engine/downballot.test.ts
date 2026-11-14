@@ -5,6 +5,7 @@
  * judicial elections, appointments that move a seat's cycle, mandatory retirement, the queries, and integrity.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
+import { isCountyKind } from '../../../src/rules/county2016';
 import { makeFixturePack } from '../../fixtures/fixturePack';
 import { fixtureNames, packToFiles } from '../../fixtures/packFiles';
 import { initSqlite, MemoryStorage } from '../../../src/persistence/storage';
@@ -105,7 +106,8 @@ describe('down-ballot offices and courts in a universe (fixture)', () => {
     const db = u.db, w = u.world, ET = 'America/New_York';
     const rows = (sql: string, p: unknown[] = []) => db.all<Record<string, number | string | null>>(sql, p as never);
     const idx = (s: string) => w.pack.states.find((x) => x.usps === s)!.idx;
-    const seats = w.offices.filter((o) => o.seat);
+    // The state's seats (county offices, Phase 7.6, have seats too).
+    const seats = w.offices.filter((o) => o.seat && !isCountyKind(o.kind));
     expect(seats.length).toBe(all.reduce((a, x) => a + x.b.seats, 0));
     // Every seat is held at the start, by somebody below the court's retirement age.
     const today = easternDay(w.time);

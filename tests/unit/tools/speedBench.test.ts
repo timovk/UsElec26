@@ -1,7 +1,7 @@
 /**
  * Speed benchmark on the real Census geography (opt-in): ENA_SPEED=<label>.
  *
- * Creates a universe (seed ENA_SPEED_SEED, default SPEED-1) or opens ENA_SPEED_FROM (a saved universe), then
+ * Creates a universe (seed ENA_SPEED_SEED, default SPEED-1; county offices ENA_SPEED_COUNTY = all, major or off) or opens ENA_SPEED_FROM (a saved universe), then
  * advances month by month to ENA_SPEED_UNTIL (default 2016-12-01; ENA_SPEED_SAVE=<path> saves the database at the end), recording wall time per month, time per
  * progress step and per section of the daily campaign season, and optionally time per SQL statement (ENA_SPEED_SQL=1) and a CPU profile (ENA_SPEED_CPU=1).
  * It also fingerprints every table (SHA-256 of its rows, in key order), so an optimization can be checked to
@@ -85,7 +85,7 @@ it.skipIf(!label || !existsSync(`${REAL}manifest.json`))(`speed benchmark (${lab
     u = await Universe.open(storage, '/universes/bench.sqlite3', names);
   } else {
     const files = new Map<string, Uint8Array>(SEMANTIC_FILES.map((f) => [f, new Uint8Array(readFileSync(REAL + f))]));
-    u = await Universe.create(storage, { name: 'Bench', seed: process.env.ENA_SPEED_SEED ?? 'SPEED-1' }, files, names);
+    u = await Universe.create(storage, { name: 'Bench', seed: process.env.ENA_SPEED_SEED ?? 'SPEED-1', ...(process.env.ENA_SPEED_COUNTY ? { county: process.env.ENA_SPEED_COUNTY as 'all' | 'major' | 'off' } : {}) }, files, names);
   }
   const setupMs = performance.now() - t0;
 
@@ -134,12 +134,16 @@ it.skipIf(!label || !existsSync(`${REAL}manifest.json`))(`speed benchmark (${lab
     steps: [...steps].sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ step: k, ms: Math.round(v) })),
     season: Object.fromEntries(Object.entries(seasonT).map(([k, v]) => [k, Math.round(v)])),
     sql: [...sqlMs].sort((a, b) => b[1][0] - a[1][0]).slice(0, 40).map(([q, [ms, n]]) => ({ ms: Math.round(ms), n, q })),
-    persons: u.world.persons.size, fingerprints: fp, fingerprint: createHash('sha256').update(JSON.stringify(fp)).digest('hex').slice(0, 16),
+    persons: u.world.persons.size, offices: u.world.offices.length,
+    // Memory and storage at the end (the heap after a full collection when node runs with --expose-gc).
+    heapMB: (() => { (globalThis as { gc?: () => void }).gc?.(); return Math.round(process.memoryUsage().heapUsed / 1e6); })(),
+    dbMB: Math.round(Number(u.db.value('PRAGMA page_count') ?? 0) * Number(u.db.value('PRAGMA page_size') ?? 0) / 1e5) / 10,
+    fingerprints: fp, fingerprint: createHash('sha256').update(JSON.stringify(fp)).digest('hex').slice(0, 16),
     semantic: sem, semanticFingerprint: createHash('sha256').update(JSON.stringify(sem)).digest('hex').slice(0, 16),
   };
   writeFileSync(`.cache/speed-${label}.json`, JSON.stringify(report, null, 1));
   if (process.env.ENA_SPEED_SAVE) writeFileSync(process.env.ENA_SPEED_SAVE, u.db.exportBytes()); // the universe database, for inspection
-  console.log(`${label}: setup ${report.setupMs} ms, run ${report.runMs} ms, fingerprint ${report.fingerprint}, semantic ${report.semanticFingerprint}\n${months.map((m) => `${m.month} ${m.ms}`).join(' · ')}\n${report.steps.slice(0, 20).map((s) => `${s.step}: ${s.ms}`).join('\n')}\nseason ${JSON.stringify(report.season)}`);
+  console.log(`${label}: setup ${report.setupMs} ms, run ${report.runMs} ms, ${report.persons} persons, heap ${report.heapMB} MB, database ${report.dbMB} MB, fingerprint ${report.fingerprint}, semantic ${report.semanticFingerprint}\n${months.map((m) => `${m.month} ${m.ms}`).join(' · ')}\n${report.steps.slice(0, 20).map((s) => `${s.step}: ${s.ms}`).join('\n')}\nseason ${JSON.stringify(report.season)}`);
   delete (globalThis as unknown as { __seasonT?: unknown }).__seasonT;
   u.close();
 }, 4 * 3600_000);

@@ -2,7 +2,8 @@
  * Government (Phase 6): presidential approval and the economy as published (with the simulation's truth set
  * apart), Congress (bills, roll calls and the yearly record), the state legislatures, the census and
  * apportionment, every district plan drawn in this universe, (Phase 7.1) each state's election law over time, and
- * (Phase 7.2) each state's down-ballot offices, elected boards and courts, and (Phase 7.3) every ballot measure.
+ * (Phase 7.2) each state's down-ballot offices, elected boards and courts, (Phase 7.3) every ballot measure, and
+ * (Phase 7.6) every state's county government.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BillDto, CensusDto, CongressDto, DistrictMapDto, EconomyDto, ElectionLawDto, GeoMeta, LegislaturesDto, MeasureListDto, StateOfficesDto } from '../../engine/protocol';
@@ -13,10 +14,11 @@ import { CANDIDATE_COLORS, TimeChart, type Dot, type Series } from '../component
 import { marginColor } from '../map/renderer';
 import { civilToDays, daysToCivil, easternDay, formatDate, formatDay } from '../../core/time';
 import { useApp } from '../state/store';
+import { CountyOverviewPanel } from './CountyGovernment';
 
 const TABS = [
   { id: 'economy', label: 'Approval & economy' }, { id: 'congress', label: 'Congress' }, { id: 'legislatures', label: 'State legislatures' },
-  { id: 'offices', label: 'State offices & courts' }, { id: 'census', label: 'Census & apportionment' }, { id: 'districts', label: 'District maps' }, { id: 'measures', label: 'Ballot measures' }, { id: 'law', label: 'Election law' },
+  { id: 'offices', label: 'State offices & courts' }, { id: 'counties', label: 'County government' }, { id: 'census', label: 'Census & apportionment' }, { id: 'districts', label: 'District maps' }, { id: 'measures', label: 'Ballot measures' }, { id: 'law', label: 'Election law' },
 ] as const;
 
 export function GovernmentScreen({ tab: tabParam, args }: { tab?: string; args: string[] }) {
@@ -34,6 +36,7 @@ export function GovernmentScreen({ tab: tabParam, args }: { tab?: string; args: 
         : tab === 'legislatures' ? <LegislaturesPanel />
         : tab === 'census' ? <CensusPanel />
         : tab === 'law' ? <ElectionLawPanel />
+        : tab === 'counties' ? <CountyOverviewPanel />
         : tab === 'offices' ? <StateOfficesPanel state={args[0] !== undefined ? Number(args[0]) : undefined} />
         : tab === 'measures' ? <MeasuresPanel year={args[0] ? Number(args[0]) : undefined} />
         : <DistrictsPanel state={args[0] !== undefined ? Number(args[0]) : undefined} plan={(args[1] as 'cd' | 'sldu' | 'sldl' | undefined) ?? 'cd'} year={args[2] ? Number(args[2]) : undefined} />}

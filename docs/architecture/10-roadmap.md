@@ -119,7 +119,7 @@ measures, jurisdiction rules with effective dates (RCV, top-two, runoffs, nonpar
 Alaska HD reporting, synthetic-precinct map layer (WebGL2).
 - **Tests:** rule versioning (no retroactive application); RCV tabulation known-answer tests; storage budget re-measured.
 
-**Status:** 7.1 implemented — see [../phase-7.1-report.md](../phase-7.1-report.md). 7.2 implemented — see [../phase-7.2-report.md](../phase-7.2-report.md). 7.3 implemented — see [../phase-7.3-report.md](../phase-7.3-report.md). 7.4 implemented — see [../phase-7.4-report.md](../phase-7.4-report.md). 7.5 implemented — see [../phase-7.5-report.md](../phase-7.5-report.md). Correction to the 7.1 line below:
+**Status:** 7.1 implemented — see [../phase-7.1-report.md](../phase-7.1-report.md). 7.2 implemented — see [../phase-7.2-report.md](../phase-7.2-report.md). 7.3 implemented — see [../phase-7.3-report.md](../phase-7.3-report.md). 7.4 implemented — see [../phase-7.4-report.md](../phase-7.4-report.md). 7.5 implemented — see [../phase-7.5-report.md](../phase-7.5-report.md). 7.6 implemented — see [../phase-7.6-report.md](../phase-7.6-report.md); every county office (not only commission, sheriff, clerk and prosecutor), and county races counted live on election night; the per-year cost is higher than "protected" (about +30% with every county, §5 of the report). Correction to the 7.1 line below:
 real-world changes after 2016 (Alaska's top-four in 2022, Maine's ranked-choice voting in 2018) are not scheduled.
 Per §3.4 of the simulation architecture, rules change only through simulated law; 7.1 builds the mechanisms and
 the states' own reform sessions.

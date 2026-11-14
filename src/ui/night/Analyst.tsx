@@ -9,6 +9,7 @@ import { engine } from '../state/engineClient';
 import type { BaselineCountiesDto, NightContextDto, RaceDetailDto, SurveyDto } from '../../engine/protocol';
 import { PARTY_COLORS, Truth, fmtInt } from '../components/common';
 import { ST, clock, leaderOf, marginOf, pctIn, validOf, type NightState, type RaceMeta } from './useNight';
+import { localStates, useLocalRaces } from './localRaces';
 
 const MODE = ['Election Day', 'Early in person', 'Mail', 'Provisional'];
 const STATUS = ['Polls open', 'Too early', 'Too close', 'Projected', 'Withdrawn', 'Runoff'];
@@ -16,6 +17,13 @@ const ABBR: Record<number, string> = { 1: 'D', 2: 'R', 3: 'L', 4: 'G', 5: 'I' };
 const pctS = (x: number, d = 1) => `${(100 * x).toFixed(d)}%`;
 
 export function Analyst({ n }: { n: NightState }) {
+  // County races (Phase 7.6) have their own view: the broadcast's races and theirs are kept apart.
+  const [county, setCounty] = useState(false);
+  if (county) return <CountyAnalyst n={n} onBack={() => setCounty(false)} />;
+  return <MainAnalyst n={n} onCounty={localStates(n).length ? () => setCounty(true) : null} />;
+}
+
+function MainAnalyst({ n, onCounty }: { n: NightState; onCounty: (() => void) | null }) {
   const { meta, races, t } = n;
   const [search, setSearch] = useState('');
   const [detail, setDetail] = useState<RaceDetailDto | null>(null);
@@ -55,6 +63,7 @@ export function Analyst({ n }: { n: NightState }) {
   return (
     <div className="an">
       <aside className="card an-list">
+        {onCounty && <button className="btn small" style={{ width: '100%', marginBottom: 6 }} onClick={onCounty}>County races ›</button>}
         <input type="search" placeholder="Find a race" aria-label="Find a race" value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: '100%' }} />
         <div className="an-races">{list.map((x) => { const g = races[x.i]; const l = g?.s === ST.CALLED ? g.o : leaderOf(g, x.k); const c = l >= 0 ? x.candidates[l] : undefined; return (
           <button key={x.i} className={`an-race${x.i === race ? ' on' : ''}`} onClick={() => n.setFocus(x.i)}>
@@ -84,6 +93,71 @@ export function Analyst({ n }: { n: NightState }) {
           <section className="card an-wide"><h2>Batch log <span className="muted small">latest {d?.batches.length ?? 0}</span></h2>{d ? <Batches m={m} d={d} rjs={meta.rjs} /> : null}</section>
           <section className="card an-wide"><h2>Simulation truth <Truth /></h2><TruthPanel m={m} n={n} d={d} on={truth} setOn={setTruth} /></section>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A county race in detail (Phase 7.6): the count over time with the desk's status changes, votes by mode, the desk's
+ * calls and the batch log, from the record's local races. (Outstanding vote, swing, turnout and the voter survey
+ * are the statewide races'.)
+ */
+function CountyAnalyst({ n, onBack }: { n: NightState; onBack: () => void }) {
+  const states = localStates(n), featured = n.meta.localFeatured ?? 0;
+  const [state, setState] = useState<number | null>(featured > 0 ? -1 : states[0] ?? null);
+  const { list, frames } = useLocalRaces(n, state);
+  const [search, setSearch] = useState('');
+  const [sel, setSel] = useState<number | null>(null);
+  const [detail, setDetail] = useState<{ race: number; d: RaceDetailDto } | null>(null);
+  const tMin = Math.floor(n.t), localDetail = n.localDetail;
+  const last = useRef(0);
+  const race = sel ?? list?.[0]?.i ?? null;
+  useEffect(() => {
+    if (race === null) return;
+    let alive = true;
+    const wait = Math.max(0, 500 - (performance.now() - last.current));
+    const id = setTimeout(() => { last.current = performance.now(); void localDetail(race, tMin).then((d) => { if (alive && d) setDetail({ race, d }); }); }, wait);
+    return () => { alive = false; clearTimeout(id); };
+  }, [race, tMin, localDetail]);
+  const rows = (list ?? []).filter((x) => !search || `${x.short} ${x.countyName ?? ''} ${x.candidates.map((c) => c.name).join(' ')}`.toLowerCase().includes(search.toLowerCase())).slice(0, 300);
+  const m = race !== null ? list?.find((x) => x.i === race) : undefined;
+  const f = race !== null ? frames.get(race) : undefined;
+  const d = detail && detail.race === race ? detail.d : null;
+  return (
+    <div className="an">
+      <aside className="card an-list">
+        <button className="btn small" style={{ width: '100%', marginBottom: 6 }} onClick={onBack}>‹ Statewide and federal races</button>
+        <select aria-label="State" value={state ?? ''} onChange={(e) => { setState(Number(e.target.value)); setSel(null); }} style={{ width: '100%', marginBottom: 6 }}>
+          {featured > 0 && <option value={-1}>Featured: largest counties</option>}
+          {states.map((s) => <option key={s} value={s}>{n.meta.states.find((x) => x.idx === s)?.name ?? s}</option>)}
+        </select>
+        <input type="search" placeholder="Find a county race" aria-label="Find a county race" value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: '100%' }} />
+        <div className="an-races">{rows.map((x) => { const g = frames.get(x.i); const l = g?.s === ST.CALLED ? g.o : leaderOf(g, x.k); const c = l >= 0 ? x.candidates[l] : undefined; return (
+          <button key={x.i} className={`an-race${x.i === race ? ' on' : ''}`} onClick={() => setSel(x.i)}>
+            <span className="small"><strong>{x.short}</strong><span className="tiny muted"> {[x.countyName, state === -1 ? x.state : null].filter(Boolean).join(', ')}</span></span>
+            <span className="tiny" style={{ color: c ? PARTY_COLORS[c.party] : undefined }}>{g?.s === ST.CALLED ? '✓ ' : ''}{c ? `${ABBR[c.party] ?? 'I'}${g && g.b > 0 && x.k > 2 ? ` +${marginOf(g, x.k).toFixed(1)}` : ''}` : STATUS[g?.s ?? 0]}</span>
+          </button>); })}</div>
+      </aside>
+      <div className="an-main">
+        {!m ? <section className="card"><p className="muted small">{list ? 'No county races in this state tonight.' : 'Loading…'}</p></section> : <>
+          <section className="card an-head">
+            <div><div className="kicker">{m.state} · {m.countyName ?? 'multi-county district'} · {clock(n.t)}</div><h2 style={{ margin: '2px 0' }}>{m.short}</h2></div>
+            <div className="row wrap" style={{ gap: 18 }}>
+              <Stat label="Desk status" value={STATUS[f?.s ?? 0]!} />
+              <Stat label="Counted" value={`${Math.floor(100 * pctIn(f))}% of expected`} />
+              <Stat label="Ballots counted" value={fmtInt(f?.b ?? 0)} />
+              <Stat label="Expected ballots" value={f?.e ? fmtInt(f.e) : '—'} />
+              <Stat label="Desk confidence" value={f && f.s !== ST.NONE ? pctS(f.p) : '—'} />
+            </div>
+          </section>
+          <div className="an-grid">
+            <section className="card an-wide"><h2>The count over time</h2>{d ? (m.k > 2 ? <CountChart m={m} d={d} /> : <p className="muted small">Unopposed: {m.candidates[0]?.name}.</p>) : <p className="muted small">Loading…</p>}</section>
+            <section className="card"><h2>Votes by mode</h2>{d ? <Modes m={m} d={d} /> : null}</section>
+            <section className="card"><h2>Desk calls</h2>{d ? <Calls m={m} d={d} /> : null}</section>
+            <section className="card an-wide"><h2>Batch log <span className="muted small">latest {d?.batches.length ?? 0}</span></h2>{d ? <Batches m={m} d={d} rjs={n.meta.rjs} /> : null}</section>
+          </div>
+        </>}
       </div>
     </div>
   );
@@ -156,12 +230,14 @@ function Outstanding({ m, n }: { m: RaceMeta; n: NightState }) {
 function Modes({ m, d }: { m: RaceMeta; d: RaceDetailDto }) {
   const tot = d.byMode.map((v) => v.reduce((a, b) => a + b, 0)), all = tot.reduce((a, b) => a + b, 0);
   const [a, b] = topTwo(m, d.byMode.reduce((acc, v) => acc.map((x, j) => x + (v[j] ?? 0)), new Array<number>(m.k).fill(0)));
-  const ca = m.candidates[a]!, cb = m.candidates[b]!;
+  // An unopposed race (county races often are, Phase 7.6) has one candidate: its votes, and the ballots left blank.
+  const ca = m.candidates[a]!, cb = m.k > 2 ? m.candidates[b] : undefined;
   return (
-    <table className="data"><thead><tr><th>Mode</th><th>Ballots</th><th>{surname(ca.name)}</th><th>{surname(cb.name)}</th></tr></thead><tbody>
+    <table className="data"><thead><tr><th>Mode</th><th>Ballots</th><th>{surname(ca.name)}</th>{cb ? <th>{surname(cb.name)}</th> : <th>Left blank</th>}</tr></thead><tbody>
       {d.byMode.map((v, i) => { const valid = v.slice(0, m.k - 1).reduce((x, y) => x + y, 0); return (
         <tr key={i}><td className="small">{MODE[i]}</td><td className="small num">{fmtInt(tot[i]!)} <span className="muted">{all ? `(${pctS(tot[i]! / all, 0)})` : ''}</span></td>
-          <td className="small num">{valid ? pctS(v[a]! / valid) : '—'}</td><td className="small num">{valid ? pctS(v[b]! / valid) : '—'}</td></tr>); })}
+          {cb ? <><td className="small num">{valid ? pctS(v[a]! / valid) : '—'}</td><td className="small num">{valid ? pctS(v[b]! / valid) : '—'}</td></>
+            : <><td className="small num">{fmtInt(v[a] ?? 0)}</td><td className="small num">{tot[i] ? pctS((v[m.k - 1] ?? 0) / tot[i]!, 0) : '—'}</td></>}</tr>); })}
     </tbody></table>
   );
 }
@@ -265,7 +341,8 @@ function Batches({ m, d, rjs }: { m: RaceMeta; d: RaceDetailDto; rjs: Record<num
         {d.batches.slice(first, last).map((x, i) => { const valid = x.votes.slice(0, m.k - 1).reduce((s, y) => s + y, 0), tot = x.votes.reduce((s, y) => s + y, 0); const mg = valid ? (100 * (x.votes[a]! - x.votes[b]!)) / valid : 0; return (
           <div key={first + i} className="an-row" style={{ top: (first + i) * ROW, height: ROW }}>
             <span className="num">{clock(x.time)}</span><span className="nm">{rjs[x.rj] ?? x.rj}</span><span className="muted">{MODE[x.mode]}</span><span className="num">{fmtInt(tot)}</span>
-            <span className="num" style={{ color: 'var(--text-1)' }}><span className="party-dot" style={{ background: PARTY_COLORS[(mg >= 0 ? m.candidates[a] : m.candidates[b])?.party ?? 5] }} /> {mg >= 0 ? ABBR[m.candidates[a]!.party] : ABBR[m.candidates[b]!.party]} +{Math.abs(mg).toFixed(1)}</span>
+            {m.k > 2 ? <span className="num" style={{ color: 'var(--text-1)' }}><span className="party-dot" style={{ background: PARTY_COLORS[(mg >= 0 ? m.candidates[a] : m.candidates[b])?.party ?? 5] }} /> {ABBR[(mg >= 0 ? m.candidates[a] : m.candidates[b])?.party ?? 5]} +{Math.abs(mg).toFixed(1)}</span>
+              : <span className="num" style={{ color: 'var(--text-1)' }}><span className="party-dot" style={{ background: PARTY_COLORS[m.candidates[0]?.party ?? 5] }} /> {fmtInt(x.votes[0] ?? 0)}</span>}
           </div>); })}
       </div>
     </div>

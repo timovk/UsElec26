@@ -13,6 +13,8 @@ export interface NightRace {
   contest: number;        // index into the shard's contests
   cd: number;             // −1 = every unit of the contest; otherwise only units in this congressional district
   office: string;         // office kind
+  /** A county race (Phase 7.6): counted with the state's races, kept apart from the broadcast. */
+  local?: boolean;
   surveyed: boolean;      // covered by the voter survey
   majority: boolean;      // a majority is required (otherwise a runoff)
   /** Per option (excluding the undervote): +1 for the option the prior error favours, −1 for its opponent, 0 otherwise. */

@@ -31,11 +31,17 @@ export async function exportUniverse(id: string): Promise<void> {
   } catch (e) { if ((e as DOMException).name !== 'AbortError') toast(`Export failed: ${(e as Error).message}`, 'error'); }
 }
 
+/** County offices simulated (Phase 7.6). */
+export const COUNTY_SCOPES: ['all' | 'major' | 'off', string][] = [
+  ['all', 'Every county’s offices'], ['major', 'Counties of 250,000 people or more'], ['off', 'No county offices'],
+];
+
 export function Hub() {
   const { slots, active, storage, progress, set, toast } = useApp();
   const [name, setName] = useState('');
   const [seed, setSeed] = useState('');
   const [advanced, setAdvanced] = useState(false);
+  const [county, setCounty] = useState<'all' | 'major' | 'off'>('all');
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<SlotInfo | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -49,7 +55,7 @@ export function Hub() {
   const create = async () => {
     setCreating(true); set({ progress: { step: 'Starting', fraction: 0 } });
     try {
-      const info = await engine.request<SlotInfo>({ type: 'create', name: name.trim() || 'My America', seed: seed.trim() || undefined });
+      const info = await engine.request<SlotInfo>({ type: 'create', name: name.trim() || 'My America', seed: seed.trim() || undefined, county });
       set({ active: info, time: info.currentTime, playing: false, liveNews: [], progress: null });
       await refreshSlots();
       try { await navigator.storage?.persist?.(); } catch { /* unsupported */ } // only available on the main thread
@@ -87,8 +93,15 @@ export function Hub() {
             <label className="row"><span style={{ width: 70 }}>Name</span><input type="text" value={name} placeholder="My America" onChange={(e) => setName(e.target.value)} style={{ flex: 1 }} maxLength={60} /></label>
             <button className="btn ghost small" onClick={() => setAdvanced(!advanced)} aria-expanded={advanced}>{advanced ? '▾' : '▸'} Advanced</button>
             {advanced && (
-              <label className="row"><span style={{ width: 70 }}>Seed</span><input type="text" value={seed} placeholder="random" onChange={(e) => setSeed(e.target.value)} style={{ flex: 1 }} maxLength={64} />
-                <span className="tiny muted">Same seed → same universe.</span></label>
+              <>
+                <label className="row"><span style={{ width: 70 }}>Seed</span><input type="text" value={seed} placeholder="random" onChange={(e) => setSeed(e.target.value)} style={{ flex: 1 }} maxLength={64} />
+                  <span className="tiny muted">Same seed → same universe.</span></label>
+                <label className="row"><span style={{ width: 70 }}>Counties</span>
+                  <select value={county} onChange={(e) => setCounty(e.target.value as typeof county)} style={{ flex: 1 }} aria-label="County offices">
+                    {COUNTY_SCOPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select></label>
+                <span className="tiny muted">Every county's elected offices (boards, sheriffs, clerks, prosecutors…) make each even-year election about a third slower and the universe about twice as large. You can change this later in Settings.</span>
+              </>
             )}
             <button className="btn primary" disabled={creating} onClick={() => void create()}>Create universe</button>
           </div>

@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { engine } from '../state/engineClient';
 import { useApp } from '../state/store';
 import type { DiagnosticsResult, IntegrityReport, StorageInfo } from '../../engine/protocol';
-import { exportUniverse } from './Hub';
+import { COUNTY_SCOPES, exportUniverse } from './Hub';
 import { fmtBytes } from '../components/common';
 import { MapRenderer, loadBasemap, marginColor } from '../map/renderer';
 
 /** The roadmap phase this build completes (update with the About card at the end of every phase). */
-const BUILT_THROUGH = '7.5';
+const BUILT_THROUGH = '7.6';
 
 export function Settings() {
   const { storage, active, engineVersion, engineUpdated, set, toast } = useApp();
@@ -60,6 +60,7 @@ export function Settings() {
             </tbody></table>
           )}
         </section>
+        {active && <CountyScopeCard />}
         <section className="card">
           <h2>Diagnostics</h2>
           <p className="small muted">Measures this device's performance on the kernels the simulation uses. Results are real measurements, not estimates.</p>
@@ -76,14 +77,15 @@ export function Settings() {
           <ul className="small">
             <li><strong>The country:</strong> 3,142 counties built from about 265,000 Census-block areas, with each area's adults by age, race and education. Every January the population moves on: people age, die, come of age, naturalize and move. The electorate evolves too: party platforms shift and loyalties drift, so realignments emerge rather than being scripted.</li>
             <li><strong>Elections:</strong> President (with the Electoral College), Senate, House, governors and every state legislature, including multi-member districts and New Hampshire's floterial districts. Also the other statewide offices, elected boards, state courts (partisan, nonpartisan and retention elections) and statewide ballot measures. Primaries and runoffs follow each state's 2016 rules. Presidential nominations are won through primaries and caucuses, delegates and conventions.</li>
+            <li><strong>County government:</strong> every county's elected offices as of 2016: the board (commissioners, supervisors, a council or the fiscal court), the executive or county judge, the sheriff, clerks, treasurer, assessor, auditor, recorder, coroner, surveyor and the rest, and the prosecutors, by county or by judicial district (real districts in nine states, generated elsewhere). Boards elected by district get districts drawn inside the county and redrawn after each census. County races follow each state's calendar, including Wisconsin's spring, Tennessee's August and Alaska's October elections. Settings can limit them to the major counties or switch them off.</li>
             <li><strong>Election law:</strong> each state's law of January 1, 2016. It changes only through the universe's own legislatures and ballot measures: ranked-choice voting, top-two and top-four primaries, open or closed primaries. Real-world changes after 2016 are not imported.</li>
             <li><strong>Campaigns and polls:</strong> fundraising, debates, scandals and endorsements; 32 fictional pollsters; polling averages and forecasts, scored against the results.</li>
-            <li><strong>Election night:</strong> poll closings, and the count as each state reports it: by county, by town in New England, by House district in Alaska. There is a voter survey and a decision desk, and the broadcast carries projections, Key Race Alerts and commentary. Every night can be replayed.</li>
+            <li><strong>Election night:</strong> poll closings, and the count as each state reports it: by county, by town in New England, by House district in Alaska. There is a voter survey and a decision desk, and the broadcast carries projections, Key Race Alerts and commentary. Every county race is counted and projected too, followed in the Desk's county offices, the Analyst and the Results Explorer. Every night can be replayed.</li>
             <li><strong>Between elections:</strong> the economy and presidential approval. Careers: retirements, scandals, deaths, appointments and special elections. Congress's bills and roll calls, and each state's legislative session. The census every ten years, apportionment and redistricting.</li>
-            <li><strong>History:</strong> every result is archived, certified and audited. Every state, congressional district, county, New England town and Alaska House district has a history page. Maps show each year's presidential, Senate, governor and House results.</li>
+            <li><strong>History:</strong> every result is archived, certified and audited. Every state, congressional district, county, New England town and Alaska House district has a history page; a county's page also lists its officeholders and local news. Maps show each year's presidential, Senate, governor and House results.</li>
           </ul>
           <h3>Not yet in the simulation</h3>
-          <p className="small">County offices (planned for Phase 7.6), mayors, city councils and school boards (7.7), and precinct maps (7.8). Also live primary nights, and primaries for state legislative seats (parties nominate directly).</p>
+          <p className="small">Mayors, city councils and school boards (planned for Phase 7.7), and precinct maps (7.8). Also trial-court judges, appointed county officials, live primary nights, and primaries for state legislative seats (parties nominate directly).</p>
           <h3>Sources</h3>
           <ul className="small">
             <li><strong>Geography and population:</strong> U.S. Census Bureau: the 2010 Census redistricting data, ACS 2012–2016 five-year estimates, the CVAP 2012–2016 special tabulation, the 2016 cartographic boundary files (states, counties, New England towns, congressional and state legislative districts), and the block equivalency files for the 115th Congress and the 2016 state legislative districts.</li>
@@ -94,5 +96,40 @@ export function Settings() {
         </section>
       </div>
     </>
+  );
+}
+
+/** Which counties' elected offices the open universe simulates (Phase 7.6). */
+function CountyScopeCard() {
+  const { toast } = useApp();
+  const [busy, setBusy] = useState(false);
+  const [scope, setScope] = useState<'all' | 'major' | 'off' | null>(null);
+  useEffect(() => { void engine.request<{ scope: 'all' | 'major' | 'off' }>({ type: 'countyScope' }).then((r) => setScope(r.scope)).catch(() => {}); }, []);
+  const shown = scope ?? 'all';
+  const change = async (next: 'all' | 'major' | 'off') => {
+    setBusy(true);
+    try {
+      const r = await engine.request<{ scope: 'all' | 'major' | 'off'; ended: number }>({ type: 'countyScope', scope: next });
+      setScope(r.scope);
+      toast(next === 'off' ? `County offices switched off${r.ended ? `: ${r.ended.toLocaleString()} terms ended` : ''}.`
+        : `County offices: ${COUNTY_SCOPES.find(([v]) => v === next)![1].toLowerCase()}${r.ended ? ` (${r.ended.toLocaleString()} terms ended outside it)` : ''}.`);
+    } catch (e) { toast((e as Error).message, 'error'); } finally { setBusy(false); }
+  };
+  return (
+    <section className="card">
+      <h2>County offices</h2>
+      <p className="small muted">Which counties' elected offices this universe simulates: boards, executives and judges, sheriffs, clerks, treasurers, assessors, coroners and the rest, and prosecutors.</p>
+      <div className="stack">
+        {COUNTY_SCOPES.map(([v, l]) => (
+          <label key={v} className="row small" style={{ gap: 6 }}>
+            <input type="radio" name="county-scope" disabled={busy} checked={shown === v} onChange={() => void change(v)} />{l}
+          </label>
+        ))}
+      </div>
+      <p className="tiny muted" style={{ marginTop: 6 }}>
+        Every county's offices make each election year about a third slower and the universe larger. Narrowing ends the terms outside the new scope (their seats stay empty, their history stays in the archive); widening fills the seats with officeholders from today, and their elections follow the state's calendar.
+      </p>
+      {busy && <p className="small">Updating county offices…</p>}
+    </section>
   );
 }

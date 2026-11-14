@@ -223,6 +223,21 @@ Ballots are cast over weeks (mail and early voting), not in an instant:
   vote-for-N primaries where held. Districts are numbered uniquely within a state (letter-coded districts used to
   collapse to one number) and carry the state's names for them. After a census, New Hampshire's seats and
   floterials are recomputed on the new map and members re-seated.
+- **County offices** (Phase 7.6, `rules/county2016.ts`, `engine/county.ts`): every county's elected offices as of
+  2016: the board (commissioners, supervisors, a council, a legislature, the fiscal court, the commissioners court),
+  the executive or county judge, the sheriff, clerks, treasurer, assessor, auditor, recorder, coroner, surveyor and
+  other row offices, and the prosecutors, elected by county or by judicial district. Real 2016 districts in nine
+  states (Florida, Georgia, Alabama, Colorado, South Carolina, Tennessee, New Mexico, Maine, Massachusetts) where every
+  county matched; elsewhere (Arkansas, Kentucky, Louisiana, Mississippi, North Carolina, Oklahoma, Texas) generated
+  contiguous districts of the state's real number. Board districts are drawn inside each county from its Base Units
+  (equal population) and redrawn after each census; at-large boards elect their seats together ("vote for N", with
+  Pennsylvania's limited voting: one fewer mark than seats). Races follow each state's calendar: November of even or
+  odd years, Wisconsin's April, Tennessee's August, Alaska's October; partisan or nonpartisan per state law. A
+  per-universe scope (all counties, those of 250,000 people or more, or none) is chosen at creation and can be
+  changed in Settings: narrowing ends the terms outside it, widening installs officeholders. About half the
+  newcomers to a county race are earlier county candidates of the same county and party who hold no office. County
+  officials are a bench for state legislative races. County news is local (the county page), except about the
+  executive, sheriff and prosecutor of the counties of a million people or more.
 - **Census and districts:** the census on April 1 of each year ending in 0, Huntington–Hill apportionment on
   December 31, redistricting September–November of the following year, new plans for the elections two years
   after the census, and the new districts take office on January 3 of the year after that. Plans are versioned:

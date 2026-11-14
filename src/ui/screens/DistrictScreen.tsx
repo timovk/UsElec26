@@ -5,6 +5,7 @@
  */
 import { useMemo, useState } from 'react';
 import type { DistrictHistoryDto, HistoryRow } from '../../engine/protocol';
+import { COUNTY_OFFICE_KINDS } from '../../engine/protocol';
 import { useQuery } from './Desk';
 import { PARTY_COLORS, PartyBadge, fmtInt, fmtLean } from '../components/common';
 import { go } from '../app/router';
@@ -56,6 +57,7 @@ export const HISTORY_OFFICES: [string, string, (k: string) => boolean][] = [
   ['courts', 'Courts', (k) => k === 'justice' || k === 'appellate_judge'],
   ['legislature', 'State legislature', (k) => k === 'state_senator' || k === 'state_representative'],
   ['measures', 'Ballot measures', (k) => k === 'ballot_measure'],
+  ['county', 'County offices', (k) => (COUNTY_OFFICE_KINDS as readonly string[]).includes(k)],
 ];
 
 const ordinal = (n: number) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`; };

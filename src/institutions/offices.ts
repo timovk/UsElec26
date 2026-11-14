@@ -10,6 +10,11 @@ export const OFFICE_LABEL: Record<string, string> = {
   agriculture_commissioner: 'Agriculture Commissioner', labor_commissioner: 'Labor Commissioner', land_commissioner: 'Land Commissioner',
   other_statewide: 'Other statewide office', commissioner: 'Commissions', education_board: 'Boards of education', regent: 'University boards',
   justice: 'Supreme Court', appellate_judge: 'Court of Appeals', ballot_measure: 'Ballot measures',
+  // County offices (Phase 7.6).
+  county_board: 'County boards', county_executive: 'County executives and judges', sheriff: 'Sheriff', prosecutor: 'Prosecutor',
+  county_clerk: 'County clerk', court_clerk: 'Clerk of court', county_treasurer: 'County treasurer', county_assessor: 'Assessor',
+  county_auditor: 'County auditor', county_recorder: 'Recorder and register of deeds', coroner: 'Coroner', county_surveyor: 'Surveyor',
+  county_official: 'Other county offices',
 };
 
 /** Groups of office kinds for filters and overviews. */
@@ -21,6 +26,8 @@ export const OFFICE_GROUPS: { label: string; kinds: OfficeKind[] }[] = [
   { label: 'Courts', kinds: ['justice', 'appellate_judge'] },
   { label: 'State legislatures', kinds: ['state_senator', 'state_representative'] },
   { label: 'Ballot measures', kinds: ['ballot_measure'] },
+  { label: 'County offices', kinds: ['county_board', 'county_executive', 'sheriff', 'prosecutor', 'county_clerk', 'court_clerk', 'county_treasurer',
+    'county_assessor', 'county_auditor', 'county_recorder', 'coroner', 'county_surveyor', 'county_official'] },
 ];
 
 /** The race, as said in commentary ("the treasurer's race", "the Supreme Court race"). */

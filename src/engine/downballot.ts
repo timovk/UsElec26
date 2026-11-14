@@ -20,6 +20,7 @@ import { STATES_2016 } from '../rules/states2016';
 import { stateRanges, type StateRange } from '../electorate/shards';
 import type { PersonOptions } from './elections';
 import { leanMargin, type World } from './world';
+import { isCountyKind } from '../rules/county2016';
 
 export interface DownballotHost {
   world: World;
@@ -28,9 +29,9 @@ export interface DownballotHost {
   installTerm(officeId: number, person: Person, start: SimTime, acquired: string): Term;
 }
 
-/** The body a seat belongs to. */
+/** The body a seat belongs to (a state body: county offices, Phase 7.6, have their own, see engine/county). */
 export function seatBody(w: World, o: Office): BodyDef | undefined {
-  if (!o.seat || o.stateIdx === null) return undefined;
+  if (!o.seat || o.stateIdx === null || isCountyKind(o.kind)) return undefined;
   return bodyDef(w.pack.states[o.stateIdx]!.usps, o.seat.body);
 }
 

@@ -15,6 +15,8 @@ const SCRUTINY: Partial<Record<OfficeKind, number>> = {
   lt_governor: 0.6, attorney_general: 0.7, secretary_of_state: 0.5, congress_leader: 1.2, state_leg_leader: 0.6,
   treasurer: 0.45, auditor: 0.4, superintendent: 0.45, insurance_commissioner: 0.45, agriculture_commissioner: 0.4, labor_commissioner: 0.35, land_commissioner: 0.4,
   other_statewide: 0.3, commissioner: 0.4, education_board: 0.25, regent: 0.25, justice: 0.3, appellate_judge: 0.2,
+  county_executive: 0.5, sheriff: 0.45, prosecutor: 0.4, county_board: 0.3, county_clerk: 0.2, court_clerk: 0.2, county_treasurer: 0.25,
+  county_assessor: 0.25, county_auditor: 0.2, county_recorder: 0.15, coroner: 0.2, county_surveyor: 0.12, county_official: 0.2,
 };
 
 /** Monthly probability that an officeholder is hit by a scandal. */

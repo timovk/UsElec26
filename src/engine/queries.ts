@@ -19,9 +19,9 @@ import type {
 export function runQuery(u: Universe, q: Query): unknown {
   switch (q.kind) {
     case 'electionYears': case 'elections': case 'contest': case 'countyHistory': case 'townHistory': case 'districtHistory': case 'stateHistory': case 'measures': case 'resultsMap': case 'yearSummary': case 'audit': return runArchiveQuery(u, q);
-    case 'nights': case 'nightMeta': case 'nightPayload': case 'nightContext': case 'nightBaseline': case 'nightSurvey': case 'nightCalls': return runNightQuery(u, q);
+    case 'nights': case 'nightMeta': case 'nightPayload': case 'nightContext': case 'nightBaseline': case 'nightSurvey': case 'nightCalls': case 'nightLocal': return runNightQuery(u, q);
     case 'seasonYears': case 'seasonOverview': case 'seasonRace': case 'pollList': case 'pollster': case 'forecastRun': case 'forecastCalibration': case 'primaries': return runSeasonQuery(u, q);
-    case 'economy': case 'congress': case 'bill': case 'legislatures': case 'census': case 'districtMap': case 'electionLaw': case 'stateOffices': return runGovernmentQuery(u, q);
+    case 'economy': case 'congress': case 'bill': case 'legislatures': case 'census': case 'districtMap': case 'electionLaw': case 'stateOffices': case 'countyGovernment': case 'countyOverview': return runGovernmentQuery(u, q);
     case 'desk': return desk(u);
     case 'geoMeta': return geoMeta(u);
     case 'mapLayer': return mapLayer(u, q.layer, q.metric);
@@ -31,6 +31,11 @@ export function runQuery(u: Universe, q: Query): unknown {
     case 'news': return news(u, q.limit ?? 50, q.beforeId);
     case 'calendar': return calendar(u);
     case 'electorate': return electorate(u);
+    default: {
+      // Every query kind is routed above: a new kind left out is a compile error here.
+      const missing: never = q;
+      throw new Error(`Unknown query: ${(missing as { kind: string }).kind}`);
+    }
   }
 }
 
@@ -272,7 +277,7 @@ function person(u: Universe, id: number): PersonDetail | null {
 
 function news(u: Universe, limit: number, beforeId?: number): NewsDto[] {
   const rows = u.db.all<{ news_id: number; sim_time: number; kind: string; headline: string; body: string; refs_json: string }>(
-    `SELECT * FROM news ${beforeId ? 'WHERE news_id < ?' : ''} ORDER BY news_id DESC LIMIT ?`, beforeId ? [beforeId, limit] : [limit]);
+    `SELECT * FROM news WHERE local = 0 ${beforeId ? 'AND news_id < ?' : ''} ORDER BY news_id DESC LIMIT ?`, beforeId ? [beforeId, limit] : [limit]);
   return rows.map((r) => ({ id: r.news_id, time: r.sim_time, kind: r.kind, headline: r.headline, body: r.body, personId: (JSON.parse(r.refs_json || '{}') as { personId?: number }).personId }));
 }
 

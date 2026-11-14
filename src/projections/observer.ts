@@ -241,7 +241,8 @@ export function observe(inp: ObsInput): ObsOutput {
     }
     wireRow(r, ri, t);
     if (r.status === ST_CALLED || (r.status === ST_RUNOFF && r.calledAt >= 0)) {
-      if (r.status === ST_RUNOFF) return;
+      // County races (Phase 7.6), thousands a night, are not re-examined once projected.
+      if (r.status === ST_RUNOFF || r.rc.def.local) return;
       // A projection is withdrawn only when the doubt persists for 30 minutes (desks investigate first).
       const ev = evaluate(r, r.option);
       if (ev.p >= inp.desk.retract) { r.doubtSince = -1; return; }

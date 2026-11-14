@@ -4,7 +4,7 @@
  * Live viewing follows the universe clock; going back is a replay of the original record.
  */
 import { surname } from '../../core/names';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GeoMeta, NightFrameDto, NightListItem, NightMarker, NightMetaDto, NightRaceFrame, NightTally } from '../../engine/protocol';
 import { formatDate } from '../../core/time';
 import { MapRenderer, type Basemap } from '../map/renderer';
@@ -16,10 +16,11 @@ import { ET, SPEEDS, ST, clock, leaderOf, useNight, type NightState } from '../n
 import { getBasemap } from '../night/NightMap';
 import { Broadcast } from '../night/Broadcast';
 import { Analyst } from '../night/Analyst';
+import { localStates, useLocalRaces } from '../night/localRaces';
 
 const STATUS_LABEL = ['Polls open', 'Too early to call', 'Too close to call', 'Projected', 'Projection withdrawn', 'Runoff projected'];
 const SHORT_STATUS = ['Polls open', 'Too early', 'Too close', 'Projected', 'Withdrawn', 'Runoff'];
-const OFFICES: { id: string; label: string }[] = [{ id: 'president', label: 'President' }, { id: 'us_senator', label: 'Senate' }, { id: 'governor', label: 'Governor' }, { id: 'us_representative', label: 'House' }, { id: 'other', label: 'Other statewide' }, { id: 'justice', label: 'Supreme courts' }, { id: 'ballot_measure', label: 'Ballot measures' }];
+const OFFICES: { id: string; label: string }[] = [{ id: 'president', label: 'President' }, { id: 'us_senator', label: 'Senate' }, { id: 'governor', label: 'Governor' }, { id: 'us_representative', label: 'House' }, { id: 'other', label: 'Other statewide' }, { id: 'justice', label: 'Supreme courts' }, { id: 'ballot_measure', label: 'Ballot measures' }, { id: 'county', label: 'County offices' }];
 const PALE: Record<number, string> = { 1: '#7ea3ea', 2: '#ec8a96', 3: '#e9c867', 4: '#7cc59a', 5: '#b3b7c2' };
 const VIEWS = [{ id: 'broadcast', label: 'Broadcast' }, { id: 'desk', label: 'Desk' }, { id: 'analyst', label: 'Analyst' }] as const;
 type View = typeof VIEWS[number]['id'];
@@ -71,7 +72,7 @@ function DeskView({ n }: { n: NightState }) {
   const rangeEnd = days ? meta.feedEnd : meta.nightEnd;
   const r = (i: number) => races[i];
   // Offices on this night's ballots; the list and the map fall back to what the night actually has (a special may be House only).
-  const available = OFFICES.map((o) => o.id).filter((o) => meta.races.some(ofOffice(o)));
+  const available = OFFICES.map((o) => o.id).filter((o) => (o === 'county' ? Object.keys(meta.localByState ?? {}).length > 0 : meta.races.some(ofOffice(o))));
   const effOffice = available.includes(office) ? office : available[0] ?? 'president';
   const mapOffice = ['president', 'us_senator', 'governor'].includes(effOffice) ? effOffice : ['president', 'us_senator', 'governor'].find((o) => available.includes(o)) ?? effOffice;
   const presByState = new Map<number, number>();
@@ -122,8 +123,10 @@ function DeskView({ n }: { n: NightState }) {
         </section>
 
         <section className="card night-board">
-          {focused ? <RaceBoard m={focused} f={r(focused.i)} byRj={byRj} rjs={meta.rjs} rjCounty={meta.rjCounty} units={unitSet} onClose={() => setFocus(null)} />
+          {effOffice === 'county' ? null : focused ? <RaceBoard m={focused} f={r(focused.i)} byRj={byRj} rjs={meta.rjs} rjCounty={meta.rjCounty} units={unitSet} onClose={() => setFocus(null)} />
             : <p className="muted small">Select a state on the map or a race in the list.</p>}
+          {effOffice === 'county' && <CountyDesk n={n} officeSelect={<select value={effOffice} onChange={(e) => setOffice(e.target.value)} aria-label="Office">{OFFICES.filter((o) => available.includes(o.id)).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select>} focusState={focused?.stateIdx ?? null} units={unitSet} />}
+          {effOffice !== 'county' && <>
           <h3>Races</h3>
           <div className="row wrap" style={{ gap: 6, marginBottom: 6 }}>
             <select value={effOffice} onChange={(e) => setOffice(e.target.value)} aria-label="Office">{OFFICES.filter((o) => available.includes(o.id)).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select>
@@ -146,6 +149,7 @@ function DeskView({ n }: { n: NightState }) {
                 </tr>);
             })}</tbody></table>
           </div>
+          </>}
         </section>
 
         <section className="card night-log">
@@ -167,6 +171,64 @@ function DeskView({ n }: { n: NightState }) {
 }
 
 const PLURAL: Record<number, string> = { 1: 'Democrats', 2: 'Republicans', 3: 'Libertarians', 4: 'Greens', 5: 'Independents' };
+/**
+ * County races on the Desk (Phase 7.6): a state's county races (its counties, or one), with the leader, the margin,
+ * the share counted and the desk's status; one race in detail. Read on demand, apart from the broadcast's races.
+ */
+function CountyDesk({ n, officeSelect, focusState, units }: { n: NightState; officeSelect: ReactNode; focusState: number | null; units: Set<number> }) {
+  const states = localStates(n), featured = n.meta.localFeatured ?? 0;
+  const [pick, setPick] = useState<number | null>(null);
+  // The featured races (−1: the executive, sheriff and prosecutor of the counties of a million people or more) come first.
+  const state = pick ?? (focusState !== null && states.includes(focusState) ? focusState : featured > 0 ? -1 : states[0] ?? null);
+  const { list, frames } = useLocalRaces(n, state);
+  const [county, setCounty] = useState('all');
+  const [filter, setFilter] = useState<'all' | 'open' | 'called'>('all');
+  const [search, setSearch] = useState('');
+  const [sel, setSel] = useState<number | null>(null);
+  const counties = [...new Set((list ?? []).map((x) => x.countyName ?? 'Multi-county districts'))];
+  const rows = (list ?? []).filter((x) => county === 'all' || (x.countyName ?? 'Multi-county districts') === county).filter((x) => {
+    const f = frames.get(x.i); if (filter === 'called' && f?.s !== ST.CALLED) return false; if (filter === 'open' && f?.s === ST.CALLED) return false;
+    return !search || `${x.short} ${x.countyName ?? ''} ${x.candidates.map((c) => c.name).join(' ')}`.toLowerCase().includes(search.toLowerCase());
+  });
+  const selected = sel !== null ? list?.find((x) => x.i === sel) : undefined;
+  const called = (list ?? []).filter((x) => frames.get(x.i)?.s === ST.CALLED).length;
+  return (
+    <div>
+      {selected ? <RaceBoard m={{ ...selected, label: `${selected.short}${selected.countyName ? `, ${selected.countyName}` : ''}` }} f={frames.get(selected.i)} byRj={null} rjs={n.meta.rjs} rjCounty={n.meta.rjCounty} units={units} onClose={() => setSel(null)} />
+        : <p className="muted small">County races are counted and called like the others, apart from the broadcast. Featured first: the executives, sheriffs and prosecutors of the counties of a million people or more; or pick a state and a county.</p>}
+      <h3>County races {list && <span className="muted small">{called} of {list.length} projected</span>}</h3>
+      <div className="row wrap" style={{ gap: 6, marginBottom: 6 }}>
+        {officeSelect}
+        <select aria-label="State" value={state ?? ''} onChange={(e) => { setPick(Number(e.target.value)); setCounty('all'); setSel(null); }}>
+          {featured > 0 && <option value={-1}>Featured: largest counties ({featured})</option>}
+          {states.map((s) => <option key={s} value={s}>{n.meta.states.find((x) => x.idx === s)?.name ?? s} ({n.meta.localByState[s]})</option>)}
+        </select>
+        <select aria-label="County" value={county} onChange={(e) => setCounty(e.target.value)} style={{ maxWidth: 190 }}>
+          <option value="all">All counties</option>{counties.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <div className="seg">{(['all', 'open', 'called'] as const).map((k) => <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{k === 'all' ? 'All' : k === 'open' ? 'Not projected' : 'Projected'}</button>)}</div>
+        <input placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: 110 }} />
+      </div>
+      <div className="night-list">
+        {!list ? <p className="muted small">Loading…</p> : <table className="data"><tbody>{rows.slice(0, 400).map((x) => {
+          const f = frames.get(x.i); const lead = f?.s === ST.CALLED ? f.o : leaderOf(f, x.k); const c = lead >= 0 ? x.candidates[lead] : undefined;
+          const valid = f ? f.v.slice(0, x.k - 1).reduce((a, b) => a + b, 0) : 0;
+          const sorted = f ? [...f.v.slice(0, x.k - 1)].sort((a, b) => b - a) : [];
+          const margin = valid > 0 ? 100 * ((sorted[0] ?? 0) - (sorted[1] ?? 0)) / valid : 0;
+          return (
+            <tr key={x.i} className={`click${sel === x.i ? ' sel' : ''}`} onClick={() => setSel(x.i)}>
+              <td className="small"><strong>{x.short}</strong>{county === 'all' && (x.countyName || state === -1) && <div className="tiny muted">{[x.countyName, state === -1 ? x.state : null].filter(Boolean).join(', ')}</div>}</td>
+              <td>{c ? <span className="row"><PartyBadge party={c.party} /><span className="small">{c.name}</span></span> : <span className="muted small">—</span>}
+                <div className="tiny muted">{[x.candidates.length === 1 ? 'unopposed' : valid ? `+${margin.toFixed(1)}` : '', f && f.e ? `${Math.min(99, Math.floor(100 * f.b / f.e))}% in` : ''].filter(Boolean).join(' · ')}</div></td>
+              <td><Status f={f} m={x} /></td>
+            </tr>);
+        })}</tbody></table>}
+        {list && rows.length > 400 && <p className="tiny muted">Showing 400 of {rows.length}: pick a county or search.</p>}
+      </div>
+    </div>
+  );
+}
+
 function controlText(c: NightFrameDto['control'][number] | undefined): string {
   if (!c) return 'Control projection';
   const chamber = c.kind === 'senate' ? 'Senate' : 'House';

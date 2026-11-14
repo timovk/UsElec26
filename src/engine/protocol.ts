@@ -18,7 +18,8 @@ export interface StorageInfo { kind: 'opfs' | 'memory'; persisted: boolean | nul
 export type Request =
   | { type: 'init' }
   | { type: 'list' }
-  | { type: 'create'; name: string; seed?: string }
+  | { type: 'create'; name: string; seed?: string; /** County offices simulated (Phase 7.6): every county (default), the major counties, or none. */ county?: 'all' | 'major' | 'off' }
+  | { type: 'countyScope'; scope?: 'all' | 'major' | 'off' }
   | { type: 'open'; id: string }
   | { type: 'close' }
   | { type: 'delete'; id: string }
@@ -122,7 +123,9 @@ export type NightQuery =
   | { kind: 'nightContext'; id: number }
   | { kind: 'nightBaseline'; id: number; race: number }
   | { kind: 'nightSurvey'; id: number; race: number }
-  | { kind: 'nightCalls'; id: number };
+  | { kind: 'nightCalls'; id: number }
+  /** The county races of a state on a night (Phase 7.6): the record's local races, with their county. */
+  | { kind: 'nightLocal'; id: number; /** −1: the featured races of every state (the top offices of the counties of a million people or more). */ state: number };
 
 /** The voter survey of a race (toplines and crosstabs in ballot order), as published on the night. */
 export interface SurveyDto { n: number; shares: number[]; crosstabs: { dim: string; groups: { label: string; pct: number; n: number; shares: number[] }[] }[] }
@@ -162,14 +165,24 @@ export interface NightMetaDto {
   rjCounty: Record<number, number>;
   /** Alerts and commentary for the night (docs/architecture/08 §8.6). */
   story: Story;
+  /** County races counted on the night (Phase 7.6), by state: how many. */
+  localByState: Record<number, number>;
+  /** Featured county races (the executive, sheriff and prosecutor of the counties of a million people or more). */
+  localFeatured?: number;
 }
+
+/** A county race of the night (Phase 7.6): `i` is its index among the record's local races. */
+export interface NightLocalRace extends NightRaceMeta { county: number | null; countyName: string | null }
 
 /** Messages to the Broadcast Worker (playback of a sealed night record). */
 export type BroadcastRequest =
   | { type: 'load'; payload: Uint8Array }
   | { type: 'frame'; t: number; focus: number | null; full?: boolean }
   | { type: 'markers' }
-  | { type: 'raceDetail'; race: number; t: number; truth: boolean };
+  | { type: 'raceDetail'; race: number; t: number; truth: boolean }
+  /** County races (Phase 7.6): the state of the given local races at t, and one local race in detail. */
+  | { type: 'localFrame'; t: number; races: number[] }
+  | { type: 'localDetail'; race: number; t: number };
 /** One race in detail (Analyst Mode); `final` is the end of the count (simulation truth until then), only on request. */
 export interface RaceDetailDto {
   batches: { time: number; rj: number; mode: number; votes: number[] }[];
@@ -268,7 +281,7 @@ export type { IntegrityReport } from '../persistence/audit';
 
 // ---- Phase 2: elections and the archive -----------------------------------------------------------
 export type ArchiveQuery =
-  | { kind: 'elections'; year?: number }
+  | { kind: 'elections'; year?: number; /** Only the county offices' contests (Phase 7.6; otherwise they are left out). */ county?: boolean }
   | { kind: 'electionYears' }
   | { kind: 'contest'; id: number }
   | { kind: 'countyHistory'; county: number }
@@ -399,7 +412,33 @@ export type GovernmentQuery =
   | { kind: 'census' }
   | { kind: 'districtMap'; state: number; plan: 'cd' | 'sldu' | 'sldl'; year: number }
   | { kind: 'electionLaw' }
-  | { kind: 'stateOffices'; state?: number };
+  | { kind: 'stateOffices'; state?: number }
+  /** County government (Phase 7.6): one county's offices and officeholders, or every state's summary. */
+  | { kind: 'countyGovernment'; county: number }
+  | { kind: 'countyOverview' };
+
+/** Office kinds of county government (Phase 7.6; as rules/county2016's CountyKind). */
+export const COUNTY_OFFICE_KINDS = ['county_board', 'county_executive', 'sheriff', 'prosecutor', 'county_clerk', 'court_clerk', 'county_treasurer',
+  'county_assessor', 'county_auditor', 'county_recorder', 'coroner', 'county_surveyor', 'county_official'] as const;
+
+export interface CountySeatDto { officeId: number; title: string; kind: string; district: number; holder: PersonRef | null; since: SimTime | null; acquired: string | null; nextElection: number | null; vacant: boolean }
+/** A county's elected government (Phase 7.6): its bodies (board seats), offices, the multi-county offices covering it, and local news. */
+export interface CountyGovernmentDto {
+  county: number; name: string; state: string; stateIdx: number;
+  scope: 'all' | 'major' | 'off'; inScope: boolean;
+  /** Why the county elects no government of its own (Connecticut, a consolidated city-county's board…), if so. */
+  note: string | null;
+  bodies: { key: string; name: string; by: string; term: number; seats: CountySeatDto[]; byParty: { party: number; seats: number }[] }[];
+  offices: CountySeatDto[];
+  districtOffices: (CountySeatDto & { district: number; districtName: string })[];
+  news: NewsDto[];
+}
+/** Every state's county government in summary (Phase 7.6): boards by majority, and executives, sheriffs and prosecutors by party. */
+export interface CountyOverviewDto {
+  scope: 'all' | 'major' | 'off';
+  states: { stateIdx: number; usps: string; name: string; counties: number; seats: number;
+    boards: { d: number; r: number; split: number }; executives: { d: number; r: number; other: number }; sheriffs: { d: number; r: number; other: number }; prosecutors: { d: number; r: number; other: number } }[];
+}
 
 /** A state's down-ballot offices, elected boards and courts (Phase 7.2), and a national summary of who holds them. */
 export interface StateOfficesDto {

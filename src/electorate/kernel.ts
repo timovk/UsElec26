@@ -124,7 +124,12 @@ export interface ContestOutput {
   id: number;
   units: Int32Array;                 // global BU indices that voted in the contest
   votes: Int32Array;                 // units × (options + 1): candidate votes then undervotes (all modes)
-  rjMode: Int32Array;                // rjCount × N_MODES × (options + 1)
+  rjMode: Int32Array;                // RJs × N_MODES × (options + 1), from the shard's local RJ `rjBase`
+  /**
+   * First local RJ (and with `parts`, first part) the contest's arrays start at: a county race spans a few of a state's
+   * reporting jurisdictions, so its arrays cover only those (Phase 7.6). Ranked-choice contests span the whole shard.
+   */
+  rjBase?: number; partBase?: number;
   expected: Float64Array;            // expected votes per option (analytic), options + 1
   /** With `parts`: units × N_MODES × (options + 1) realized votes. */
   votesByMode?: Int32Array;
@@ -289,17 +294,10 @@ export function runShard(inp: ShardInput): ShardOutput {
     for (let m = 0; m < N_MODES; m++) { const l = inp.modeLogits[a * N_MODES + m]!; u[m] = Number.isFinite(l) ? dexp(l + inp.modeGap[m]! * ZC[g]!) : 0; s += u[m]!; }
     for (let m = 0; m < N_MODES; m++) modeP[(a * ZG + g) * N_MODES + m] = u[m]! / s;
   }
-  // Contest bookkeeping.
+  // Contest bookkeeping (the outputs are allocated below, once each contest's reach is known).
   const outs: ContestOutput[] = [];
   const unitLists: IntBuf[] = [], voteLists: IntBuf[] = [], modeLists: IntBuf[] = [];
   const night = inp.parts;
-  for (const c of inp.contests) {
-    const k = c.options.length + 1;
-    outs.push({ id: c.id, units: new Int32Array(0), votes: new Int32Array(0), rjMode: new Int32Array(inp.rjCount * N_MODES * k), expected: new Float64Array(k),
-      ...(night ? { expPartMode: new Float64Array(night.count * N_MODES * k) } : {}),
-      ...(c.rcv ? { rcvComp: new Float64Array(inp.rjCount * (k - 1) * N_TYPES), rcvCounty: new Int32Array(inp.rjCount).fill(-1) } : {}) });
-    unitLists.push(new IntBuf()); voteLists.push(new IntBuf()); modeLists.push(new IntBuf());
-  }
   const expBallotsPartMode = night ? new Float64Array(night.count * N_MODES) : undefined;
   const V = new Float64Array(N_MODES * N_TYPES);       // voters by mode and type
   const sc = typeScratch(inp, false), WA = sc.WA;     // voters by (age band × class) group and z bin
@@ -356,6 +354,26 @@ export function runShard(inp: ShardInput): ShardOutput {
     if (mine.length > 1) mine.sort((a, b) => a - b);
     return mine;
   };
+  // Each contest's reach: the range of local RJs (and night parts) of the units that vote in it.
+  const C = inp.contests.length;
+  const rjLo = new Int32Array(C).fill(2 ** 30), rjHi = new Int32Array(C).fill(-1), pLo = new Int32Array(C).fill(2 ** 30), pHi = new Int32Array(C).fill(-1);
+  for (let i = 0; i < n; i++) {
+    if (Math.round(inp.bus.vep[i]!) <= 0) continue;
+    const rl = inp.bus.rj[i]! - inp.rjFirst, pt = night ? night.of[i]! : -1;
+    for (const ci of unitContests(i)) {
+      if (rl < rjLo[ci]!) rjLo[ci] = rl; if (rl > rjHi[ci]!) rjHi[ci] = rl;
+      if (pt >= 0) { if (pt < pLo[ci]!) pLo[ci] = pt; if (pt > pHi[ci]!) pHi[ci] = pt; }
+    }
+  }
+  inp.contests.forEach((c, ci) => {
+    const k = c.options.length + 1;
+    const rb = c.rcv || rjHi[ci]! < 0 ? 0 : rjLo[ci]!, rs = c.rcv ? inp.rjCount : Math.max(0, rjHi[ci]! - rjLo[ci]! + 1);
+    const pb = night && pHi[ci]! >= 0 ? pLo[ci]! : 0, ps = night ? Math.max(0, pHi[ci]! - pLo[ci]! + 1) : 0;
+    outs.push({ id: c.id, units: new Int32Array(0), votes: new Int32Array(0), rjMode: new Int32Array(rs * N_MODES * k), rjBase: rb, expected: new Float64Array(k),
+      ...(night ? { expPartMode: new Float64Array(ps * N_MODES * k), partBase: pb } : {}),
+      ...(c.rcv ? { rcvComp: new Float64Array(inp.rjCount * (k - 1) * N_TYPES), rcvCounty: new Int32Array(inp.rjCount).fill(-1) } : {}) });
+    unitLists.push(new IntBuf()); voteLists.push(new IntBuf()); modeLists.push(new IntBuf());
+  });
   // Scratch per contest (zeroed before each use) and per unit.
   const totS = inp.contests.map((c) => new Int32Array(c.options.length + 1));
   const byModeS = night ? inp.contests.map((c) => new Int32Array(N_MODES * (c.options.length + 1))) : null;
@@ -406,7 +424,7 @@ export function runShard(inp: ShardInput): ShardOutput {
         if (N > 1) { unusedExp = N * lm[m]!; for (let j = 0; j < J; j++) unusedExp -= pbar[j]!; }
         for (let j = 0; j < J; j++) out.expected[j]! += pbar[j]!;
         out.expected[J]! += unusedExp;
-        if (out.expPartMode) { const eo = (unitPart * N_MODES + m) * K; for (let j = 0; j < J; j++) out.expPartMode[eo + j]! += pbar[j]!; out.expPartMode[eo + J]! += unusedExp; }
+        if (out.expPartMode) { const eo = ((unitPart - out.partBase!) * N_MODES + m) * K; for (let j = 0; j < J; j++) out.expPartMode[eo + j]! += pbar[j]!; out.expPartMode[eo + J]! += unusedExp; }
         if (out.rcvComp) { // ranked-choice: who is behind each first choice (the undervote has no ranking)
           for (let j = 0; j < J; j++) { const co = (rjLocal * J + j) * N_TYPES, row = j * N_TYPES, vo = m * N_TYPES; for (let ty = 0; ty < N_TYPES; ty++) out.rcvComp[co + ty]! += V[vo + ty]! * P[row + ty]!; }
           if (out.rcvCounty![rjLocal]! < 0) out.rcvCounty![rjLocal] = county;
@@ -420,7 +438,7 @@ export function runShard(inp: ShardInput): ShardOutput {
           for (let j = 0; j < J; j++) { draw[j] = voters > 0 && den > 0 ? Math.min(r.binomial(voters, Math.min(1, pbar[j]! / den)), N * voters - used) : 0; used += draw[j]!; }
           draw[J] = N * bm[m]! - used;
         } else r.multinomial(bm[m]!, pbar.subarray(0, K), draw);
-        const ro = (rjLocal * N_MODES + m) * K;
+        const ro = ((rjLocal - out.rjBase!) * N_MODES + m) * K;
         for (let j = 0; j < K; j++) { tot[j]! += draw[j]!; out.rjMode[ro + j]! += draw[j]!; }
         if (byMode) for (let j = 0; j < K; j++) byMode[m * K + j] = draw[j]!;
       }

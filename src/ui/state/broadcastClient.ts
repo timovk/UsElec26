@@ -1,5 +1,5 @@
 /** Main-thread client for the Broadcast Worker (election-night playback). */
-import type { BroadcastRequest, NightFrameDto, NightMarker, RaceDetailDto } from '../../engine/protocol';
+import type { BroadcastRequest, NightFrameDto, NightMarker, NightRaceFrame, RaceDetailDto } from '../../engine/protocol';
 
 export class BroadcastClient {
   private worker: Worker;
@@ -24,5 +24,8 @@ export class BroadcastClient {
   frame(t: number, focus: number | null, full = false): Promise<NightFrameDto> { return this.request({ type: 'frame', t, focus, full }); }
   markers(): Promise<NightMarker[]> { return this.request({ type: 'markers' }); }
   raceDetail(race: number, t: number, truth: boolean): Promise<RaceDetailDto> { return this.request({ type: 'raceDetail', race, t, truth }); }
+  /** County races (Phase 7.6): frames of the given local races, and one in detail. */
+  localFrame(t: number, races: number[]): Promise<NightRaceFrame[]> { return this.request({ type: 'localFrame', t, races }); }
+  localDetail(race: number, t: number): Promise<RaceDetailDto> { return this.request({ type: 'localDetail', race, t }); }
   terminate(): void { this.worker.terminate(); }
 }

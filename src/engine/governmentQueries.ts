@@ -18,6 +18,7 @@ import { describeLaw } from '../rules/electionLaw';
 import type { Universe } from './universe';
 import { leanMargin } from './world';
 import { congressNumber } from './governmentEngine';
+import { countyGovernment, countyOverview } from './countyQueries';
 
 export async function runGovernmentQuery(u: Universe, q: GovernmentQuery): Promise<unknown> {
   switch (q.kind) {
@@ -29,6 +30,8 @@ export async function runGovernmentQuery(u: Universe, q: GovernmentQuery): Promi
     case 'districtMap': return districtMap(u, q.state, q.plan, q.year);
     case 'electionLaw': return electionLaw(u);
     case 'stateOffices': return stateOffices(u, q.state);
+    case 'countyGovernment': return countyGovernment(u, q.county);
+    case 'countyOverview': return countyOverview(u);
   }
 }
 
@@ -272,7 +275,7 @@ function stateOffices(u: Universe, state?: number): StateOfficesDto {
   const summary = w.pack.states.map((s) => {
     const defs = DOWNBALLOT_2016[s.usps] ?? [];
     const sc = defs.find((b) => b.key === 'supreme');
-    const seats = (pred: (b: BodyDef) => boolean) => comp(w.offices.filter((o) => o.stateIdx === s.idx && o.seat && pred(seatBody(w, o)!)).map((o) => ({ party: w.current.get(o.id)?.partyId ?? null })));
+    const seats = (pred: (b: BodyDef) => boolean) => comp(w.offices.filter((o) => { const b = o.stateIdx === s.idx ? seatBody(w, o) : undefined; return !!b && pred(b); }).map((o) => ({ party: w.current.get(o.id)?.partyId ?? null })));
     return { stateIdx: s.idx, usps: s.usps, name: s.name, court: seats((b) => b.kind === 'justice'), courtSelection: sc ? selectionText(sc, s.usps) : '—', executive: seats((b) => groupOf(b) === 'executive') };
   }).filter((x) => x.court.length || x.executive.length);
   return { stateIdx, states: w.pack.states.filter((s) => DOWNBALLOT_2016[s.usps]?.length).map((s) => ({ stateIdx: s.idx, usps: s.usps, name: s.name })), bodies, summary };

@@ -36,6 +36,11 @@ self.onmessage = async (ev: MessageEvent<{ id: number; req: BroadcastRequest }>)
     else if (req.type === 'frame') result = frame(req.t, req.focus, !!req.full);
     else if (req.type === 'markers') result = pb.markers();
     else if (req.type === 'raceDetail') result = { ...pb.raceDetail(req.race, req.t), final: req.truth ? pb.finalVotes(req.race) : null };
+    else if (req.type === 'localFrame') result = req.races.filter((i) => i >= 0 && i < pb!.localCount).map((i): NightRaceFrame => {
+      const r = pb!.localState(i, req.t);
+      return { i, s: r.status, o: r.option, o2: r.option2, p: r.prob, b: r.ballots, e: r.expected, pr: r.precincts, v: Array.from(r.votes), ca: r.calledAt, pc: r.pollClose };
+    });
+    else if (req.type === 'localDetail') result = { ...pb.localDetail(req.race, req.t), final: null };
     self.postMessage({ id, ok: true, result });
   } catch (e) {
     self.postMessage({ id, ok: false, error: e instanceof Error ? e.message : String(e) });

@@ -234,7 +234,15 @@ export function planSchedule(inp: ScheduleInput): Schedule {
   return sch;
 }
 
-export interface RaceSpec { contest: number; cd: number; k: number }
+export interface RaceSpec {
+  contest: number; cd: number; k: number;
+  /**
+   * A county race (Phase 7.6): its votes are pooled by night part and mode, then split across the part's batches, instead
+   * of unit by unit (thousands of small races; a batch then carries its part's mix rather than its own units'). Ballots
+   * never counted are still drawn unit by unit: the certified results subtract them per unit.
+   */
+  pooled?: boolean;
+}
 export interface ContestCells { units: Int32Array; votesByMode: Int32Array }
 
 export interface Partition {
@@ -246,6 +254,8 @@ export interface Partition {
   unkey: (key: number) => [number, number, number];
 }
 
+const sumOf = (a: Int32Array): number => { let t = 0; for (let j = 0; j < a.length; j++) t += a[j]!; return t; };
+
 /** Split every cell's votes across its chunks (multivariate hypergeometric), race by race. */
 export function partitionVotes(sch: Schedule, races: RaceSpec[], contests: ContestCells[], unitStart: number, unitCd: ArrayLike<number>, parts: Parts, key: string): Partition {
   const R = races.length, P = parts.count;
@@ -255,7 +265,43 @@ export function partitionVotes(sch: Schedule, races: RaceSpec[], contests: Conte
   const rejected = races.map((rc) => new Int32Array(rc.k));
   const rejectedUnits = races.map(() => ({ units: [] as number[], modes: [] as number[], votes: [] as number[] }));
   const r = Rng.stream(key, 'partition');
+  /**
+   * The count's structure over a set of units, shared by every county race on those units (a county's offices are
+   * a dozen races over the same units): each cell's pool (part × mode) and rejected chunks, and each pool's batches.
+   */
+  interface PoolPlan { units: Int32Array; cells: { u: number; m: number; pool: number; counted: boolean; rejected: number[] }[]; pools: Map<number, { batches: Int32Array; n: Float64Array }> }
+  const plans = new Map<string, PoolPlan[]>();
+  const poolPlan = (units: Int32Array, cd: number): PoolPlan => {
+    let h = 0; for (let x = 0; x < units.length; x++) h = (Math.imul(h, 31) + units[x]!) | 0;
+    const key = `${cd}|${units.length}|${h}`;
+    const list = plans.get(key) ?? [];
+    for (const p of list) if (p.units.length === units.length && p.units.every((v, x) => v === units[x])) return p;
+    const cells: PoolPlan['cells'] = [], acc = new Map<number, Map<number, number>>();
+    for (let u = 0; u < units.length; u++) {
+      const i = units[u]! - unitStart;
+      if (cd >= 0 && unitCd[i] !== cd) continue;
+      const part = parts.of[i]!;
+      for (let m = 0; m < N_MODES; m++) {
+        const chunks = sch.cells.get(i * N_MODES + m); if (!chunks) continue;
+        const pool = part * N_MODES + m, rejectedN: number[] = [];
+        let counted = false;
+        for (const ch of chunks) {
+          if (ch.batch < 0) { rejectedN.push(ch.n); continue; }
+          counted = true;
+          let b = acc.get(pool); if (!b) { b = new Map(); acc.set(pool, b); }
+          b.set(ch.batch, (b.get(ch.batch) ?? 0) + ch.n);
+        }
+        cells.push({ u, m, pool, counted, rejected: rejectedN });
+      }
+    }
+    const pools = new Map<number, { batches: Int32Array; n: Float64Array }>();
+    for (const [pool, b] of acc) { const bs = [...b].sort((x, y) => x[0] - y[0]); pools.set(pool, { batches: Int32Array.from(bs, (x) => x[0]), n: Float64Array.from(bs, (x) => x[1]) }); }
+    const plan = { units, cells, pools };
+    list.push(plan); plans.set(key, list);
+    return plan;
+  };
   races.forEach((rc, ri) => {
+    if (rc.pooled) { partitionPooled(rc, ri); return; }
     const c = contests[rc.contest]!; const K = rc.k;
     const rem = new Int32Array(K), draw = new Int32Array(K);
     for (let u = 0; u < c.units.length; u++) {
@@ -284,6 +330,44 @@ export function partitionVotes(sch: Schedule, races: RaceSpec[], contests: Conte
       }
     }
   });
+  function partitionPooled(rc: RaceSpec, ri: number): void {
+    const c = contests[rc.contest]!; const K = rc.k;
+    const rem = new Int32Array(K), draw = new Int32Array(K);
+    const plan = poolPlan(c.units, rc.cd);
+    const votes = new Map<number, Int32Array>();
+    for (const cell of plan.cells) {
+      const base = (cell.u * N_MODES + cell.m) * K;
+      for (let j = 0; j < K; j++) rem[j] = c.votesByMode[base + j]!;
+      if (cell.rejected.length) {
+        // Ballots never counted: drawn unit by unit (the certified results subtract them unit by unit).
+        const rejRow = new Int32Array(K);
+        cell.rejected.forEach((n, q) => {
+          if (q === cell.rejected.length - 1 && !cell.counted) draw.set(rem); else r.mvHypergeometric(rem, n, draw);
+          for (let j = 0; j < K; j++) { rem[j]! -= draw[j]!; rejected[ri]![j]! += draw[j]!; rejRow[j]! += draw[j]!; }
+        });
+        const ru = rejectedUnits[ri]!; ru.units.push(c.units[cell.u]!); ru.modes.push(cell.m); for (let j = 0; j < K; j++) ru.votes.push(rejRow[j]!);
+      }
+      if (!cell.counted) continue;
+      let v = votes.get(cell.pool); if (!v) { v = new Int32Array(K); votes.set(cell.pool, v); }
+      for (let j = 0; j < K; j++) v[j]! += rem[j]!;
+    }
+    // Each pool's votes across its batches, in proportion to the ballots each batch counts there.
+    for (const [pool, v] of votes) {
+      const pl = plan.pools.get(pool)!, part = (pool - (pool % N_MODES)) / N_MODES, B = pl.batches.length;
+      let nTot = 0; for (let q = 0; q < B; q++) nTot += pl.n[q]!;
+      const V = sumOf(v); rem.set(v);
+      let cum = 0, given = 0;
+      for (let q = 0; q < B; q++) {
+        cum += pl.n[q]!;
+        if (q === B - 1) draw.set(rem);
+        else { const upTo = nTot > 0 ? Math.round((cum / nTot) * V) : 0; r.mvHypergeometric(rem, Math.max(0, upTo - given), draw); given = Math.max(given, upTo); }
+        for (let j = 0; j < K; j++) rem[j]! -= draw[j]!;
+        const kk = keyOf(pl.batches[q]!, ri, part);
+        let row = rows.get(kk); if (!row) { row = new Int32Array(K); rows.set(kk, row); }
+        for (let j = 0; j < K; j++) row[j]! += draw[j]!;
+      }
+    }
+  }
   // Glitches: one candidate's votes in one row of the glitch batch are published short and restored by the correction.
   const g = Rng.stream(key, 'glitch');
   for (const { batch, correction } of sch.glitches) {

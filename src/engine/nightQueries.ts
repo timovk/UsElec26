@@ -3,12 +3,13 @@ import { fullName, optionPerson } from '../institutions/model';
 import { isoDay } from '../core/time';
 import { Playback } from '../broadcast/playback';
 import { raceShort } from './nightStory';
-import type { BaselineCountiesDto, BaselineDto, NightCallDto, NightContextDto, NightListItem, NightMetaDto, NightQuery, SurveyDto } from './protocol';
+import type { BaselineCountiesDto, BaselineDto, NightCallDto, NightContextDto, NightListItem, NightMetaDto, NightQuery, SurveyDto, NightLocalRace } from './protocol';
 import { ST_CALLED, ST_RUNOFF, ST_WITHDRAWN } from '../counting/types';
 import { readRollup } from '../archive/results';
 import { baselineContest, eligibleOf, rjTotals } from './baselines';
 import type { Universe } from './universe';
 import { isUnit, unitNames, unitStates } from '../geo/reportingUnits';
+import { countyNewsLocal } from './county';
 
 export async function runNightQuery(u: Universe, q: NightQuery): Promise<unknown> {
   switch (q.kind) {
@@ -18,6 +19,7 @@ export async function runNightQuery(u: Universe, q: NightQuery): Promise<unknown
     case 'nightBaseline': return nightBaseline(u, q.id, q.race);
     case 'nightSurvey': return nightSurvey(u, q.id, q.race);
     case 'nightCalls': return nightCalls(u, q.id);
+    case 'nightLocal': return nightLocal(u, q.id, q.state);
     case 'nightPayload': {
       const row = u.db.get<{ payload: Uint8Array }>('SELECT payload FROM night WHERE night_id = ?', [q.id]);
       return row ? { bytes: row.payload.slice() } : null;
@@ -54,7 +56,53 @@ async function nightMeta(u: Universe, id: number): Promise<NightMetaDto | null> 
     rjs: Object.fromEntries([...new Set(rec.parts.rj)].map((rj) => [rj, unitNames(pack)[rj] ?? `#${rj}`])),
     rjCounty: Object.fromEntries([...new Set(rec.parts.rj)].flatMap((rj) => { const c = pack.rj[rj]?.countyIdx; return c === null || c === undefined ? [] : [[rj, c]]; })),
     story: rec.story ?? { version: 1, alerts: [], lines: [], speakers: [] },
+    localByState: (rec.local?.races ?? []).reduce<Record<number, number>>((a, r) => { a[r.stateIdx] = (a[r.stateIdx] ?? 0) + 1; return a; }, {}),
+    localFeatured: rec.local ? featuredOf(u, id).size : 0,
   };
+}
+
+/** A state's county races on a night (Phase 7.6), in county and office order. */
+/** The featured county races of a night (Phase 7.6): the executive, sheriff and prosecutor of the counties of a million people or more. */
+let featuredCache: { u: Universe; id: number; set: Set<number> } | null = null;
+function featuredOf(u: Universe, id: number): Set<number> {
+  if (featuredCache?.u === u && featuredCache.id === id) return featuredCache.set;
+  const set = new Set<number>();
+  for (const r of u.db.all<{ contest_id: number; office_id: number }>('SELECT c.contest_id, c.office_id FROM contest c JOIN night_election ne ON ne.election_id = c.election_id WHERE ne.night_id = ? AND c.local = 1', [id])) {
+    const o = u.world.officeById.get(r.office_id);
+    if (o && !countyNewsLocal(u.world, o)) set.add(r.contest_id);
+  }
+  featuredCache = { u, id, set };
+  return set;
+}
+
+/** A state's county races on the night, or (state −1) the featured races of every state. */
+async function nightLocal(u: Universe, id: number, state: number): Promise<NightLocalRace[]> {
+  const rec = await u.elections.nightRecord(id);
+  const L = rec?.local; if (!L) return [];
+  const pack = u.world.pack;
+  const featured = state < 0 ? featuredOf(u, id) : null;
+  const mine = new Set(L.races.filter((r) => (featured ? featured.has(r.contestId) : r.stateIdx === state)).map((r) => r.contestId));
+  const names = new Map<number, { person: number; incumbent: number }>();
+  const ids = L.races.filter((r) => mine.has(r.contestId)).flatMap((r) => r.candidacyIds);
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    for (const k of u.db.all<{ candidacy_id: number; person_id: number; incumbent: number }>(`SELECT candidacy_id, person_id, incumbent FROM candidacy WHERE candidacy_id IN (${chunk.map(() => '?').join(',')})`, chunk)) names.set(k.candidacy_id, { person: k.person_id, incumbent: k.incumbent });
+  }
+  const out: NightLocalRace[] = [];
+  L.races.forEach((r, i) => {
+    if (!mine.has(r.contestId)) return;
+    const st = pack.states[r.stateIdx]!;
+    const o = u.db.get<{ office_id: number }>('SELECT office_id FROM contest WHERE contest_id = ?', [r.contestId]);
+    const office = o ? u.world.officeById.get(o.office_id) : undefined;
+    const county = office?.seat?.county !== undefined && office.seat.county >= 0 ? office.seat.county : null;
+    out.push({
+      i, contestId: r.contestId, label: r.label.replace(/^\d{4} /, ''), short: (office?.title ?? r.label).replace(/, [^,]+ County$/, '').replace(/^\d{4} /, ''), office: r.office, state: st.usps, stateIdx: r.stateIdx, cd: -1, ev: 0, k: r.k,
+      candidates: r.candidacyIds.map((c, j) => { const n = names.get(c); const p = n ? u.world.persons.get(n.person) : undefined; return { candidacyId: c, personId: n?.person ?? -1, name: p ? fullName(p) : `#${c}`, party: r.parties[j]!, incumbent: !!n?.incumbent }; }),
+      precincts: r.precincts, close: r.close, district: null, county, countyName: county !== null ? pack.counties[county]!.fullName : null,
+    });
+  });
+  return state >= 0 ? out.sort((a, b) => (a.countyName ?? '~').localeCompare(b.countyName ?? '~') || a.contestId - b.contestId)
+    : out.sort((a, b) => a.state.localeCompare(b.state) || (a.countyName ?? '~').localeCompare(b.countyName ?? '~') || a.contestId - b.contestId);
 }
 
 /** Engine-side playback for results views while a count is in progress (one cached night). */
@@ -84,7 +132,7 @@ export async function liveContest(u: Universe, contestId: number, detail = true)
   if (nightId === undefined) return null;
   const pb = await playbackFor(u, nightId); if (!pb) return null;
   const ri = pb.rec.races.findIndex((r) => r.contestId === contestId && r.cd < 0);
-  if (ri < 0) return null;
+  if (ri < 0) return liveLocal(u, pb, contestId, nightId, detail);
   const t = u.world.time, key = `${nightId}:${t}`;
   if (snapCache?.pb !== pb || snapCache.key !== key) snapCache = { pb, key, snap: pb.at(t) };
   const st = snapCache.snap.races[ri]!, race = pb.rec.races[ri]!;
@@ -104,6 +152,24 @@ export async function liveContest(u: Universe, contestId: number, detail = true)
     votes, undervotes: st.votes[race.k - 1]!, ballots: st.ballots, expected: st.expected, precincts: st.precincts, totalPrecincts: race.precincts,
     status: st.status, called: st.status === 3 && st.option >= 0 ? race.candidacyIds[st.option]! : null, calledAt: st.calledAt >= 0 ? st.calledAt : null, prob: st.prob,
     byCounty, byMode, nightId,
+  };
+}
+
+/** A county race being counted (Phase 7.6): read from the record's local races. */
+function liveLocal(u: Universe, pb: Playback, contestId: number, nightId: number, detail: boolean): LiveContest | null {
+  const L = pb.rec.local; if (!L) return null;
+  const li = pb.localOf(contestId); if (li < 0) return null;
+  const t = u.world.time, st = pb.localState(li, t), race = L.races[li]!;
+  const byCounty = new Map<number, number[]>();
+  if (detail) for (const [rj, v] of pb.localByRj(li, t)) {
+    const county = u.world.pack.rj[rj]?.countyIdx; if (county === null || county === undefined) continue;
+    const a = byCounty.get(county) ?? new Array<number>(race.k).fill(0); for (let j = 0; j < race.k; j++) a[j]! += v[j]!; byCounty.set(county, a);
+  }
+  const byMode = detail ? pb.localDetail(li, t, 0).byMode : [0, 1, 2, 3].map(() => new Array<number>(race.k).fill(0));
+  return {
+    votes: new Map(race.candidacyIds.map((cid, j) => [cid, st.votes[j]!])), undervotes: st.votes[race.k - 1]!, ballots: st.ballots, expected: st.expected,
+    precincts: st.precincts, totalPrecincts: race.precincts, status: st.status, called: st.status === 3 && st.option >= 0 ? race.candidacyIds[st.option]! : null,
+    calledAt: st.calledAt >= 0 ? st.calledAt : null, prob: st.prob, byCounty, byMode, nightId,
   };
 }
 
